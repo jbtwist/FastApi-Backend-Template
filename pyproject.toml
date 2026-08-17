@@ -1,0 +1,23 @@
+[project]
+name = "todoapp"
+version = "0.1.0"
+description = "A todo application"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+    "error::DeprecationWarning",
+]
+
+[tool.pytest.ini_options.markers]
+integration = "marks tests as integration tests (deselect with '-m \"not integration\"')"
