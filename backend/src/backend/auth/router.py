@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Cookie, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from redis_fastapi import rate_limit
 
 from backend.auth import service
 from backend.auth.cookies import (
@@ -42,7 +43,12 @@ def _set_token_cookies(
     response.set_cookie(**refresh_token_cookie(pair.refresh_token, config=config))
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("5/minute"))],
+)
 async def register(payload: RegisterIn, user_repo: UserRepoDep) -> UserOut:
     try:
         user = await service.register_user(
@@ -54,7 +60,11 @@ async def register(payload: RegisterIn, user_repo: UserRepoDep) -> UserOut:
     return UserOut(id=user.id, email=user.email)
 
 
-@router.post("/login", response_model=LoginOut)
+@router.post(
+    "/login",
+    response_model=LoginOut,
+    dependencies=[Depends(rate_limit("10/minute"))],
+)
 async def login(
     payload: LoginIn,
     response: Response,

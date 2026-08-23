@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from redis_fastapi import FastAPIRedis
 
 from backend.auth.router import router as auth_router
 
 app = FastAPI(title="GTD Backend")
+FastAPIRedis(app).lifespan().rate_limiting()
 app.include_router(auth_router)
 
 
