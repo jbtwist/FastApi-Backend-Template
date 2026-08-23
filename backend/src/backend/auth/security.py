@@ -1,11 +1,12 @@
 import secrets
+import uuid
 from datetime import datetime
 from hashlib import sha256
 
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from backend.auth.config import AuthConfig
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
@@ -37,22 +38,26 @@ def create_access_token(sub: str, *, config: AuthConfig, now: datetime) -> str:
     return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALG)
 
 
-def decode_access_token(token: str, *, config: AuthConfig, now: datetime) -> dict:
+def decode_access_token(token: str, *, config: AuthConfig) -> dict:
     try:
         payload = jwt.decode(
             token,
             config.JWT_SECRET,
             algorithms=[config.JWT_ALG],
-            options={"verify_exp": False},
+            options={"require": ["exp"]},
         )
+    except ExpiredSignatureError as exc:
+        raise AccessTokenExpired from exc
     except InvalidTokenError as exc:
         raise InvalidAccessToken from exc
 
     if "sub" not in payload:
         raise InvalidAccessToken
 
-    if payload["exp"] <= int(now.timestamp()):
-        raise AccessTokenExpired
+    try:
+        uuid.UUID(payload["sub"])
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise InvalidAccessToken from exc
 
     return payload
 

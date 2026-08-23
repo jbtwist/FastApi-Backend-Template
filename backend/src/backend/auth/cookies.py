@@ -38,24 +38,12 @@ def refresh_token_cookie(refresh_token: str, *, config: AuthConfig) -> CookiePar
 
 
 def clear_access_token_cookie(*, config: AuthConfig) -> CookieParams:
-    return CookieParams(
-        key="access_token",
-        value="",
-        max_age=0,
-        path="/",
-        httponly=True,
-        secure=config.COOKIE_SECURE,
-        samesite="lax",
-    )
+    cookie = access_token_cookie("", config=config)
+    cookie["max_age"] = 0
+    return cookie
 
 
 def clear_refresh_token_cookie(*, config: AuthConfig) -> CookieParams:
-    return CookieParams(
-        key="refresh_token",
-        value="",
-        max_age=0,
-        path="/auth",
-        httponly=True,
-        secure=config.COOKIE_SECURE,
-        samesite="lax",
-    )
+    cookie = refresh_token_cookie("", config=config)
+    cookie["max_age"] = 0
+    return cookie

@@ -1,5 +1,4 @@
 import uuid
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -42,7 +41,7 @@ async def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
-        payload = decode_access_token(access_token, config=config, now=datetime.now(UTC))
+        payload = decode_access_token(access_token, config=config)
     except (InvalidAccessToken, AccessTokenExpired) as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated") from exc
 

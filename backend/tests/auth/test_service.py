@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -253,6 +254,25 @@ class TestRotateRefreshToken:
             await service.rotate_refresh_token(
                 refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
             )
+
+    async def test_losing_the_mark_used_race_is_treated_as_reuse_and_revokes_family(
+        self, refresh_token_repo, registered_user, auth_config, monkeypatch
+    ):
+        # simulates two concurrent /auth/refresh calls with the same token: both
+        # pass the initial used_at/revoked/expired checks, but only one can win
+        # the atomic mark_used update. The loser must be treated as reuse.
+        original = await service.issue_token_pair(
+            refresh_token_repo, registered_user, config=auth_config, now=NOW
+        )
+        monkeypatch.setattr(refresh_token_repo, "mark_used", AsyncMock(return_value=False))
+
+        with pytest.raises(RefreshTokenReuseDetected):
+            await service.rotate_refresh_token(
+                refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+            )
+
+        record = await refresh_token_repo.get_by_hash(_hash(original.refresh_token))
+        assert record.revoked_at == NOW
 
 
 class TestLogout:
