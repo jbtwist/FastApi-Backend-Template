@@ -23,5 +23,5 @@ SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_db() -> AsyncSession:
-    async with SessionFactory() as session:
+    async with SessionFactory() as session, session.begin():
         yield session

@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import Cookie, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.config import AuthConfig, auth_settings
@@ -31,17 +32,21 @@ def get_refresh_token_repo(db: DbDep) -> SqlRefreshTokenRepository:
 UserRepoDep = Annotated[SqlUserRepository, Depends(get_user_repo)]
 RefreshTokenRepoDep = Annotated[SqlRefreshTokenRepository, Depends(get_refresh_token_repo)]
 
+bearer_scheme = HTTPBearer(auto_error=False)
+
 
 async def get_current_user(
     user_repo: UserRepoDep,
     config: AuthConfigDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
     access_token: Annotated[str | None, Cookie()] = None,
 ) -> User:
-    if access_token is None:
+    token = credentials.credentials if credentials is not None else access_token
+    if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
-        payload = decode_access_token(access_token, config=config)
+        payload = decode_access_token(token, config=config)
     except (InvalidAccessToken, AccessTokenExpired) as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated") from exc
 

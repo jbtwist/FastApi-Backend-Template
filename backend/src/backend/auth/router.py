@@ -22,7 +22,15 @@ from backend.auth.exceptions import (
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
 )
-from backend.auth.schemas import LoginIn, RegisterIn, UserOut
+from backend.auth.schemas import (
+    LoginIn,
+    LoginOut,
+    LogoutIn,
+    RefreshIn,
+    RegisterIn,
+    TokenPairOut,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,14 +54,14 @@ async def register(payload: RegisterIn, user_repo: UserRepoDep) -> UserOut:
     return UserOut(id=user.id, email=user.email)
 
 
-@router.post("/login", response_model=UserOut)
+@router.post("/login", response_model=LoginOut)
 async def login(
     payload: LoginIn,
     response: Response,
     user_repo: UserRepoDep,
     refresh_token_repo: RefreshTokenRepoDep,
     config: AuthConfigDep,
-) -> UserOut:
+) -> LoginOut:
     try:
         user = await service.authenticate_user(
             user_repo, email=payload.email, password=payload.password
@@ -65,22 +73,29 @@ async def login(
         refresh_token_repo, user, config=config, now=datetime.now(UTC)
     )
     _set_token_cookies(response, pair, config=config)
-    return UserOut(id=user.id, email=user.email)
+    return LoginOut(
+        id=user.id,
+        email=user.email,
+        access_token=pair.access_token,
+        refresh_token=pair.refresh_token,
+    )
 
 
-@router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/refresh", response_model=TokenPairOut)
 async def refresh(
     response: Response,
     refresh_token_repo: RefreshTokenRepoDep,
     config: AuthConfigDep,
+    payload: RefreshIn | None = None,
     refresh_token: str | None = Cookie(default=None),
-) -> None:
-    if refresh_token is None:
+) -> TokenPairOut:
+    raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
+    if raw_refresh_token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
         pair = await service.rotate_refresh_token(
-            refresh_token_repo, refresh_token, config=config, now=datetime.now(UTC)
+            refresh_token_repo, raw_refresh_token, config=config, now=datetime.now(UTC)
         )
     except (InvalidRefreshToken, RefreshTokenExpired, RefreshTokenReuseDetected) as exc:
         response.set_cookie(**clear_access_token_cookie(config=config))
@@ -88,6 +103,7 @@ async def refresh(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated") from exc
 
     _set_token_cookies(response, pair, config=config)
+    return TokenPairOut(access_token=pair.access_token, refresh_token=pair.refresh_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -95,10 +111,12 @@ async def logout(
     response: Response,
     refresh_token_repo: RefreshTokenRepoDep,
     config: AuthConfigDep,
+    payload: LogoutIn | None = None,
     refresh_token: str | None = Cookie(default=None),
 ) -> None:
-    if refresh_token is not None:
-        await service.logout(refresh_token_repo, refresh_token, now=datetime.now(UTC))
+    raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
+    if raw_refresh_token is not None:
+        await service.logout(refresh_token_repo, raw_refresh_token, now=datetime.now(UTC))
 
     response.set_cookie(**clear_access_token_cookie(config=config))
     response.set_cookie(**clear_refresh_token_cookie(config=config))

@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -16,3 +17,21 @@ class LoginIn(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str
+
+
+class TokenPairOut(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: Literal["bearer"] = "bearer"
+
+
+class LoginOut(UserOut, TokenPairOut):
+    pass
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str | None = None
+
+
+class LogoutIn(BaseModel):
+    refresh_token: str | None = None
