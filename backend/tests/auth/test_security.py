@@ -91,9 +91,7 @@ class TestAccessToken:
         assert payload["iat"] == int(now.timestamp())
         assert payload["exp"] == int((now + auth_config.ACCESS_TOKEN_EXP).timestamp())
 
-    def test_decode_access_token_returns_payload_for_valid_token(
-        self, auth_config, freeze_time
-    ):
+    def test_decode_access_token_returns_payload_for_valid_token(self, auth_config, freeze_time):
         now = datetime(2026, 1, 1, tzinfo=UTC)
         token = security.create_access_token(TEST_USER_ID, config=auth_config, now=now)
 
@@ -136,9 +134,7 @@ class TestAccessToken:
         with pytest.raises(InvalidAccessToken):
             security.decode_access_token("not-a-jwt-at-all", config=auth_config)
 
-    def test_decode_access_token_raises_exactly_at_expiry_instant(
-        self, auth_config, freeze_time
-    ):
+    def test_decode_access_token_raises_exactly_at_expiry_instant(self, auth_config, freeze_time):
         now = datetime(2026, 1, 1, tzinfo=UTC)
         token = security.create_access_token(TEST_USER_ID, config=auth_config, now=now)
         exact_expiry = now + auth_config.ACCESS_TOKEN_EXP
@@ -165,9 +161,7 @@ class TestAccessToken:
         with pytest.raises(InvalidAccessToken):
             security.decode_access_token(mismatched_token, config=auth_config)
 
-    def test_decode_access_token_raises_when_sub_claim_is_missing(
-        self, auth_config, freeze_time
-    ):
+    def test_decode_access_token_raises_when_sub_claim_is_missing(self, auth_config, freeze_time):
         now = datetime(2026, 1, 1, tzinfo=UTC)
         token_without_sub = jwt.encode(
             {"iat": int(now.timestamp()), "exp": int((now + timedelta(days=1)).timestamp())},
@@ -253,3 +247,34 @@ class TestRefreshTokenValue:
         raw = "some-raw-refresh-token-value"
 
         assert security.hash_refresh_token(raw) != raw
+
+
+class TestEmailVerificationTokenValue:
+    def test_generate_email_verification_token_returns_url_safe_string(self, auth_config):
+        raw = security.generate_email_verification_token(config=auth_config)
+
+        assert isinstance(raw, str)
+        assert len(raw) >= 32
+
+    def test_generate_email_verification_token_is_unique_across_calls(self, auth_config):
+        first = security.generate_email_verification_token(config=auth_config)
+        second = security.generate_email_verification_token(config=auth_config)
+
+        assert first != second
+
+    def test_hash_email_verification_token_is_deterministic(self):
+        raw = "some-raw-verification-token-value"
+
+        assert security.hash_email_verification_token(
+            raw
+        ) == security.hash_email_verification_token(raw)
+
+    def test_hash_email_verification_token_differs_for_different_input(self):
+        assert security.hash_email_verification_token(
+            "token-a"
+        ) != security.hash_email_verification_token("token-b")
+
+    def test_hash_email_verification_token_does_not_return_raw_value(self):
+        raw = "some-raw-verification-token-value"
+
+        assert security.hash_email_verification_token(raw) != raw

@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth.models import RefreshToken, User
+from backend.auth.models import EmailVerificationToken, RefreshToken, User
 
 
 class SqlUserRepository:
@@ -23,6 +23,14 @@ class SqlUserRepository:
         self._db.add(user)
         await self._db.flush()
         return user
+
+    async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool:
+        result = await self._db.execute(
+            update(User)
+            .where(User.id == user_id, User.email_verified_at.is_(None))
+            .values(email_verified_at=verified_at)
+        )
+        return result.rowcount == 1
 
 
 class SqlRefreshTokenRepository:
@@ -69,3 +77,32 @@ class SqlRefreshTokenRepository:
         )
         for token in result.scalars():
             token.revoked_at = revoked_at
+
+
+class SqlEmailVerificationTokenRepository:
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> EmailVerificationToken:
+        token = EmailVerificationToken(
+            user_id=user_id, token_hash=token_hash, expires_at=expires_at
+        )
+        self._db.add(token)
+        await self._db.flush()
+        return token
+
+    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None:
+        result = await self._db.execute(
+            select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
+        )
+        return result.scalar_one_or_none()
+
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
+        result = await self._db.execute(
+            update(EmailVerificationToken)
+            .where(EmailVerificationToken.id == token_id, EmailVerificationToken.used_at.is_(None))
+            .values(used_at=used_at)
+        )
+        return result.rowcount == 1

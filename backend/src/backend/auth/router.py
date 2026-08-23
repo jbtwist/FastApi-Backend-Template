@@ -13,22 +13,29 @@ from backend.auth.cookies import (
 from backend.auth.dependencies import (
     AuthConfigDep,
     CurrentUserDep,
+    EmailSenderDep,
+    EmailVerificationTokenRepoDep,
     RefreshTokenRepoDep,
     UserRepoDep,
 )
 from backend.auth.exceptions import (
     EmailAlreadyRegistered,
+    EmailNotVerified,
     InvalidCredentials,
     InvalidRefreshToken,
+    InvalidVerificationToken,
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
+    VerificationTokenExpired,
 )
 from backend.auth.schemas import (
+    ConfirmEmailIn,
     LoginIn,
     LoginOut,
     LogoutIn,
     RefreshIn,
     RegisterIn,
+    ResendVerificationIn,
     TokenPairOut,
     UserOut,
 )
@@ -49,7 +56,13 @@ def _set_token_cookies(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(rate_limit("5/minute"))],
 )
-async def register(payload: RegisterIn, user_repo: UserRepoDep) -> UserOut:
+async def register(
+    payload: RegisterIn,
+    user_repo: UserRepoDep,
+    token_repo: EmailVerificationTokenRepoDep,
+    email_sender: EmailSenderDep,
+    config: AuthConfigDep,
+) -> UserOut:
     try:
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
@@ -57,7 +70,10 @@ async def register(payload: RegisterIn, user_repo: UserRepoDep) -> UserOut:
     except EmailAlreadyRegistered as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered") from exc
 
-    return UserOut(id=user.id, email=user.email)
+    await service.send_verification_email(
+        token_repo, email_sender, user, config=config, now=datetime.now(UTC)
+    )
+    return UserOut(id=user.id, email=user.email, email_verified=False)
 
 
 @router.post(
@@ -78,6 +94,8 @@ async def login(
         )
     except InvalidCredentials as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials") from exc
+    except EmailNotVerified as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Email not verified") from exc
 
     pair = await service.issue_token_pair(
         refresh_token_repo, user, config=config, now=datetime.now(UTC)
@@ -86,6 +104,7 @@ async def login(
     return LoginOut(
         id=user.id,
         email=user.email,
+        email_verified=True,
         access_token=pair.access_token,
         refresh_token=pair.refresh_token,
     )
@@ -134,4 +153,40 @@ async def logout(
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUserDep) -> UserOut:
-    return UserOut(id=user.id, email=user.email)
+    return UserOut(id=user.id, email=user.email, email_verified=user.email_verified_at is not None)
+
+
+@router.post("/confirm-email", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_email(
+    payload: ConfirmEmailIn,
+    token_repo: EmailVerificationTokenRepoDep,
+    user_repo: UserRepoDep,
+) -> None:
+    try:
+        await service.confirm_email(token_repo, user_repo, payload.token, now=datetime.now(UTC))
+    except (InvalidVerificationToken, VerificationTokenExpired) as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token"
+        ) from exc
+
+
+@router.post(
+    "/resend-verification",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("3/minute"))],
+)
+async def resend_verification(
+    payload: ResendVerificationIn,
+    token_repo: EmailVerificationTokenRepoDep,
+    user_repo: UserRepoDep,
+    email_sender: EmailSenderDep,
+    config: AuthConfigDep,
+) -> None:
+    await service.resend_verification_email(
+        token_repo,
+        user_repo,
+        email_sender,
+        email=payload.email,
+        config=config,
+        now=datetime.now(UTC),
+    )

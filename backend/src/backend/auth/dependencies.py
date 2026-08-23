@@ -6,9 +6,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.config import AuthConfig, auth_settings
+from backend.auth.email import LoggingEmailSender
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 from backend.auth.models import User
-from backend.auth.repository import SqlRefreshTokenRepository, SqlUserRepository
+from backend.auth.repository import (
+    SqlEmailVerificationTokenRepository,
+    SqlRefreshTokenRepository,
+    SqlUserRepository,
+)
 from backend.auth.security import decode_access_token
 from backend.database import get_db
 
@@ -29,8 +34,23 @@ def get_refresh_token_repo(db: DbDep) -> SqlRefreshTokenRepository:
     return SqlRefreshTokenRepository(db)
 
 
+def get_email_verification_token_repo(db: DbDep) -> SqlEmailVerificationTokenRepository:
+    return SqlEmailVerificationTokenRepository(db)
+
+
+_email_sender = LoggingEmailSender()
+
+
+def get_email_sender() -> LoggingEmailSender:
+    return _email_sender
+
+
 UserRepoDep = Annotated[SqlUserRepository, Depends(get_user_repo)]
 RefreshTokenRepoDep = Annotated[SqlRefreshTokenRepository, Depends(get_refresh_token_repo)]
+EmailVerificationTokenRepoDep = Annotated[
+    SqlEmailVerificationTokenRepository, Depends(get_email_verification_token_repo)
+]
+EmailSenderDep = Annotated[LoggingEmailSender, Depends(get_email_sender)]
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

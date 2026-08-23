@@ -28,3 +28,15 @@ class RefreshTokenExpired(AuthError):
 
 class RefreshTokenReuseDetected(AuthError):
     pass
+
+
+class EmailNotVerified(AuthError):
+    pass
+
+
+class InvalidVerificationToken(AuthError):
+    pass
+
+
+class VerificationTokenExpired(AuthError):
+    pass

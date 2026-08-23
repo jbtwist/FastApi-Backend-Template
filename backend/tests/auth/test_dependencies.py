@@ -47,9 +47,7 @@ class TestGetCurrentUser:
         now = datetime.now(UTC)
         token = _token_for(registered_user.id, auth_config=auth_config, now=now)
 
-        user = await get_current_user(
-            user_repo, auth_config, credentials=None, access_token=token
-        )
+        user = await get_current_user(user_repo, auth_config, credentials=None, access_token=token)
 
         assert user.id == registered_user.id
 

@@ -17,6 +17,7 @@ class LoginIn(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str
+    email_verified: bool
 
 
 class TokenPairOut(BaseModel):
@@ -35,3 +36,11 @@ class RefreshIn(BaseModel):
 
 class LogoutIn(BaseModel):
     refresh_token: str | None = None
+
+
+class ConfirmEmailIn(BaseModel):
+    token: str
+
+
+class ResendVerificationIn(BaseModel):
+    email: EmailStr

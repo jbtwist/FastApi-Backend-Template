@@ -3,7 +3,12 @@ from datetime import timedelta
 import pytest
 
 from backend.auth.config import AuthConfig
-from tests.auth.fakes import FakeRefreshTokenRepository, FakeUserRepository
+from tests.auth.fakes import (
+    FakeEmailSender,
+    FakeEmailVerificationTokenRepository,
+    FakeRefreshTokenRepository,
+    FakeUserRepository,
+)
 
 TEST_JWT_SECRET = "test-secret-1234567890123456789012345678901234567890123456789012"
 
@@ -15,6 +20,7 @@ def auth_config() -> AuthConfig:
         JWT_ALG="HS256",
         ACCESS_TOKEN_EXP=timedelta(minutes=15),
         REFRESH_TOKEN_EXP=timedelta(days=7),
+        EMAIL_VERIFICATION_TOKEN_EXP=timedelta(hours=24),
         COOKIE_SECURE=True,
     )
 
@@ -27,3 +33,13 @@ def user_repo() -> FakeUserRepository:
 @pytest.fixture
 def refresh_token_repo() -> FakeRefreshTokenRepository:
     return FakeRefreshTokenRepository()
+
+
+@pytest.fixture
+def email_verification_token_repo() -> FakeEmailVerificationTokenRepository:
+    return FakeEmailVerificationTokenRepository()
+
+
+@pytest.fixture
+def email_sender() -> FakeEmailSender:
+    return FakeEmailSender()

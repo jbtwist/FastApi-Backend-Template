@@ -68,3 +68,11 @@ def generate_refresh_token(*, config: AuthConfig) -> str:
 
 def hash_refresh_token(raw_token: str) -> str:
     return sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def generate_email_verification_token(*, config: AuthConfig) -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_email_verification_token(raw_token: str) -> str:
+    return sha256(raw_token.encode("utf-8")).hexdigest()
