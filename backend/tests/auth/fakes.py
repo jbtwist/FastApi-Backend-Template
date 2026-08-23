@@ -53,8 +53,12 @@ class FakeRefreshTokenRepository:
                 return token
         return None
 
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> None:
-        self._tokens_by_id[token_id].used_at = used_at
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
+        token = self._tokens_by_id[token_id]
+        if token.used_at is not None:
+            return False
+        token.used_at = used_at
+        return True
 
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None:
         for token in self._tokens_by_id.values():

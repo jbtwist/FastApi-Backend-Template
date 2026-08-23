@@ -45,10 +45,10 @@ class TestRefreshTokenCookie:
 
         assert params["samesite"] == "lax"
 
-    def test_scoped_to_refresh_endpoint_path_not_root(self, auth_config):
+    def test_scoped_to_auth_path_not_root(self, auth_config):
         params = cookies.refresh_token_cookie("a-raw-refresh-value", config=auth_config)
 
-        assert params["path"] == "/auth/refresh"
+        assert params["path"] == "/auth"
 
     def test_max_age_matches_refresh_token_exp(self, auth_config):
         params = cookies.refresh_token_cookie("a-raw-refresh-value", config=auth_config)
@@ -75,9 +75,9 @@ class TestClearAuthCookies:
         assert params["max_age"] == 0
         assert params["path"] == "/"
 
-    def test_clear_refresh_token_cookie_expires_immediately_on_refresh_path(self, auth_config):
+    def test_clear_refresh_token_cookie_expires_immediately_on_auth_path(self, auth_config):
         params = cookies.clear_refresh_token_cookie(config=auth_config)
 
         assert params["key"] == "refresh_token"
         assert params["max_age"] == 0
-        assert params["path"] == "/auth/refresh"
+        assert params["path"] == "/auth"
