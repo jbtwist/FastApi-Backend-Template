@@ -6,10 +6,10 @@ from backend.database import SessionFactory
 from backend.mail import service as mail_service
 from backend.mail.celery_app import celery_app
 from backend.mail.config import mail_settings
-from backend.mail.email import LoggingEmailSender
+from backend.mail.email import get_email_sender
 from backend.mail.repository import SqlEmailOutboxRepository
 
-_email_sender = LoggingEmailSender()
+_email_sender = get_email_sender()
 
 
 async def _dispatch_verification_email(entry_id: str) -> None:
