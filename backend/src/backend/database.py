@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from backend.config import settings
 
@@ -31,3 +32,7 @@ async def get_db() -> AsyncSession:
 
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+# NullPool: each Celery task's asyncio.run() is a new loop, and pooled asyncpg connections are loop-bound.
+worker_engine = create_async_engine(str(settings.DATABASE_URL), poolclass=NullPool)
+WorkerSessionFactory = async_sessionmaker(worker_engine, expire_on_commit=False)
