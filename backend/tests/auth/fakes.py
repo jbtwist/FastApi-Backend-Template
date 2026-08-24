@@ -1,5 +1,4 @@
 import uuid
-from dataclasses import dataclass
 from datetime import datetime
 
 from backend.auth.models import EmailVerificationToken, RefreshToken, User
@@ -103,17 +102,3 @@ class FakeEmailVerificationTokenRepository:
             return False
         token.used_at = used_at
         return True
-
-
-@dataclass
-class SentVerificationEmail:
-    email: str
-    token: str
-
-
-class FakeEmailSender:
-    def __init__(self) -> None:
-        self.sent: list[SentVerificationEmail] = []
-
-    async def send_verification_email(self, *, email: str, token: str) -> None:
-        self.sent.append(SentVerificationEmail(email=email, token=token))

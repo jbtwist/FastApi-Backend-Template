@@ -14,7 +14,6 @@ from backend.auth.exceptions import (
     RefreshTokenReuseDetected,
     VerificationTokenExpired,
 )
-from backend.auth.security import hash_email_verification_token as _hash_verification
 from backend.auth.security import hash_refresh_token as _hash
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -272,9 +271,9 @@ class TestRotateRefreshToken:
     async def test_losing_the_mark_used_race_is_treated_as_reuse_and_revokes_family(
         self, refresh_token_repo, registered_user, auth_config, monkeypatch
     ):
-        # simulates two concurrent /auth/refresh calls with the same token: both
-        # pass the initial used_at/revoked/expired checks, but only one can win
-        # the atomic mark_used update. The loser must be treated as reuse.
+        """Simulates two concurrent /auth/refresh calls with the same token: both
+        pass the initial used_at/revoked/expired checks, but only one can win
+        the atomic mark_used update. The loser must be treated as reuse."""
         original = await service.issue_token_pair(
             refresh_token_repo, registered_user, config=auth_config, now=NOW
         )
@@ -323,87 +322,25 @@ async def unverified_user(user_repo):
     return await service.register_user(user_repo, email="grace@example.com", password="s3cret-pw")
 
 
-class TestSendVerificationEmail:
-    async def test_stores_hashed_token_not_raw_value(
-        self, email_verification_token_repo, email_sender, unverified_user, auth_config
-    ):
-        await service.send_verification_email(
-            email_verification_token_repo,
-            email_sender,
-            unverified_user,
-            config=auth_config,
-            now=NOW,
-        )
-
-        raw_token = email_sender.sent[0].token
-        stored = await email_verification_token_repo.get_by_hash(_hash_verification(raw_token))
-        assert stored is not None
-        assert stored.token_hash != raw_token
-
-    async def test_sets_expiry_from_config(
-        self, email_verification_token_repo, email_sender, unverified_user, auth_config
-    ):
-        await service.send_verification_email(
-            email_verification_token_repo,
-            email_sender,
-            unverified_user,
-            config=auth_config,
-            now=NOW,
-        )
-
-        raw_token = email_sender.sent[0].token
-        stored = await email_verification_token_repo.get_by_hash(_hash_verification(raw_token))
-        assert stored.expires_at == NOW + auth_config.EMAIL_VERIFICATION_TOKEN_EXP
-
-    async def test_sends_to_the_users_email(
-        self, email_verification_token_repo, email_sender, unverified_user, auth_config
-    ):
-        await service.send_verification_email(
-            email_verification_token_repo,
-            email_sender,
-            unverified_user,
-            config=auth_config,
-            now=NOW,
-        )
-
-        assert email_sender.sent[0].email == unverified_user.email
-
-    async def test_two_sends_issue_different_tokens(
-        self, email_verification_token_repo, email_sender, unverified_user, auth_config
-    ):
-        await service.send_verification_email(
-            email_verification_token_repo,
-            email_sender,
-            unverified_user,
-            config=auth_config,
-            now=NOW,
-        )
-        await service.send_verification_email(
-            email_verification_token_repo,
-            email_sender,
-            unverified_user,
-            config=auth_config,
-            now=NOW,
-        )
-
-        assert email_sender.sent[0].token != email_sender.sent[1].token
-
-
 class TestConfirmEmail:
     async def test_marks_user_verified(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.send_verification_email(
+        entry = await service.queue_verification_email(
             email_verification_token_repo,
-            email_sender,
+            email_outbox_repo,
             unverified_user,
             config=auth_config,
             now=NOW,
         )
-        raw_token = email_sender.sent[0].token
 
         confirmed = await service.confirm_email(
-            email_verification_token_repo, user_repo, raw_token, now=NOW
+            email_verification_token_repo, user_repo, entry.token, now=NOW
         )
 
         assert confirmed.email_verified_at == NOW
@@ -415,57 +352,69 @@ class TestConfirmEmail:
             )
 
     async def test_raises_for_already_used_token(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.send_verification_email(
+        entry = await service.queue_verification_email(
             email_verification_token_repo,
-            email_sender,
+            email_outbox_repo,
             unverified_user,
             config=auth_config,
             now=NOW,
         )
-        raw_token = email_sender.sent[0].token
-        await service.confirm_email(email_verification_token_repo, user_repo, raw_token, now=NOW)
+        await service.confirm_email(email_verification_token_repo, user_repo, entry.token, now=NOW)
 
         with pytest.raises(InvalidVerificationToken):
             await service.confirm_email(
-                email_verification_token_repo, user_repo, raw_token, now=NOW
+                email_verification_token_repo, user_repo, entry.token, now=NOW
             )
 
     async def test_raises_exactly_at_expiry_instant(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.send_verification_email(
+        entry = await service.queue_verification_email(
             email_verification_token_repo,
-            email_sender,
+            email_outbox_repo,
             unverified_user,
             config=auth_config,
             now=NOW,
         )
-        raw_token = email_sender.sent[0].token
         exact_expiry = NOW + auth_config.EMAIL_VERIFICATION_TOKEN_EXP
 
         with pytest.raises(VerificationTokenExpired):
             await service.confirm_email(
-                email_verification_token_repo, user_repo, raw_token, now=exact_expiry
+                email_verification_token_repo, user_repo, entry.token, now=exact_expiry
             )
 
     async def test_expired_token_does_not_verify_user(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.send_verification_email(
+        entry = await service.queue_verification_email(
             email_verification_token_repo,
-            email_sender,
+            email_outbox_repo,
             unverified_user,
             config=auth_config,
             now=NOW,
         )
-        raw_token = email_sender.sent[0].token
         after_expiry = NOW + auth_config.EMAIL_VERIFICATION_TOKEN_EXP + timedelta(seconds=1)
 
         with pytest.raises(VerificationTokenExpired):
             await service.confirm_email(
-                email_verification_token_repo, user_repo, raw_token, now=after_expiry
+                email_verification_token_repo, user_repo, entry.token, now=after_expiry
             )
 
         user = await user_repo.get_by_id(unverified_user.id)
@@ -475,86 +424,100 @@ class TestConfirmEmail:
         self,
         email_verification_token_repo,
         user_repo,
-        email_sender,
+        email_outbox_repo,
         unverified_user,
         auth_config,
         monkeypatch,
     ):
-        # simulates two concurrent /auth/confirm-email calls with the same
-        # token: both pass the initial used/expired checks, but only one can
-        # win the atomic mark_used update.
-        await service.send_verification_email(
+        """simulates two concurrent /auth/confirm-email calls with the same
+        token: both pass the initial used/expired checks, but only one can
+        win the atomic mark_used update."""
+        entry = await service.queue_verification_email(
             email_verification_token_repo,
-            email_sender,
+            email_outbox_repo,
             unverified_user,
             config=auth_config,
             now=NOW,
         )
-        raw_token = email_sender.sent[0].token
         monkeypatch.setattr(
             email_verification_token_repo, "mark_used", AsyncMock(return_value=False)
         )
 
         with pytest.raises(InvalidVerificationToken):
             await service.confirm_email(
-                email_verification_token_repo, user_repo, raw_token, now=NOW
+                email_verification_token_repo, user_repo, entry.token, now=NOW
             )
 
 
 class TestResendVerificationEmail:
-    async def test_sends_new_token_for_known_unverified_user(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+    async def test_queues_new_token_for_known_unverified_user(
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.resend_verification_email(
+        entry = await service.resend_verification_email(
             email_verification_token_repo,
             user_repo,
-            email_sender,
+            email_outbox_repo,
             email="grace@example.com",
             config=auth_config,
             now=NOW,
         )
 
-        assert len(email_sender.sent) == 1
-        assert email_sender.sent[0].email == "grace@example.com"
+        assert entry is not None
+        assert entry.email == "grace@example.com"
 
     async def test_is_a_no_op_for_unknown_email(
-        self, email_verification_token_repo, user_repo, email_sender, auth_config
+        self, email_verification_token_repo, user_repo, email_outbox_repo, auth_config
     ):
-        await service.resend_verification_email(
+        entry = await service.resend_verification_email(
             email_verification_token_repo,
             user_repo,
-            email_sender,
+            email_outbox_repo,
             email="nobody@example.com",
             config=auth_config,
             now=NOW,
         )
 
-        assert email_sender.sent == []
+        assert entry is None
 
     async def test_is_a_no_op_for_already_verified_email(
-        self, email_verification_token_repo, user_repo, email_sender, registered_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        registered_user,
+        auth_config,
     ):
-        await service.resend_verification_email(
+        entry = await service.resend_verification_email(
             email_verification_token_repo,
             user_repo,
-            email_sender,
+            email_outbox_repo,
             email=registered_user.email,
             config=auth_config,
             now=NOW,
         )
 
-        assert email_sender.sent == []
+        assert entry is None
 
     async def test_normalizes_email_case(
-        self, email_verification_token_repo, user_repo, email_sender, unverified_user, auth_config
+        self,
+        email_verification_token_repo,
+        user_repo,
+        email_outbox_repo,
+        unverified_user,
+        auth_config,
     ):
-        await service.resend_verification_email(
+        entry = await service.resend_verification_email(
             email_verification_token_repo,
             user_repo,
-            email_sender,
+            email_outbox_repo,
             email="Grace@Example.com",
             config=auth_config,
             now=NOW,
         )
 
-        assert len(email_sender.sent) == 1
+        assert entry is not None

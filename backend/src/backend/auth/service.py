@@ -25,6 +25,9 @@ from backend.auth.security import (
     hash_refresh_token,
     verify_password,
 )
+from backend.mail import service as mail_service
+from backend.mail.models import EmailOutboxEntry
+from backend.mail.service import EmailOutboxRepository
 
 
 class UserRepository(Protocol):
@@ -54,10 +57,6 @@ class EmailVerificationTokenRepository(Protocol):
     ) -> EmailVerificationToken: ...
     async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None: ...
     async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
-
-
-class EmailSender(Protocol):
-    async def send_verification_email(self, *, email: str, token: str) -> None: ...
 
 
 @dataclass
@@ -160,21 +159,23 @@ async def logout(
     await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
 
 
-async def send_verification_email(
+async def queue_verification_email(
     token_repo: EmailVerificationTokenRepository,
-    email_sender: EmailSender,
+    outbox_repo: EmailOutboxRepository,
     user: User,
     *,
     config: AuthConfig,
     now: datetime,
-) -> None:
+) -> EmailOutboxEntry:
     raw_token = generate_email_verification_token(config=config)
     await token_repo.create(
         user_id=user.id,
         token_hash=hash_email_verification_token(raw_token),
         expires_at=now + config.EMAIL_VERIFICATION_TOKEN_EXP,
     )
-    await email_sender.send_verification_email(email=user.email, token=raw_token)
+    return await mail_service.enqueue_email(
+        outbox_repo, user_id=user.id, email=user.email, token=raw_token, created_at=now
+    )
 
 
 async def confirm_email(
@@ -204,15 +205,15 @@ async def confirm_email(
 async def resend_verification_email(
     token_repo: EmailVerificationTokenRepository,
     user_repo: UserRepository,
-    email_sender: EmailSender,
+    outbox_repo: EmailOutboxRepository,
     *,
     email: str,
     config: AuthConfig,
     now: datetime,
-) -> None:
+) -> EmailOutboxEntry | None:
     normalized_email = _normalize_email(email)
     user = await user_repo.get_by_email(normalized_email)
     if user is None or user.email_verified_at is not None:
-        return
+        return None
 
-    await send_verification_email(token_repo, email_sender, user, config=config, now=now)
+    return await queue_verification_email(token_repo, outbox_repo, user, config=config, now=now)

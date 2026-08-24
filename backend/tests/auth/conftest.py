@@ -4,11 +4,11 @@ import pytest
 
 from backend.auth.config import AuthConfig
 from tests.auth.fakes import (
-    FakeEmailSender,
     FakeEmailVerificationTokenRepository,
     FakeRefreshTokenRepository,
     FakeUserRepository,
 )
+from tests.mail.fakes import FakeEmailOutboxRepository
 
 TEST_JWT_SECRET = "test-secret-1234567890123456789012345678901234567890123456789012"
 
@@ -41,5 +41,5 @@ def email_verification_token_repo() -> FakeEmailVerificationTokenRepository:
 
 
 @pytest.fixture
-def email_sender() -> FakeEmailSender:
-    return FakeEmailSender()
+def email_outbox_repo() -> FakeEmailOutboxRepository:
+    return FakeEmailOutboxRepository()

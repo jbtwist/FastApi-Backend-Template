@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi.concurrency import run_in_threadpool
 from redis_fastapi import rate_limit
 
 from backend.auth import service
@@ -13,7 +14,6 @@ from backend.auth.cookies import (
 from backend.auth.dependencies import (
     AuthConfigDep,
     CurrentUserDep,
-    EmailSenderDep,
     EmailVerificationTokenRepoDep,
     RefreshTokenRepoDep,
     UserRepoDep,
@@ -39,6 +39,8 @@ from backend.auth.schemas import (
     TokenPairOut,
     UserOut,
 )
+from backend.mail.dependencies import EmailOutboxRepoDep
+from backend.mail.tasks import dispatch_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,7 +62,7 @@ async def register(
     payload: RegisterIn,
     user_repo: UserRepoDep,
     token_repo: EmailVerificationTokenRepoDep,
-    email_sender: EmailSenderDep,
+    outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
 ) -> UserOut:
     try:
@@ -70,9 +72,10 @@ async def register(
     except EmailAlreadyRegistered as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered") from exc
 
-    await service.send_verification_email(
-        token_repo, email_sender, user, config=config, now=datetime.now(UTC)
+    entry = await service.queue_verification_email(
+        token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
     )
+    await run_in_threadpool(dispatch_verification_email.delay, str(entry.id))
     return UserOut(id=user.id, email=user.email, email_verified=False)
 
 
@@ -179,14 +182,16 @@ async def resend_verification(
     payload: ResendVerificationIn,
     token_repo: EmailVerificationTokenRepoDep,
     user_repo: UserRepoDep,
-    email_sender: EmailSenderDep,
+    outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
 ) -> None:
-    await service.resend_verification_email(
+    entry = await service.resend_verification_email(
         token_repo,
         user_repo,
-        email_sender,
+        outbox_repo,
         email=payload.email,
         config=config,
         now=datetime.now(UTC),
     )
+    if entry is not None:
+        await run_in_threadpool(dispatch_verification_email.delay, str(entry.id))
