@@ -8,7 +8,6 @@ from tests.auth.fakes import (
     FakeRefreshTokenRepository,
     FakeUserRepository,
 )
-from tests.mail.fakes import FakeEmailOutboxRepository
 
 TEST_JWT_SECRET = "test-secret-1234567890123456789012345678901234567890123456789012"
 
@@ -38,8 +37,3 @@ def refresh_token_repo() -> FakeRefreshTokenRepository:
 @pytest.fixture
 def email_verification_token_repo() -> FakeEmailVerificationTokenRepository:
     return FakeEmailVerificationTokenRepository()
-
-
-@pytest.fixture
-def email_outbox_repo() -> FakeEmailOutboxRepository:
-    return FakeEmailOutboxRepository()

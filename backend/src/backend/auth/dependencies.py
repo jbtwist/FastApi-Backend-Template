@@ -3,7 +3,6 @@ from typing import Annotated
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.config import AuthConfig, auth_settings
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
@@ -14,7 +13,7 @@ from backend.auth.repository import (
     SqlUserRepository,
 )
 from backend.auth.security import decode_access_token
-from backend.database import get_db
+from backend.database import DbDep
 
 
 def get_auth_config() -> AuthConfig:
@@ -22,7 +21,6 @@ def get_auth_config() -> AuthConfig:
 
 
 AuthConfigDep = Annotated[AuthConfig, Depends(get_auth_config)]
-DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 def get_user_repo(db: DbDep) -> SqlUserRepository:

@@ -26,8 +26,6 @@ class EmailOutboxEntry(Base):
         PGUUID(as_uuid=True), ForeignKey("user.id"), nullable=False
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
-    # Stored in plaintext: dispatch (and its retries, possibly much later) needs the
-    # raw token to hand to the provider. Only the hash lives on email_verification_token.
     token: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default=EmailOutboxStatus.PENDING)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

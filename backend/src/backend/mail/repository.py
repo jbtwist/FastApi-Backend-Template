@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.mail.models import EmailOutboxEntry, EmailOutboxStatus
@@ -49,3 +50,15 @@ class SqlEmailOutboxRepository:
         entry.dead_at = failed_at
         await self._db.flush()
         return True
+
+    async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]:
+        last_activity_at = func.coalesce(
+            EmailOutboxEntry.last_attempted_at, EmailOutboxEntry.created_at
+        )
+        result = await self._db.execute(
+            select(EmailOutboxEntry).where(
+                EmailOutboxEntry.status == EmailOutboxStatus.PENDING,
+                last_activity_at <= older_than,
+            )
+        )
+        return list(result.scalars())

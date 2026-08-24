@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from backend.database import SessionFactory
 from backend.mail import service as mail_service
@@ -33,3 +33,17 @@ async def _dispatch_verification_email(entry_id: str) -> None:
 )
 def dispatch_verification_email(entry_id: str) -> None:
     asyncio.run(_dispatch_verification_email(entry_id))
+
+
+async def _sweep_pending_emails() -> list[str]:
+    cutoff = datetime.now(UTC) - timedelta(seconds=mail_settings.SWEEP_STALE_AFTER_SECONDS)
+    async with SessionFactory() as db, db.begin():
+        outbox_repo = SqlEmailOutboxRepository(db)
+        stale = await mail_service.list_stale_pending_emails(outbox_repo, older_than=cutoff)
+        return [str(entry.id) for entry in stale]
+
+
+@celery_app.task(name="backend.mail.tasks.sweep_pending_emails")
+def sweep_pending_emails() -> None:
+    for entry_id in asyncio.run(_sweep_pending_emails()):
+        dispatch_verification_email.delay(entry_id)

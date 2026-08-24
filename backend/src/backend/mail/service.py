@@ -62,3 +62,9 @@ async def dispatch_verification_email(
         raise
 
     await outbox_repo.mark_sent(entry_id, sent_at=now)
+
+
+async def list_stale_pending_emails(
+    outbox_repo: EmailOutboxRepository, *, older_than: datetime
+) -> list[EmailOutboxEntry]:
+    return await outbox_repo.list_stale_pending(older_than=older_than)

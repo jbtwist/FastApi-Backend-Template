@@ -1,3 +1,6 @@
+from typing import Annotated
+
+from fastapi import Depends
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -25,3 +28,6 @@ SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 async def get_db() -> AsyncSession:
     async with SessionFactory() as session, session.begin():
         yield session
+
+
+DbDep = Annotated[AsyncSession, Depends(get_db)]
