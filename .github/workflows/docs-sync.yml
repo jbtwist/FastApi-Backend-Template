@@ -40,6 +40,11 @@ jobs:
             only read that PR's diff, only touch docs/docstrings/TSDoc/
             GLOSSARY.md, never touch logic, and open the resulting PR
             yourself with `gh pr create` as the skill describes.
+
+            The glossary the skill refers to as `/GLOSSARY.md` lives at
+            .claude/skills/docs/GLOSSARY.md — read and update that exact
+            file. Do not create a new GLOSSARY.md anywhere else, including
+            the repo root.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_CLI_TRUST_WORKSPACE: "true"
