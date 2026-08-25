@@ -1,0 +1,77 @@
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
+
+from backend.mail.models import EmailOutboxEntry, EmailOutboxStatus
+
+
+@dataclass
+class SentVerificationEmail:
+    email: str
+    token: str
+
+
+class FakeEmailSender:
+    def __init__(self) -> None:
+        self.sent: list[SentVerificationEmail] = []
+        self.fail_with: Exception | None = None
+
+    async def send_verification_email(self, *, email: str, token: str) -> None:
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.sent.append(SentVerificationEmail(email=email, token=token))
+
+
+class FakeEmailOutboxRepository:
+    def __init__(self) -> None:
+        self._entries_by_id: dict[uuid.UUID, EmailOutboxEntry] = {}
+
+    async def create(
+        self, *, user_id: uuid.UUID, email: str, token: str, created_at: datetime
+    ) -> EmailOutboxEntry:
+        entry = EmailOutboxEntry(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            email=email,
+            token=token,
+            status=EmailOutboxStatus.PENDING,
+            attempts=0,
+            created_at=created_at,
+        )
+        self._entries_by_id[entry.id] = entry
+        return entry
+
+    async def get_by_id(self, entry_id: uuid.UUID) -> EmailOutboxEntry | None:
+        return self._entries_by_id.get(entry_id)
+
+    async def mark_sent(self, entry_id: uuid.UUID, *, sent_at: datetime) -> bool:
+        entry = self._entries_by_id.get(entry_id)
+        if entry is None or entry.status != EmailOutboxStatus.PENDING:
+            return False
+        entry.status = EmailOutboxStatus.SENT
+        entry.sent_at = sent_at
+        return True
+
+    async def mark_attempt_failed(
+        self, entry_id: uuid.UUID, *, attempted_at: datetime
+    ) -> EmailOutboxEntry:
+        entry = self._entries_by_id[entry_id]
+        entry.attempts += 1
+        entry.last_attempted_at = attempted_at
+        return entry
+
+    async def mark_dead(self, entry_id: uuid.UUID, *, failed_at: datetime) -> bool:
+        entry = self._entries_by_id.get(entry_id)
+        if entry is None:
+            return False
+        entry.status = EmailOutboxStatus.DEAD
+        entry.dead_at = failed_at
+        return True
+
+    async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]:
+        return [
+            entry
+            for entry in self._entries_by_id.values()
+            if entry.status == EmailOutboxStatus.PENDING
+            and (entry.last_attempted_at or entry.created_at) <= older_than
+        ]
