@@ -2,8 +2,7 @@ from datetime import timedelta
 
 from celery import Celery
 
-# Registers User into Base.metadata so the email_outbox -> user FK can resolve here too.
-from backend.auth import models as auth_models  # noqa: F401
+from backend import models  # noqa: F401
 from backend.mail.config import mail_settings
 
 celery_app = Celery(

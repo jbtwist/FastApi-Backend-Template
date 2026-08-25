@@ -6,10 +6,9 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from backend.auth import models as auth_models  # noqa: F401
+from backend import models  # noqa: F401
 from backend.config import settings
 from backend.database import Base
-from backend.mail import models as mail_models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

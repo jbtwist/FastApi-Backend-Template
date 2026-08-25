@@ -33,6 +33,6 @@ async def get_db() -> AsyncSession:
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
-# NullPool: each Celery task's asyncio.run() is a new loop, and pooled asyncpg connections are loop-bound.
+# NullPool: each Celery task's asyncio.run() is a new loop, and asyncpg conns are loop-bound.
 worker_engine = create_async_engine(str(settings.DATABASE_URL), poolclass=NullPool)
 WorkerSessionFactory = async_sessionmaker(worker_engine, expire_on_commit=False)
