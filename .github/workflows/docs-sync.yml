@@ -1,0 +1,46 @@
+name: Docs sync after merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  docs-sync:
+    if: >
+      github.event.pull_request.merged == true &&
+      !startsWith(github.event.pull_request.head.ref, 'docs/update-after-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run docs skill
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            PR #${{ github.event.pull_request.number }} ("${{ github.event.pull_request.title }}")
+            was just merged into main. Use the docs skill
+            (.claude/skills/docs/SKILL.md) to update documentation for it.
+
+            Follow the skill's "Post-merge guardrails" section exactly:
+            only read that PR's diff, only touch docs/docstrings/TSDoc/
+            GLOSSARY.md, never touch logic, and open the resulting PR
+            yourself with `gh pr create` as the skill describes.
+          claude_args: |
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
+            --max-turns 30
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
