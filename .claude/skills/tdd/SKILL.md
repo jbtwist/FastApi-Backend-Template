@@ -4,8 +4,7 @@ description: >-
   Write unit tests before writing any code. Perform TDD for features to
   develop, reducing time spent reviewing LLM-written code by anchoring it
   to a passing test suite first.
-  Use when asked to implement a feature with TDD, write tests first, or
-  when the user says "TDD", "test first", or "write tests before coding".
+  Use when asked to implement a feature with TDD, write just the tests".
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
