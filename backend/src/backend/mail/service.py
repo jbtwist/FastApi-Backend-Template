@@ -1,3 +1,5 @@
+"""Email outbox: durable queueing and dispatch of outbound email."""
+
 import uuid
 from datetime import datetime
 from typing import Protocol
@@ -33,6 +35,14 @@ async def enqueue_email(
     token: str,
     created_at: datetime,
 ) -> EmailOutboxEntry:
+    """Write a pending outbox row without contacting the email provider.
+
+    This is the durability boundary: the row exists whether or not the Celery
+    dispatch that follows ever runs, so a caller that writes this in the same
+    DB transaction as the triggering action (e.g. registration) can't lose the
+    email to a Celery/Redis outage — `sweep_pending_emails` will eventually
+    pick up anything left `PENDING` too long.
+    """
     return await outbox_repo.create(
         user_id=user_id, email=email, token=token, created_at=created_at
     )
@@ -46,6 +56,17 @@ async def dispatch_verification_email(
     now: datetime,
     max_attempts: int = DEFAULT_MAX_DISPATCH_ATTEMPTS,
 ) -> None:
+    """Send one outbox entry's verification email and update its status.
+
+    No-ops if the entry is already `SENT` or `DEAD` — safe to call more than
+    once for the same entry (the Celery task retries and the sweep can both
+    target it). On send failure, increments `attempts` and re-raises so the
+    Celery task's own retry/backoff applies; once `attempts` reaches
+    `max_attempts` the entry is marked `DEAD` and given up on for good.
+
+    Raises:
+        EmailOutboxEntryNotFound: no entry with this id exists.
+    """
     entry = await outbox_repo.get_by_id(entry_id)
     if entry is None:
         raise EmailOutboxEntryNotFound
@@ -67,4 +88,12 @@ async def dispatch_verification_email(
 async def list_stale_pending_emails(
     outbox_repo: EmailOutboxRepository, *, older_than: datetime
 ) -> list[EmailOutboxEntry]:
+    """List `PENDING` entries with no activity since `older_than`.
+
+    Catches entries whose dispatch was never actually queued (e.g. the
+    process crashed between the outbox write and the Celery `.delay()` call)
+    as well as ones stuck between retries — "activity" is the entry's
+    `last_attempted_at`, falling back to `created_at` if it's never been
+    attempted.
+    """
     return await outbox_repo.list_stale_pending(older_than=older_than)

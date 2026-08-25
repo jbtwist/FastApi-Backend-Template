@@ -1,0 +1,61 @@
+site_name: todoapp
+site_description: Todo application docs
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [backend/src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started/index.md
+  - Guides: guides/index.md
+  - API Reference:
+      - reference/index.md
+      - Auth: reference/auth.md
+      - Mail: reference/mail.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Decisions:
+          - architecture/decisions/index.md
+          - 1. Refresh token rotation: architecture/decisions/0001-refresh-token-rotation-with-family-reuse-detection.md
+          - 2. Dual token delivery: architecture/decisions/0002-dual-cookie-and-body-token-delivery.md
+          - 3. Durable email outbox: architecture/decisions/0003-durable-email-outbox-before-dispatch.md

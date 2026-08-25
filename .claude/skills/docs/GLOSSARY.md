@@ -50,4 +50,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |
+| The stored, hashed form of a raw refresh or email-verification token (never store the raw token) | `token_hash` | `hashed_token`, `token_digest` |
+| A short-lived token proving ownership of an email address, sent as a link | `email_verification_token` | `verify_token`, `confirmation_token` |
+| The moment a user's email address was confirmed; `NULL` means unverified | `email_verified_at` | `verified_at`, `email_confirmed_at` |
 

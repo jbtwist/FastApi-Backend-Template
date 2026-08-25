@@ -1,3 +1,5 @@
+"""`/auth` endpoints: registration, login, token refresh, logout, and email verification."""
+
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
@@ -66,6 +68,7 @@ async def register(
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
 ) -> UserOut:
+    """Create an account and queue a verification email. The account can't log in until verified."""
     try:
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
@@ -92,6 +95,10 @@ async def login(
     refresh_token_repo: RefreshTokenRepoDep,
     config: AuthConfigDep,
 ) -> LoginOut:
+    """Authenticate and start a new session: sets token cookies and returns the tokens.
+
+    The cookies are for the web client; the body is for non-browser clients.
+    """
     try:
         user = await service.authenticate_user(
             user_repo, email=payload.email, password=payload.password
@@ -122,6 +129,12 @@ async def refresh(
     payload: RefreshIn | None = None,
     refresh_token: str | None = Cookie(default=None),
 ) -> TokenPairOut:
+    """Rotate the refresh token for a new pair.
+
+    Reuse of an already-used token revokes its whole family. Accepts the
+    refresh token from either the request body or the cookie (body takes
+    priority) so both browser and non-browser clients can call it.
+    """
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -147,6 +160,7 @@ async def logout(
     payload: LogoutIn | None = None,
     refresh_token: str | None = Cookie(default=None),
 ) -> None:
+    """Revoke the current session's refresh token family and clear both cookies."""
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is not None:
         await service.logout(refresh_token_repo, raw_refresh_token, now=datetime.now(UTC))
@@ -157,6 +171,7 @@ async def logout(
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUserDep) -> UserOut:
+    """Return the current user, resolved from the access token (cookie or bearer)."""
     return UserOut(id=user.id, email=user.email, email_verified=user.email_verified_at is not None)
 
 
@@ -177,6 +192,10 @@ async def confirm_email_link(
     user_repo: UserRepoDep,
     token: str,
 ) -> HTMLResponse:
+    """Confirm email from the link sent by mail.
+
+    Returns an HTML page directly — there's no frontend route for this yet.
+    """
     try:
         await service.confirm_email(token_repo, user_repo, token, now=datetime.now(UTC))
     except (InvalidVerificationToken, VerificationTokenExpired):
@@ -190,6 +209,7 @@ async def confirm_email(
     token_repo: EmailVerificationTokenRepoDep,
     user_repo: UserRepoDep,
 ) -> None:
+    """Confirm email via a JSON request, for a frontend client instead of the emailed link."""
     try:
         await service.confirm_email(token_repo, user_repo, payload.token, now=datetime.now(UTC))
     except (InvalidVerificationToken, VerificationTokenExpired) as exc:
@@ -210,6 +230,10 @@ async def resend_verification(
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
 ) -> None:
+    """Re-queue the verification email.
+
+    Always returns 204, whether or not the email is registered/unverified.
+    """
     entry = await service.resend_verification_email(
         token_repo,
         user_repo,

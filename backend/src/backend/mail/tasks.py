@@ -32,6 +32,14 @@ async def _dispatch_verification_email(entry_id: str) -> None:
     max_retries=5,
 )
 def dispatch_verification_email(entry_id: str) -> None:
+    """Celery task: dispatch one outbox entry's verification email.
+
+    Two retry layers apply on top of each other: Celery retries this task up
+    to 5 times with exponential backoff (capped at 600s) for transient
+    failures within one run, while `backend.mail.service.dispatch_verification_email`
+    tracks `attempts` on the outbox row itself and marks it `DEAD` once that
+    count (independent of Celery's retry count) reaches `MAX_DISPATCH_ATTEMPTS`.
+    """
     asyncio.run(_dispatch_verification_email(entry_id))
 
 
@@ -45,5 +53,12 @@ async def _sweep_pending_emails() -> list[str]:
 
 @celery_app.task(name="backend.mail.tasks.sweep_pending_emails")
 def sweep_pending_emails() -> None:
+    """Celery beat task (`SWEEP_INTERVAL_SECONDS`): re-dispatch outbox entries stuck `PENDING`.
+
+    Safety net for entries whose dispatch was never queued or got lost, not
+    the primary delivery path — `register`/`resend-verification` already
+    queue dispatch directly. Threshold is `SWEEP_STALE_AFTER_SECONDS`; see
+    `backend.mail.service.list_stale_pending_emails`.
+    """
     for entry_id in asyncio.run(_sweep_pending_emails()):
         dispatch_verification_email.delay(entry_id)

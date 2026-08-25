@@ -1,3 +1,11 @@
+"""Httponly cookie parameters for the access/refresh tokens.
+
+The refresh token cookie is scoped to `path="/auth"` so the browser only ever
+sends it to auth endpoints, not on every request — the access token cookie
+covers the whole app (`path="/"`) since it's needed on every authenticated
+request.
+"""
+
 from typing import TypedDict
 
 from backend.auth.config import AuthConfig
