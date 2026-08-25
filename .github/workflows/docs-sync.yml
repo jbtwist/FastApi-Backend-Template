@@ -1,0 +1,45 @@
+name: Docs sync after merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  docs-sync:
+    if: >
+      github.event.pull_request.merged == true &&
+      !startsWith(github.event.pull_request.head.ref, 'docs/update-after-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run docs skill
+        uses: google-github-actions/run-gemini-cli@main
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            PR #${{ github.event.pull_request.number }} ("${{ github.event.pull_request.title }}")
+            was just merged into main. Read the docs skill at
+            .claude/skills/docs/SKILL.md and follow it to update
+            documentation for this PR.
+
+            Follow the skill's "Post-merge guardrails" section exactly:
+            only read that PR's diff, only touch docs/docstrings/TSDoc/
+            GLOSSARY.md, never touch logic, and open the resulting PR
+            yourself with `gh pr create` as the skill describes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
