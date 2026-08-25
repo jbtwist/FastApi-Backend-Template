@@ -1,0 +1,60 @@
+site_name: Project name
+repo_url: https://github.com/user/project
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            merge_init_into_class: true
+            docstring_style: google  # switch to "numpy" if the project uses that style
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - First project: getting-started/first-project.md
+  - Guides:
+      - guides/index.md
+  - API Reference:
+      - reference/index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Decisions:
+          - architecture/decisions/0001-example.md
+  - Operations:
+      - operations/deployment.md

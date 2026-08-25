@@ -1,141 +1,140 @@
 ---
-name: docs-write
-description: >-
-  Write and update project documentation (narrative docs, Python docstrings,
-  TSDoc comments) following a consistent conversational style and the project's
-  ubiquitous language. Use after a PR is merged to main, or when explicitly
-  asked to create/edit documentation, docstrings, or TSDoc comments.
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+name: mkdocs-python-docs
+description: Generates and maintains this Python project's technical documentation using MkDocs (Material), organized around the Diataxis framework (tutorials, how-to guides, reference, explanation), with ADRs for architecture decisions, auto-generated API reference via mkdocstrings, a domain glossary, and Mermaid diagrams. ALWAYS use this skill when the user asks to document the project, create or update docs/, add a guide or tutorial, record an architecture decision (ADR), generate or update API reference, add an architecture diagram, keep docstrings in sync with a change, update or check the project glossary (`/GLOSSARY.md`), or mentions MkDocs, mkdocs.yml, Diataxis, mkdocstrings, or "technical documentation" in the context of this project — even if they don't use those exact words.
 ---
 
-# Documentation Writing Skill
+# Technical documentation with MkDocs (Python project)
 
-Covers narrative docs (README, guides, changelog) and in-code docs (Python
-docstrings, TSDoc) that feed `mkdocstrings`/TypeDoc. Runs unattended after
-merges to `main`.
+This skill treats documentation as a product of the codebase: it should describe the current behavior and guarantees of the system, not just narrate what one change did. It maintains docs following Diataxis (separation by content type), versioned architecture decisions (ADRs), a domain glossary for ubiquitous language, API reference generated from code (never hand-written), and diagrams as code (Mermaid).
 
-## Scope
+The project does not have a fixed domain model yet (it's early-stage, still being built) — nothing in this skill should assume specific entities, a database, or a particular web framework unless the user has actually introduced them. Domain-specific examples referenced below live in `references/examples.md` and are explicitly from a different project — use them only as a shape to imitate, never as this project's actual concepts.
 
-- Manual invocation → only the requested file/topic.
-- Auto invocation (post-merge) → only the diff of that PR. Never touch
-  business logic, only docs/docstrings/TSDoc/`/docs`.
-- Read `/GLOSSARY.md` first. Doesn't exist? Create it (§4).
+## 0. Core principles
 
-## Narrative docs
+- **Documentation is a product of the codebase, not of a single change.** Describe current behavior, not the implementation history of one PR.
+- **Accuracy over completeness.** Less documentation that's correct beats more documentation based on assumptions.
+- **Do not guess.** If behavior can't be established from the code, tests, or existing docs, don't invent an explanation — leave `<!-- TODO: confirm ... -->` and say so to the user.
+- **Minimal coherent change.** Update only what's actually affected. Don't rewrite existing docs for stylistic preference alone, and don't create a new page when an existing one can be updated instead.
 
-**Ask first:** Who's reading this? What do they need? What would trip up a
-new contributor?
+## 1. Before writing: figure out what's actually affected
 
-**Draft → Edit → Polish:**
-- Draft like you're telling a colleague. Lead with the action, explain after.
-  Headings state a point ("Set the base URL before running" not "Config").
-- Edit: sound like a person, not a memo. One purpose per paragraph. Cut
-  anything that doesn't help the reader. Verify examples against the diff.
-- Polish: descriptive links (never "here"), backticks for code, **bold** for
-  UI elements, American spelling, avoid numbers that will age badly.
+Before creating or editing anything:
 
-**Avoid:** calling things "easy", corporate filler ("utilize", "leverage"),
-burying the action in a paragraph, inventing behavior not in the diff.
+1. Read the existing docs relevant to the area you're touching, the relevant source code, and `/GLOSSARY.md` if it exists.
+2. Read `mkdocs.yml` to see the current theme, plugins, and `nav` — edit it incrementally, never overwrite it.
+3. Decide what kind of update this is:
+   - New or changed public function/class → **reference** (regenerate via mkdocstrings, don't hand-write).
+   - New or changed user/dev workflow → **guide** or **tutorial**.
+   - New or meaningfully changed architecture decision → **ADR**.
+   - New or changed domain concept/term → **glossary**.
+4. A change with no observable behavior difference (a pure refactor) usually needs **no** documentation update — don't touch docs just because code changed.
 
-## Python docstrings (FastAPI / Pydantic)
+## 2. Folder structure (Diataxis + extras)
 
-Google-style, written for the rendered `mkdocstrings` page:
+Only create what's missing; don't reorganize existing content without confirming with the user first.
 
-- Path operations: one-line imperative summary + non-obvious error codes.
-- Pydantic fields: `Field(..., description=...)` for anything non-obvious —
-  don't restate the type.
-- **Aggregate Roots** (`Booking`, `Session`, etc.): document the *invariant*
-  each validator protects, not just the check. "Prevents booking a session
-  that's already started" — not "must be in the future".
+```
+docs/
+├── index.md                   # Landing page: what the project is, quick install, links
+├── getting-started/           # TUTORIALS: learn by doing, step by step
+├── guides/                    # HOW-TO: solve a specific problem
+├── reference/                 # REFERENCE: auto-generated with mkdocstrings, never edit by hand
+├── architecture/
+│   ├── overview.md            # EXPLANATION: system overview (+ diagrams)
+│   └── decisions/             # Numbered ADRs: 0001-title.md, 0002-title.md...
+└── operations/                # Runbooks, deployment, troubleshooting
 
-```python
-class BookingRequest(BaseModel):
-    session_id: int = Field(
-        ..., description="Session to book. Must not have started yet — "
-        "this is what prevents booking sessions already in progress."
-    )
-
-@router.post("/bookings", response_model=BookingResponse)
-async def create_booking(payload: BookingRequest) -> BookingResponse:
-    """Create a booking. Enforces "no overbooking": 409 if the session is
-    full, 422 if it's in the past."""
+GLOSSARY.md                    # Domain terminology, at the repo root
 ```
 
-## TSDoc (React Native / TypeScript)
+Quick rule for deciding where new content goes:
+- Does it teach someone new to accomplish something end to end? → `getting-started/`
+- Does it solve a specific task for someone who already knows the basics? → `guides/`
+- Is it the exact signature of a function/class/endpoint? → `reference/` (auto-generated)
+- Does it explain the "why" behind a decision or the overall design? → `architecture/`
+- Is it the meaning of a domain term? → `/GLOSSARY.md`
 
-Same rule, feeds TypeDoc:
+See `references/diataxis-cheatsheet.md` for the full decision table and Mermaid syntax examples.
 
-- Every exported component/hook/util gets a one-line `/** */` summary.
-- Components: document non-obvious props and side effects (navigation,
-  storage, network).
-- Hooks: what triggers a re-render, and any cleanup.
-- Only add `@param`/`@returns` when the name/type isn't enough alone.
+## 3. `mkdocs.yml` configuration
 
-```ts
-/**
- * Counts down to a booked session; auto-cancels if the user doesn't
- * check in within the grace period.
- */
-export function useBookingCountdown(graceMinutes: number) { ... }
-```
+Use `assets/mkdocs.yml.example` as a reference for the target configuration (Material theme, mkdocstrings, Mermaid). Merge in only the sections missing from the user's actual `mkdocs.yml`; don't overwrite existing custom configuration.
 
-## Ubiquitous language & `/GLOSSARY.md`
+Key pieces it should have:
+- `theme: material`, with tabbed navigation if the project grows large.
+- `plugins: [search, mkdocstrings]` with the `python` handler.
+- `markdown_extensions` with `pymdownx.superfences` configured for ` ```mermaid ` blocks, plus `admonition` and `toc` with permalinks.
+- A `nav` in sync with the actual folders — every new file under `docs/` must be added here or it becomes "orphaned".
 
-A term must mean the same thing everywhere — code, docs, comments. This
-skill owns the glossary and keeps it current.
+## 4. API reference — ALWAYS auto-generated
 
-**Structure**, organized by bounded context (a term can mean different
-things in different contexts):
+Never hand-copy docstrings into a `.md` file. For every new or changed public module:
 
-```markdown
-## Booking
+1. Create (or update) `docs/reference/<module>.md` with:
+   ```markdown
+   # package.module
 
-### Session
-A bookable time slot led by a host. Not to be confused with an auth session.
-
-- **Invariants:** can't be booked once started; capacity fixed at creation.
-- **Used in:** `app/domain/booking/models.py`, `screens/SessionDetail.tsx`
-```
-
-No clear contexts yet? Use one `## Core` section until boundaries emerge.
-
-**Keep it updated:** new domain concept in the diff → add an entry. Existing
-concept touched → update its invariants/use sites. Already-defined term →
-always use the glossary's wording.
-
-**Discrepancy found** (code says `Client`, glossary says `Customer`)? This
-is a flag, not an edit:
-- Never rename anything, in code or in the glossary, to reconcile it.
-- Mark the entry: `> ⚠️ Naming discrepancy — code uses "Client", glossary
-  defines "Customer". Needs a dedicated PR.`
-- Put it first in the PR description (§ below) — before the summary.
-- Renaming a glossary term is human-only, via its own dedicated PR.
-
-## Post-merge guardrails
-
-1. Read only the merged PR's diff.
-2. Update docstrings/TSDoc/narrative docs it touches, and `/GLOSSARY.md`.
-3. Never: touch logic, invent behavior, merge your own PR, rename a
-   glossary term.
-4. Unclear something? Leave a `TODO`, don't guess.
-5. Open the PR yourself:
+   ::: package.module
    ```
-   git checkout -b docs/update-after-<pr-number>
-   git add <changed files>
-   git commit -m "docs: update after #<pr-number>"
-   git push -u origin HEAD
-   gh pr create --title "docs: sync after #<pr-number>" \
-     --body "⚠️ Naming discrepancies: <list, or 'none'>. Summary: <...>. \
-   TODOs: <list, or 'none'>."
-   ```
-   Discrepancies go first in the body, always.
+2. Add the corresponding entry to `nav` in `mkdocs.yml` if it's a new module.
+3. Write or fix the actual docstring in the source file — it's the only source for the reference section. See `references/docstrings-guide.md` for how to write docstrings that are actually worth reading (document behavior and invariants, not the obvious).
 
-## Quick reference
+## 5. ADRs (Architecture Decision Records)
 
-| Write This | Not This |
-|---|---|
-| Set the base URL before running | Configuration |
-| Check out [the API docs](link) | Click [here](link) |
-| Fails with 409 if already booked | (undocumented error code) |
-| `Customer` (matches glossary) | `Client`/`User` interchangeably |
-| Flag a discrepancy in the PR | Rename it yourself to "fix" it |
+When the user makes or mentions a significant architecture decision (library choice, pattern, data store, etc.):
+
+1. Copy `assets/adr-template.md` to `docs/architecture/decisions/NNNN-short-title.md`, where `NNNN` is the next sequential number (check the existing files in that folder).
+2. Fill in Context, Decision, Alternatives Considered, and Consequences.
+3. ADRs are immutable once accepted: if a decision later changes, create a new ADR that replaces it and mark the old one as `Superseded by ADR-000X` — don't edit it in place.
+4. Add the ADR to `nav` under `architecture/decisions/`.
+
+## 6. Diagrams — Mermaid as code
+
+Use ` ```mermaid ` code blocks directly in markdown (not exported images, so they're versioned as text). `flowchart` for processes, `sequenceDiagram` for interactions, `classDiagram`/subgraphed `flowchart` for architecture. Examples in `references/diataxis-cheatsheet.md`.
+
+## 7. Domain glossary (`/GLOSSARY.md`)
+
+A term must mean the same thing in code, docs, comments, and conversation. Use `assets/glossary-template.md` to start the file if it doesn't exist yet.
+
+- Organize by bounded context. **This project doesn't have clear bounded contexts yet** — keep everything under a single `## Core` heading until real boundaries emerge from the code; don't force a taxonomy prematurely.
+- When a change introduces a new domain concept → add it, with its invariants and where it's used.
+- When a change alters an existing concept → update its definition/invariants/use-sites.
+- When a change just *uses* an existing term → reuse the glossary's exact wording. Don't invent a synonym.
+- **Naming discrepancies are a flag, not an editing opportunity.** If the code calls something `Client` and the glossary calls it `Customer`, don't silently rename either one — mark it in the glossary (`⚠️ Naming discrepancy — code uses X, glossary defines Y`) and tell the user; renaming a domain term is a decision for a human, not for this skill to make unilaterally.
+
+## 8. Writing style
+
+Draft → Edit → Polish. Lead with the action, not the topic ("Set the base URL before running the app", not "Configuration"). Full style rules, do's/don'ts, and a quick-reference table are in `references/writing-style.md` — read it before writing prose-heavy pages (guides, tutorials, architecture overviews).
+
+## 9. Tutorials vs. guides
+
+- **Tutorial** (`getting-started/`): didactic tone, a single happy path, no branching, ends with something verifiably working.
+- **How-to guide** (`guides/`): assumes basic knowledge, goes straight to the steps, may include variants ("if you're using X, do this instead").
+
+## 10. Documentation consistency
+
+Before creating a new page, search for existing documentation covering the same concept. Prefer, in order: update an existing page → link to an existing page → create a new page only if the content has a genuinely distinct purpose. Avoid duplicate explanations, conflicting instructions, and orphan pages with no link pointing to them.
+
+## 11. Maintenance and verification
+
+Before considering any documentation task done:
+
+```bash
+mkdocs build --strict
+```
+
+This fails on warnings (broken links, pages missing from `nav`, mkdocstrings references that don't resolve) — fix everything it reports before finishing.
+
+Other useful commands: `mkdocs serve` (local preview at `http://127.0.0.1:8000`), `mkdocs gh-deploy` (publish to GitHub Pages, if the project uses it).
+
+Golden rule: documentation gets updated in the same change that touches the related code, not afterward.
+
+## Included resources
+
+- `assets/adr-template.md` — ready-to-copy ADR template.
+- `assets/glossary-template.md` — starting skeleton for `/GLOSSARY.md`.
+- `assets/mkdocs.yml.example` — full reference configuration (Material + mkdocstrings + Mermaid).
+- `references/diataxis-cheatsheet.md` — quick reference for which document type to use, with Mermaid examples.
+- `references/writing-style.md` — Draft → Edit → Polish process, style dos/don'ts, quick-reference table.
+- `references/docstrings-guide.md` — how to write Python docstrings worth generating reference pages from.
+- `references/examples.md` — **illustrative examples from a different, unrelated project** (domain glossary entry, docstring, PR workflow). Shapes to imitate, not this project's actual content.
