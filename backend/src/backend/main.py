@@ -12,3 +12,9 @@ app.include_router(auth_router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/version")
+async def version() -> dict[str, str]:
+    """Report the running backend version."""
+    return {"version": "1.0.0"}
