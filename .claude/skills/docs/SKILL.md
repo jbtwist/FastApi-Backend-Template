@@ -142,15 +142,23 @@ it acts, so this run is deliberately narrower than an interactive session:
   scratch each run.
 - **Scope of writing**: only files under `docs/`, `mkdocs.yml`'s `nav`,
   `.claude/skills/docs/GLOSSARY.md`, Python docstrings, and TSDoc comments
-  (`/** */`) in `.ts`/`.tsx` files. Never edit application logic, tests,
-  CI/workflow files, or non-comment source — if the merged diff touches
-  only those, the correct output is **no changes at all**.
-- **When in doubt, do nothing**: this run has no one to ask for
-  clarification. Applying rule 0.4 ("no observable behavior difference →
-  no doc update") strictly matters more here than in an interactive
-  session — a skipped update is cheap to catch later; an invented or
-  out-of-scope one (e.g. treating a CI/tooling change as a new domain
-  concept) is not.
+  (`/** */`) in `.ts`/`.tsx` files. Never edit application logic, tests, or
+  CI/workflow files — this is a restriction on *which files you may touch*,
+  not a shortcut for deciding whether to act. A diff that adds or changes a
+  public endpoint, function, or workflow **does** need a doc update even
+  though the change itself lives in a logic file: write about it in
+  `docs/`/docstrings, don't edit the logic file. Example: a new `/version`
+  endpoint added to `main.py` is a behavior change worth a line in the
+  architecture overview or a reference page — you'd edit the doc, not
+  `main.py`.
+- **When to actually do nothing**: only when the diff itself has no
+  observable behavior difference for a user or developer — CI config,
+  tooling, permissions, dependency bumps, pure refactors. That's rule 0.4,
+  and it's about the *nature of the change*, not which file it's in. When
+  in doubt and nothing else in this section resolves it, do nothing — this
+  run has no one to ask for clarification, so a skipped update is cheap to
+  catch later; an invented one (e.g. treating a CI/tooling change as a new
+  domain concept) is not.
 - **Branch naming**: use `docs/update-after-<PR_NUMBER>`. The workflow's
   own trigger explicitly excludes branches with this prefix from
   re-triggering the job, which is what stops this automation from looping
