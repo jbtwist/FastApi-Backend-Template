@@ -50,23 +50,14 @@ jobs:
                  `.claude/skills/docs/GLOSSARY.md` (never create a GLOSSARY.md
                  anywhere else, including the repo root), Python docstrings,
                  or TSDoc comments (`/** */`) in `.ts`/`.tsx` files. Never
-                 touch application logic, tests, or CI/workflow files
-                 yourself — but this is only a restriction on which files
-                 YOU may edit, not a reason to skip documenting. If the diff
-                 changes a logic file by adding/changing a public endpoint,
-                 function, or workflow, that's a real behavior change: write
-                 about it in `docs/` or a docstring, just don't touch the
-                 logic file itself. Example: a new `/version` endpoint added
-                 in `main.py` needs a line in the architecture overview or a
-                 reference page, even though `main.py` is off-limits to edit.
-               - Only skip entirely (no file changes, no branch, no PR) when
-                 the diff itself has no observable behavior difference for a
-                 user or developer — e.g. it's CI config, tooling,
-                 permissions, dependency bumps, or a pure refactor. Do not
-                 invent a doc/glossary entry just to have something to show
-                 for the run, but do not use "it's in a logic/CI file" alone
-                 as the reason to skip — check whether the change is
-                 observable first.
+                 touch application logic, tests, or CI/workflow files.
+               - If the diff has no observable behavior difference for a
+                 user or developer (e.g. it's CI, tooling, permissions, or
+                 config-only, like adding a settings file or a frontmatter
+                 field) — the correct outcome is to make NO file changes,
+                 create no branch, and open no PR. Stop and finish here in
+                 that case. Do not invent a doc/glossary entry to have
+                 something to show for the run.
 
             3. If step 2 concluded a real update IS needed: create a new
                branch named exactly `docs/update-after-${{ github.event.pull_request.number }}`,
