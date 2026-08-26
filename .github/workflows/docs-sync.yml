@@ -33,19 +33,45 @@ jobs:
           gemini_model: gemini-3.1-flash-lite
           prompt: |
             PR #${{ github.event.pull_request.number }} ("${{ github.event.pull_request.title }}")
-            was just merged into main. Read the docs skill at
-            .claude/skills/docs/SKILL.md and follow it to update
-            documentation for this PR.
+            was just merged into main. Do the following steps in order.
 
-            Follow the skill's "Post-merge guardrails" section exactly:
-            only read that PR's diff, only touch docs/docstrings/TSDoc/
-            GLOSSARY.md, never touch logic, and open the resulting PR
-            yourself with `gh pr create` as the skill describes.
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to see
+               exactly what changed. This is the only part of the codebase
+               you need to read closely; don't go exploring beyond what's
+               needed to describe this diff accurately.
 
-            The glossary the skill refers to as `/GLOSSARY.md` lives at
-            .claude/skills/docs/GLOSSARY.md — read and update that exact
-            file. Do not create a new GLOSSARY.md anywhere else, including
-            the repo root.
+            2. Read `.claude/skills/docs/SKILL.md` in full, in particular
+               section 12 ("Post-merge guardrails") — it governs this run
+               specifically. Its rules below are non-negotiable, not
+               suggestions to weigh:
+
+               - You may only create or edit files under `docs/`, entries in
+                 `mkdocs.yml`'s `nav`, the glossary at
+                 `.claude/skills/docs/GLOSSARY.md` (never create a GLOSSARY.md
+                 anywhere else, including the repo root), Python docstrings,
+                 or TSDoc comments (`/** */`) in `.ts`/`.tsx` files. Never
+                 touch application logic, tests, or CI/workflow files.
+               - If the diff has no observable behavior difference for a
+                 user or developer (e.g. it's CI, tooling, permissions, or
+                 config-only, like adding a settings file or a frontmatter
+                 field) — the correct outcome is to make NO file changes,
+                 create no branch, and open no PR. Stop and finish here in
+                 that case. Do not invent a doc/glossary entry to have
+                 something to show for the run.
+
+            3. If step 2 concluded a real update IS needed: create a new
+               branch named exactly `docs/update-after-${{ github.event.pull_request.number }}`,
+               make the doc changes, then run:
+               `git add -A && git commit -m "docs: sync after #${{ github.event.pull_request.number }}"`,
+               `git push -u origin HEAD`, and
+               `gh pr create --title "docs: sync after #${{ github.event.pull_request.number }}" --body "Automated docs update following #${{ github.event.pull_request.number }}."`.
+
+               The checkout already has a GITHUB_TOKEN with write access to
+               this repo — pushing and opening the PR require no further
+               permission or confirmation from anyone. A run that edits
+               files but doesn't push and open the PR has not completed the
+               task, because the runner and its file changes are discarded
+               the moment the job ends.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_CLI_TRUST_WORKSPACE: "true"

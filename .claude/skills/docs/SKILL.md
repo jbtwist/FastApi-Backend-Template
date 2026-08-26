@@ -130,6 +130,39 @@ Other useful commands: `mkdocs serve` (local preview at `http://127.0.0.1:8000`)
 
 Golden rule: documentation gets updated in the same change that touches the related code, not afterward.
 
+## 12. Post-merge guardrails (automated docs-sync)
+
+`.github/workflows/docs-sync.yml` runs this skill unattended, against a small
+model, right after a PR merges to `main`. No human reviews the prompt before
+it acts, so this run is deliberately narrower than an interactive session:
+
+- **Scope of reading**: only the diff of the merged PR (`gh pr diff <number>`
+  or the PR's own commits) plus whatever existing docs/glossary files it
+  needs to edit accurately. Don't re-derive the whole architecture from
+  scratch each run.
+- **Scope of writing**: only files under `docs/`, `mkdocs.yml`'s `nav`,
+  `.claude/skills/docs/GLOSSARY.md`, Python docstrings, and TSDoc comments
+  (`/** */`) in `.ts`/`.tsx` files. Never edit application logic, tests,
+  CI/workflow files, or non-comment source — if the merged diff touches
+  only those, the correct output is **no changes at all**.
+- **When in doubt, do nothing**: this run has no one to ask for
+  clarification. Applying rule 0.4 ("no observable behavior difference →
+  no doc update") strictly matters more here than in an interactive
+  session — a skipped update is cheap to catch later; an invented or
+  out-of-scope one (e.g. treating a CI/tooling change as a new domain
+  concept) is not.
+- **Branch naming**: use `docs/update-after-<PR_NUMBER>`. The workflow's
+  own trigger explicitly excludes branches with this prefix from
+  re-triggering the job, which is what stops this automation from looping
+  on the PRs it opens about itself.
+- **Finishing the job**: the workflow's checkout already carries a
+  `GITHUB_TOKEN` with `contents: write` / `pull-requests: write` — pushing
+  the branch and running `gh pr create` needs no further approval or
+  confirmation. A run that edits files but stops before pushing and
+  opening the PR has not completed the task; leaving changes uncommitted
+  in the runner accomplishes nothing, since the runner is discarded when
+  the job ends.
+
 ## Included resources
 
 - `assets/adr-template.md` — ready-to-copy ADR template.
