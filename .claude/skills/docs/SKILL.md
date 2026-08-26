@@ -1,6 +1,7 @@
 ---
 name: mkdocs-python-docs
 description: Generates and maintains this Python project's technical documentation using MkDocs (Material), organized around the Diataxis framework (tutorials, how-to guides, reference, explanation), with ADRs for architecture decisions, auto-generated API reference via mkdocstrings, a domain glossary, and Mermaid diagrams. ALWAYS use this skill when the user asks to document the project, create or update docs/, add a guide or tutorial, record an architecture decision (ADR), generate or update API reference, add an architecture diagram, keep docstrings in sync with a change, update or check the project glossary (`/GLOSSARY.md`), or mentions MkDocs, mkdocs.yml, Diataxis, mkdocstrings, or "technical documentation" in the context of this project — even if they don't use those exact words.
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Technical documentation with MkDocs (Python project)
