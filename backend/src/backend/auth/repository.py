@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.models import EmailVerificationToken, RefreshToken, User
@@ -31,6 +31,10 @@ class SqlUserRepository:
             .values(email_verified_at=verified_at)
         )
         return result.rowcount == 1
+
+    async def count(self) -> int:
+        result = await self._db.execute(select(func.count()).select_from(User))
+        return result.scalar_one()
 
 
 class SqlRefreshTokenRepository:

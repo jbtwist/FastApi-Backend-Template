@@ -175,6 +175,12 @@ async def me(user: CurrentUserDep) -> UserOut:
     return UserOut(id=user.id, email=user.email, email_verified=user.email_verified_at is not None)
 
 
+@router.get("/users/count")
+async def user_count(users: UserRepoDep) -> dict[str, int]:
+    """Return the total number of registered users, verified or not."""
+    return {"count": await users.count()}
+
+
 # TODO: remove these hardcoded HTML responses once the frontend redirect lands.
 _CONFIRM_EMAIL_SUCCESS_HTML = (
     "<html><body><h1>Email confirmed</h1><p>Your account is now active.</p></body></html>"
