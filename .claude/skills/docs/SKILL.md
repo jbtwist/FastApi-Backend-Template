@@ -1,6 +1,7 @@
 ---
 name: mkdocs-python-docs
 description: Generates and maintains this Python project's technical documentation using MkDocs (Material), organized around the Diataxis framework (tutorials, how-to guides, reference, explanation), with ADRs for architecture decisions, auto-generated API reference via mkdocstrings, a domain glossary, and Mermaid diagrams. ALWAYS use this skill when the user asks to document the project, create or update docs/, add a guide or tutorial, record an architecture decision (ADR), generate or update API reference, add an architecture diagram, keep docstrings in sync with a change, update or check the project glossary (`/GLOSSARY.md`), or mentions MkDocs, mkdocs.yml, Diataxis, mkdocstrings, or "technical documentation" in the context of this project — even if they don't use those exact words.
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Technical documentation with MkDocs (Python project)
@@ -128,6 +129,47 @@ This fails on warnings (broken links, pages missing from `nav`, mkdocstrings ref
 Other useful commands: `mkdocs serve` (local preview at `http://127.0.0.1:8000`), `mkdocs gh-deploy` (publish to GitHub Pages, if the project uses it).
 
 Golden rule: documentation gets updated in the same change that touches the related code, not afterward.
+
+## 12. Post-merge guardrails (automated docs-sync)
+
+`.github/workflows/docs-sync.yml` runs this skill unattended, against a small
+model, right after a PR merges to `main`. No human reviews the prompt before
+it acts, so this run is deliberately narrower than an interactive session:
+
+- **Scope of reading**: only the diff of the merged PR (`gh pr diff <number>`
+  or the PR's own commits) plus whatever existing docs/glossary files it
+  needs to edit accurately. Don't re-derive the whole architecture from
+  scratch each run.
+- **Scope of writing**: only files under `docs/`, `mkdocs.yml`'s `nav`,
+  `.claude/skills/docs/GLOSSARY.md`, Python docstrings, and TSDoc comments
+  (`/** */`) in `.ts`/`.tsx` files. Never edit application logic, tests, or
+  CI/workflow files — this is a restriction on *which files you may touch*,
+  not a shortcut for deciding whether to act. A diff that adds or changes a
+  public endpoint, function, or workflow **does** need a doc update even
+  though the change itself lives in a logic file: write about it in
+  `docs/`/docstrings, don't edit the logic file. Example: a new `/version`
+  endpoint added to `main.py` is a behavior change worth a line in the
+  architecture overview or a reference page — you'd edit the doc, not
+  `main.py`.
+- **When to actually do nothing**: only when the diff itself has no
+  observable behavior difference for a user or developer — CI config,
+  tooling, permissions, dependency bumps, pure refactors. That's rule 0.4,
+  and it's about the *nature of the change*, not which file it's in. When
+  in doubt and nothing else in this section resolves it, do nothing — this
+  run has no one to ask for clarification, so a skipped update is cheap to
+  catch later; an invented one (e.g. treating a CI/tooling change as a new
+  domain concept) is not.
+- **Branch naming**: use `docs/update-after-<PR_NUMBER>`. The workflow's
+  own trigger explicitly excludes branches with this prefix from
+  re-triggering the job, which is what stops this automation from looping
+  on the PRs it opens about itself.
+- **Finishing the job**: the workflow's checkout already carries a
+  `GITHUB_TOKEN` with `contents: write` / `pull-requests: write` — pushing
+  the branch and running `gh pr create` needs no further approval or
+  confirmation. A run that edits files but stops before pushing and
+  opening the PR has not completed the task; leaving changes uncommitted
+  in the runner accomplishes nothing, since the runner is discarded when
+  the job ends.
 
 ## Included resources
 
