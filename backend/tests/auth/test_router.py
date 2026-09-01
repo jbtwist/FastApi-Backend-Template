@@ -22,6 +22,7 @@ from backend.auth.dependencies import (
     get_auth_config,
     get_email_verification_token_repo,
     get_password_reset_token_repo,
+    get_pwned_password_checker,
     get_refresh_token_repo,
     get_user_repo,
 )
@@ -74,6 +75,21 @@ def dispatch_calls() -> list[str]:
     return []
 
 
+class FakePwnedChecker:
+    def __init__(self) -> None:
+        self.pwned: set[str] = set()
+        self.calls: list[str] = []
+
+    async def is_pwned(self, password: str) -> bool:
+        self.calls.append(password)
+        return password in self.pwned
+
+
+@pytest.fixture
+def pwned_checker() -> FakePwnedChecker:
+    return FakePwnedChecker()
+
+
 @pytest.fixture
 async def verified_user(user_repo):
     user = await service.register_user(user_repo, email="ada@example.com", password="s3cret-pw")
@@ -90,6 +106,7 @@ async def client(
     outbox_repo,
     app_config,
     dispatch_calls,
+    pwned_checker,
 ):
     fake_redis = fakeredis.aioredis.FakeRedis(server=fakeredis.aioredis.FakeServer())
 
@@ -110,6 +127,7 @@ async def client(
             get_refresh_token_repo: lambda: refresh_token_repo,
             get_email_verification_token_repo: FakeEmailVerificationTokenRepository,
             get_email_outbox_repo: lambda: outbox_repo,
+            get_pwned_password_checker: lambda: pwned_checker,
         }
     )
 
@@ -281,3 +299,85 @@ class TestAbuse:
             "/auth/reset-password", json={"token": first, "new_password": "yet-another-one-42"}
         )
         assert stale.status_code == 400
+
+
+class TestPasswordPolicyAtRegister:
+    async def test_too_short_password_is_422(self, client):
+        res = await client.post(
+            "/auth/register", json={"email": "new@example.com", "password": "eightchr"}
+        )
+
+        assert res.status_code == 422
+        assert "too short" in res.json()["detail"]
+
+    async def test_breached_password_is_422(self, client, pwned_checker):
+        pwned_checker.pwned.add("hunter2-hunter2-hunter2")
+
+        res = await client.post(
+            "/auth/register",
+            json={"email": "new@example.com", "password": "hunter2-hunter2-hunter2"},
+        )
+
+        assert res.status_code == 422
+        assert "data breach" in res.json()["detail"]
+
+    async def test_strong_unbreached_password_is_201(self, client):
+        res = await client.post(
+            "/auth/register", json={"email": "new@example.com", "password": GOOD_PASSWORD}
+        )
+
+        assert res.status_code == 201
+
+    async def test_duplicate_email_is_409_without_a_breach_check(self, client):
+        first = await client.post(
+            "/auth/register", json={"email": "dup@example.com", "password": GOOD_PASSWORD}
+        )
+        assert first.status_code == 201
+
+        again = await client.post(
+            "/auth/register", json={"email": "dup@example.com", "password": "a-different-long-one"}
+        )
+
+        assert again.status_code == 409
+
+    async def test_duplicate_email_does_not_reach_the_pwned_checker(self, client, pwned_checker):
+        await client.post(
+            "/auth/register", json={"email": "dup@example.com", "password": GOOD_PASSWORD}
+        )
+        pwned_checker.calls.clear()
+
+        await client.post(
+            "/auth/register", json={"email": "dup@example.com", "password": "a-different-long-one"}
+        )
+
+        assert pwned_checker.calls == []
+
+
+class TestPasswordPolicyAtReset:
+    async def test_policy_violation_is_422_and_the_token_stays_usable(
+        self, client, outbox_repo, user_repo, verified_user
+    ):
+        token = await _reset_token(client, outbox_repo)
+        rejected = await client.post(
+            "/auth/reset-password", json={"token": token, "new_password": "ninechars"}
+        )
+        assert rejected.status_code == 422
+        assert "too short" in rejected.json()["detail"]
+
+        accepted = await client.post(
+            "/auth/reset-password", json={"token": token, "new_password": GOOD_PASSWORD}
+        )
+        assert accepted.status_code == 204
+        user = await service.authenticate_user(
+            user_repo, email="ada@example.com", password=GOOD_PASSWORD
+        )
+        assert user.id == verified_user.id
+
+    async def test_unknown_token_with_a_policy_violating_password_is_400_not_422(
+        self, client, verified_user
+    ):
+        res = await client.post(
+            "/auth/reset-password", json={"token": "never-issued", "new_password": "ninechars"}
+        )
+
+        assert res.status_code == 400

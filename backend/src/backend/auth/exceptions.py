@@ -48,3 +48,15 @@ class InvalidPasswordResetToken(AuthError):
 
 class PasswordResetTokenExpired(AuthError):
     pass
+
+
+class PasswordTooShort(AuthError):
+    pass
+
+
+class PasswordTooLong(AuthError):
+    pass
+
+
+class PasswordCompromised(AuthError):
+    pass

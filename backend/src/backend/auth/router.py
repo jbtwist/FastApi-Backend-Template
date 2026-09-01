@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from redis_fastapi import rate_limit
 
 from backend.auth import service
+from backend.auth.config import AuthConfig
 from backend.auth.cookies import (
     access_token_cookie,
     clear_access_token_cookie,
@@ -24,6 +25,7 @@ from backend.auth.dependencies import (
     CurrentUserDep,
     EmailVerificationTokenRepoDep,
     PasswordResetTokenRepoDep,
+    PwnedPasswordCheckerDep,
     RefreshTokenRepoDep,
     UserRepoDep,
 )
@@ -34,10 +36,18 @@ from backend.auth.exceptions import (
     InvalidPasswordResetToken,
     InvalidRefreshToken,
     InvalidVerificationToken,
+    PasswordCompromised,
     PasswordResetTokenExpired,
+    PasswordTooLong,
+    PasswordTooShort,
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
     VerificationTokenExpired,
+)
+from backend.auth.password_policy import (
+    MIN_LENGTH_BY_STRENGTH,
+    PwnedPasswordChecker,
+    validate_password_strength,
 )
 from backend.auth.schemas import (
     ConfirmEmailIn,
@@ -71,6 +81,31 @@ async def _queue_dispatch(entry_id: str) -> None:
         await run_in_threadpool(dispatch_email.delay, entry_id)
     except Exception:
         logger.warning("dispatch enqueue failed for outbox entry %s", entry_id, exc_info=True)
+
+
+async def _enforce_password_policy(
+    password: str, *, config: AuthConfig, pwned_checker: PwnedPasswordChecker
+) -> None:
+    """Run the active password policy, translating each failure to a 422."""
+    try:
+        await validate_password_strength(password, config=config, pwned_checker=pwned_checker)
+    except PasswordTooShort as exc:
+        minimum = MIN_LENGTH_BY_STRENGTH[config.PASSWORD_STRENGTH]
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Password is too short (minimum {minimum} characters)",
+        ) from exc
+    except PasswordTooLong as exc:
+        limit = config.PASSWORD_MAX_LENGTH
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Password exceeds the maximum length of {limit} characters",
+        ) from exc
+    except PasswordCompromised as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This password has appeared in a data breach; choose another",
+        ) from exc
 
 
 @contextlib.asynccontextmanager
@@ -108,9 +143,12 @@ async def register(
     token_repo: EmailVerificationTokenRepoDep,
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
+    pwned_checker: PwnedPasswordCheckerDep,
 ) -> UserOut:
     """Create an account and queue a verification email. The account can't log in until verified."""
     try:
+        await service.ensure_email_available(user_repo, email=payload.email)
+        await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
         )
@@ -329,16 +367,21 @@ async def reset_password(
     reset_token_repo: PasswordResetTokenRepoDep,
     user_repo: UserRepoDep,
     refresh_token_repo: RefreshTokenRepoDep,
+    config: AuthConfigDep,
+    pwned_checker: PwnedPasswordCheckerDep,
 ) -> None:
-    """Set a new password from a reset link's token.
-
-    The token is validated first (cheap) so a bad one is rejected before the
-    password policy check that a later commit adds here — which makes an outbound
-    breach-check call. A policy rejection therefore leaves the link usable.
-    """
+    """Set a new password from a reset link's token."""
     now = datetime.now(UTC)
     try:
         await service.assert_reset_token_valid(reset_token_repo, payload.token, now=now)
+    except (InvalidPasswordResetToken, PasswordResetTokenExpired) as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
+        ) from exc
+
+    await _enforce_password_policy(payload.new_password, config=config, pwned_checker=pwned_checker)
+
+    try:
         await service.reset_password(
             reset_token_repo,
             user_repo,
