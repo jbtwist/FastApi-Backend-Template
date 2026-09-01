@@ -11,6 +11,7 @@ class AuthConfig(BaseSettings):
     ACCESS_TOKEN_EXP: timedelta = timedelta(minutes=15)
     REFRESH_TOKEN_EXP: timedelta = timedelta(days=30)
     EMAIL_VERIFICATION_TOKEN_EXP: timedelta = timedelta(hours=24)
+    PASSWORD_RESET_TOKEN_EXP: timedelta = timedelta(hours=1)
     COOKIE_SECURE: bool = True
 
 

@@ -40,3 +40,11 @@ class InvalidVerificationToken(AuthError):
 
 class VerificationTokenExpired(AuthError):
     pass
+
+
+class InvalidPasswordResetToken(AuthError):
+    pass
+
+
+class PasswordResetTokenExpired(AuthError):
+    pass

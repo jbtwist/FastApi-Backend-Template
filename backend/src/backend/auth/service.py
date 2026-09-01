@@ -10,25 +10,30 @@ from backend.auth.exceptions import (
     EmailAlreadyRegistered,
     EmailNotVerified,
     InvalidCredentials,
+    InvalidPasswordResetToken,
     InvalidRefreshToken,
     InvalidVerificationToken,
+    PasswordResetTokenExpired,
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
     VerificationTokenExpired,
 )
-from backend.auth.models import EmailVerificationToken, RefreshToken, User
+from backend.auth.models import (
+    EmailVerificationToken,
+    PasswordResetToken,
+    RefreshToken,
+    User,
+)
 from backend.auth.security import (
     DUMMY_PASSWORD_HASH,
     create_access_token,
-    generate_email_verification_token,
-    generate_refresh_token,
-    hash_email_verification_token,
+    generate_opaque_token,
+    hash_opaque_token,
     hash_password,
-    hash_refresh_token,
     verify_password,
 )
 from backend.mail import service as mail_service
-from backend.mail.models import EmailOutboxEntry
+from backend.mail.models import EmailKind, EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
 
 
@@ -37,6 +42,9 @@ class UserRepository(Protocol):
     async def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
     async def create(self, *, email: str, password_hash: str) -> User: ...
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool: ...
+    async def set_password_hash(
+        self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
+    ) -> bool: ...
 
 
 class RefreshTokenRepository(Protocol):
@@ -51,6 +59,7 @@ class RefreshTokenRepository(Protocol):
     async def get_by_hash(self, token_hash: str) -> RefreshToken | None: ...
     async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
+    async def revoke_all_for_user(self, user_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
 
 
 class EmailVerificationTokenRepository(Protocol):
@@ -59,6 +68,17 @@ class EmailVerificationTokenRepository(Protocol):
     ) -> EmailVerificationToken: ...
     async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None: ...
     async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+
+
+class PasswordResetTokenRepository(Protocol):
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> PasswordResetToken: ...
+    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None: ...
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None: ...
 
 
 @dataclass
@@ -130,12 +150,12 @@ async def issue_token_pair(
     other sessions/devices.
     """
     access_token = create_access_token(str(user.id), config=config, now=now)
-    raw_refresh_token = generate_refresh_token(config=config)
+    raw_refresh_token = generate_opaque_token()
 
     await refresh_token_repo.create(
         user_id=user.id,
         family_id=uuid.uuid4(),
-        token_hash=hash_refresh_token(raw_refresh_token),
+        token_hash=hash_opaque_token(raw_refresh_token),
         expires_at=now + config.REFRESH_TOKEN_EXP,
     )
 
@@ -162,7 +182,7 @@ async def rotate_refresh_token(
         RefreshTokenExpired: the token exists but is past `expires_at`.
         RefreshTokenReuseDetected: the token was already used once before (reuse/replay).
     """
-    record = await refresh_token_repo.get_by_hash(hash_refresh_token(raw_refresh_token))
+    record = await refresh_token_repo.get_by_hash(hash_opaque_token(raw_refresh_token))
     if record is None or record.revoked_at is not None:
         raise InvalidRefreshToken
 
@@ -178,11 +198,11 @@ async def rotate_refresh_token(
         await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
         raise RefreshTokenReuseDetected
 
-    new_raw_refresh_token = generate_refresh_token(config=config)
+    new_raw_refresh_token = generate_opaque_token()
     await refresh_token_repo.create(
         user_id=record.user_id,
         family_id=record.family_id,
-        token_hash=hash_refresh_token(new_raw_refresh_token),
+        token_hash=hash_opaque_token(new_raw_refresh_token),
         expires_at=now + config.REFRESH_TOKEN_EXP,
     )
 
@@ -197,7 +217,7 @@ async def logout(
 
     Silently no-ops if the token doesn't exist — logout is idempotent.
     """
-    record = await refresh_token_repo.get_by_hash(hash_refresh_token(raw_refresh_token))
+    record = await refresh_token_repo.get_by_hash(hash_opaque_token(raw_refresh_token))
     if record is None:
         return
 
@@ -218,10 +238,10 @@ async def queue_verification_email(
     transaction as registration) so the email survives even if the Celery
     dispatch that follows never fires — see `backend.mail.service.enqueue_email`.
     """
-    raw_token = generate_email_verification_token(config=config)
+    raw_token = generate_opaque_token()
     await token_repo.create(
         user_id=user.id,
-        token_hash=hash_email_verification_token(raw_token),
+        token_hash=hash_opaque_token(raw_token),
         expires_at=now + config.EMAIL_VERIFICATION_TOKEN_EXP,
     )
     return await mail_service.enqueue_email(
@@ -243,7 +263,7 @@ async def confirm_email(
             or lost the race to be marked used (double-submit).
         VerificationTokenExpired: the token exists but is past `expires_at`.
     """
-    record = await token_repo.get_by_hash(hash_email_verification_token(raw_token))
+    record = await token_repo.get_by_hash(hash_opaque_token(raw_token))
     if record is None or record.used_at is not None:
         raise InvalidVerificationToken
 
@@ -282,3 +302,108 @@ async def resend_verification_email(
         return None
 
     return await queue_verification_email(token_repo, outbox_repo, user, config=config, now=now)
+
+
+async def request_password_reset(
+    password_reset_token_repo: PasswordResetTokenRepository,
+    user_repo: UserRepository,
+    outbox_repo: EmailOutboxRepository,
+    *,
+    email: str,
+    config: AuthConfig,
+    now: datetime,
+) -> EmailOutboxEntry | None:
+    """Mint a password-reset token for a verified user and durably queue the reset email.
+
+    Returns `None` without raising or revealing anything if the email is
+    unregistered or not yet verified — callers must treat both the same as the
+    success case (a bare "check your inbox" response) so the endpoint can't be
+    used to enumerate registered addresses. An unverified address also hasn't
+    been proven to belong to the account, so it can't be used to take it over.
+
+    Repeated calls issue independent tokens; prior tokens are only invalidated
+    once a reset actually completes (see `reset_password`).
+    """
+    normalized_email = _normalize_email(email)
+    user = await user_repo.get_by_email(normalized_email)
+    if user is None or user.email_verified_at is None:
+        return None
+
+    raw_token = generate_opaque_token()
+    await password_reset_token_repo.create(
+        user_id=user.id,
+        token_hash=hash_opaque_token(raw_token),
+        expires_at=now + config.PASSWORD_RESET_TOKEN_EXP,
+    )
+    return await mail_service.enqueue_email(
+        outbox_repo,
+        user_id=user.id,
+        email=user.email,
+        token=raw_token,
+        created_at=now,
+        kind=EmailKind.PASSWORD_RESET,
+    )
+
+
+async def assert_reset_token_valid(
+    password_reset_token_repo: PasswordResetTokenRepository,
+    raw_token: str,
+    *,
+    now: datetime,
+) -> None:
+    """Check that a reset token exists, is unused and unexpired — without consuming it.
+
+    Lets the router reject a bad token (cheap: one hash + one indexed lookup)
+    before running the password policy, which may make an outbound breach-check
+    call. `reset_password` re-runs these checks and additionally guards the
+    consume race, so this is an optimisation, not the security boundary.
+
+    Raises:
+        InvalidPasswordResetToken: the token doesn't exist or was already used.
+        PasswordResetTokenExpired: the token exists but is at/past `expires_at`.
+    """
+    record = await password_reset_token_repo.get_by_hash(hash_opaque_token(raw_token))
+    if record is None or record.used_at is not None:
+        raise InvalidPasswordResetToken
+    if record.expires_at <= now:
+        raise PasswordResetTokenExpired
+
+
+async def reset_password(
+    password_reset_token_repo: PasswordResetTokenRepository,
+    user_repo: UserRepository,
+    refresh_token_repo: RefreshTokenRepository,
+    raw_token: str,
+    *,
+    new_password: str,
+    now: datetime,
+) -> None:
+    """Consume a reset token, set a new password, and sign the user out everywhere.
+
+    On success: the password is re-hashed with argon2, every refresh-token
+    session for that user is revoked, and every other outstanding reset token
+    for that user is burned so a second issued-but-unused link can't be
+    redeemed afterwards.
+
+    Raises:
+        InvalidPasswordResetToken: the token doesn't exist, was already used,
+            or lost the race to be marked used (concurrent reset).
+        PasswordResetTokenExpired: the token exists but is at/past `expires_at`;
+            the password is left unchanged.
+    """
+    record = await password_reset_token_repo.get_by_hash(hash_opaque_token(raw_token))
+    if record is None or record.used_at is not None:
+        raise InvalidPasswordResetToken
+
+    if record.expires_at <= now:
+        raise PasswordResetTokenExpired
+
+    won_race = await password_reset_token_repo.mark_used(record.id, used_at=now)
+    if not won_race:
+        raise InvalidPasswordResetToken
+
+    await user_repo.set_password_hash(
+        record.user_id, password_hash=hash_password(new_password), updated_at=now
+    )
+    await refresh_token_repo.revoke_all_for_user(record.user_id, revoked_at=now)
+    await password_reset_token_repo.invalidate_all_for_user(record.user_id, invalidated_at=now)
