@@ -12,10 +12,10 @@ from backend.mail.repository import SqlEmailOutboxRepository
 _email_sender = get_email_sender()
 
 
-async def _dispatch_verification_email(entry_id: str) -> None:
+async def _dispatch_email(entry_id: str) -> None:
     async with WorkerSessionFactory() as db, db.begin():
         outbox_repo = SqlEmailOutboxRepository(db)
-        await mail_service.dispatch_verification_email(
+        await mail_service.dispatch_email(
             outbox_repo,
             _email_sender,
             uuid.UUID(entry_id),
@@ -25,22 +25,23 @@ async def _dispatch_verification_email(entry_id: str) -> None:
 
 
 @celery_app.task(
-    name="backend.mail.tasks.dispatch_verification_email",
+    name="backend.mail.tasks.dispatch_email",
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=5,
 )
-def dispatch_verification_email(entry_id: str) -> None:
-    """Celery task: dispatch one outbox entry's verification email.
+def dispatch_email(entry_id: str) -> None:
+    """Celery task: dispatch one outbox entry's email.
 
-    Two retry layers apply on top of each other: Celery retries this task up
-    to 5 times with exponential backoff (capped at 600s) for transient
-    failures within one run, while `backend.mail.service.dispatch_verification_email`
-    tracks `attempts` on the outbox row itself and marks it `DEAD` once that
-    count (independent of Celery's retry count) reaches `MAX_DISPATCH_ATTEMPTS`.
+    The outbox row's `kind` decides which template/sender
+    `backend.mail.service.dispatch_email` uses, so one task covers every email
+    type. Two retry layers apply: Celery retries this task up to 5 times with
+    exponential backoff (capped at 600s) for transient failures within one run,
+    while the service function tracks `attempts` on the outbox row itself and
+    marks it `DEAD` once that count reaches `MAX_DISPATCH_ATTEMPTS`.
     """
-    asyncio.run(_dispatch_verification_email(entry_id))
+    asyncio.run(_dispatch_email(entry_id))
 
 
 async def _sweep_pending_emails() -> list[str]:
@@ -55,10 +56,11 @@ async def _sweep_pending_emails() -> list[str]:
 def sweep_pending_emails() -> None:
     """Celery beat task (`SWEEP_INTERVAL_SECONDS`): re-dispatch outbox entries stuck `PENDING`.
 
-    Safety net for entries whose dispatch was never queued or got lost, not
-    the primary delivery path — `register`/`resend-verification` already
-    queue dispatch directly. Threshold is `SWEEP_STALE_AFTER_SECONDS`; see
-    `backend.mail.service.list_stale_pending_emails`.
+    Safety net for entries whose dispatch was never queued or got lost, not the
+    primary delivery path — the endpoints that enqueue email already queue
+    dispatch directly. Every stale row goes back through the single
+    `dispatch_email` task, which reads its `kind`. Threshold is
+    `SWEEP_STALE_AFTER_SECONDS`; see `backend.mail.service.list_stale_pending_emails`.
     """
     for entry_id in asyncio.run(_sweep_pending_emails()):
-        dispatch_verification_email.delay(entry_id)
+        dispatch_email.delay(entry_id)

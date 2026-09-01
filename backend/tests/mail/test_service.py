@@ -4,13 +4,13 @@ import pytest
 
 from backend.mail import service
 from backend.mail.exceptions import EmailOutboxEntryNotFound
-from backend.mail.models import EmailOutboxStatus
-from tests.mail.fakes import SentVerificationEmail
+from backend.mail.models import EmailKind, EmailOutboxStatus
+from tests.mail.fakes import SentPasswordResetEmail, SentVerificationEmail
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
-class TestDispatchVerificationEmail:
+class TestDispatchEmail:
     async def test_sends_email_and_marks_entry_sent_on_success(
         self, email_outbox_repo, email_sender
     ):
@@ -18,9 +18,7 @@ class TestDispatchVerificationEmail:
             user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
         )
 
-        await service.dispatch_verification_email(
-            email_outbox_repo, email_sender, entry.id, now=NOW
-        )
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
 
         updated = await email_outbox_repo.get_by_id(entry.id)
         assert updated.status == EmailOutboxStatus.SENT
@@ -30,9 +28,7 @@ class TestDispatchVerificationEmail:
 
     async def test_raises_for_an_unknown_outbox_entry(self, email_outbox_repo, email_sender):
         with pytest.raises(EmailOutboxEntryNotFound):
-            await service.dispatch_verification_email(
-                email_outbox_repo, email_sender, "does-not-exist", now=NOW
-            )
+            await service.dispatch_email(email_outbox_repo, email_sender, "does-not-exist", now=NOW)
 
     async def test_reprocessing_an_already_sent_entry_is_a_noop(
         self, email_outbox_repo, email_sender
@@ -40,14 +36,10 @@ class TestDispatchVerificationEmail:
         entry = await email_outbox_repo.create(
             user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
         )
-        await service.dispatch_verification_email(
-            email_outbox_repo, email_sender, entry.id, now=NOW
-        )
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
         email_sender.sent.clear()
 
-        await service.dispatch_verification_email(
-            email_outbox_repo, email_sender, entry.id, now=NOW
-        )
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
 
         assert email_sender.sent == []
 
@@ -57,9 +49,7 @@ class TestDispatchVerificationEmail:
         )
         await email_outbox_repo.mark_dead(entry.id, failed_at=NOW)
 
-        await service.dispatch_verification_email(
-            email_outbox_repo, email_sender, entry.id, now=NOW
-        )
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
 
         assert email_sender.sent == []
 
@@ -72,7 +62,7 @@ class TestDispatchVerificationEmail:
         email_sender.fail_with = RuntimeError("provider timeout")
 
         with pytest.raises(RuntimeError, match="provider timeout"):
-            await service.dispatch_verification_email(
+            await service.dispatch_email(
                 email_outbox_repo, email_sender, entry.id, now=NOW, max_attempts=3
             )
 
@@ -90,7 +80,7 @@ class TestDispatchVerificationEmail:
 
         for _ in range(2):
             with pytest.raises(RuntimeError):
-                await service.dispatch_verification_email(
+                await service.dispatch_email(
                     email_outbox_repo, email_sender, entry.id, now=NOW, max_attempts=2
                 )
 
@@ -105,12 +95,12 @@ class TestDispatchVerificationEmail:
         email_sender.fail_with = RuntimeError("provider timeout")
         for _ in range(2):
             with pytest.raises(RuntimeError):
-                await service.dispatch_verification_email(
+                await service.dispatch_email(
                     email_outbox_repo, email_sender, entry.id, now=NOW, max_attempts=2
                 )
 
         email_sender.fail_with = None  # provider recovers, shouldn't matter anymore
-        await service.dispatch_verification_email(
+        await service.dispatch_email(
             email_outbox_repo, email_sender, entry.id, now=NOW, max_attempts=2
         )
 
@@ -118,6 +108,58 @@ class TestDispatchVerificationEmail:
         updated = await email_outbox_repo.get_by_id(entry.id)
         assert updated.status == EmailOutboxStatus.DEAD
         assert updated.attempts == 2
+
+
+class TestEnqueueAndDispatchByKind:
+    async def test_enqueue_defaults_to_verification_kind(self, email_outbox_repo):
+        entry = await service.enqueue_email(
+            email_outbox_repo,
+            user_id="user-1",
+            email="ada@example.com",
+            token="raw-token",
+            created_at=NOW,
+        )
+
+        assert entry.kind == EmailKind.VERIFICATION
+
+    async def test_password_reset_entry_is_dispatched_via_reset_sender(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await service.enqueue_email(
+            email_outbox_repo,
+            user_id="user-1",
+            email="ada@example.com",
+            token="reset-token",
+            created_at=NOW,
+            kind=EmailKind.PASSWORD_RESET,
+        )
+
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
+
+        assert email_sender.sent == []
+        assert email_sender.sent_password_reset == [
+            SentPasswordResetEmail(email="ada@example.com", token="reset-token")
+        ]
+        updated = await email_outbox_repo.get_by_id(entry.id)
+        assert updated.status == EmailOutboxStatus.SENT
+
+    async def test_verification_entry_still_uses_the_verification_sender(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await service.enqueue_email(
+            email_outbox_repo,
+            user_id="user-1",
+            email="ada@example.com",
+            token="verify-token",
+            created_at=NOW,
+        )
+
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
+
+        assert email_sender.sent == [
+            SentVerificationEmail(email="ada@example.com", token="verify-token")
+        ]
+        assert email_sender.sent_password_reset == []
 
 
 class TestListStalePendingEmails:
@@ -143,9 +185,7 @@ class TestListStalePendingEmails:
         entry = await email_outbox_repo.create(
             user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
         )
-        await service.dispatch_verification_email(
-            email_outbox_repo, email_sender, entry.id, now=NOW
-        )
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
         cutoff = NOW + timedelta(minutes=2)
         stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
 
@@ -171,7 +211,7 @@ class TestListStalePendingEmails:
         email_sender.fail_with = RuntimeError("timeout")
         recent_attempt = NOW + timedelta(minutes=5)
         with pytest.raises(RuntimeError):
-            await service.dispatch_verification_email(
+            await service.dispatch_email(
                 email_outbox_repo, email_sender, entry.id, now=recent_attempt, max_attempts=5
             )
         cutoff = recent_attempt - timedelta(seconds=30)

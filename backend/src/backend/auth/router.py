@@ -43,7 +43,7 @@ from backend.auth.schemas import (
     UserOut,
 )
 from backend.mail.dependencies import EmailOutboxRepoDep
-from backend.mail.tasks import dispatch_verification_email
+from backend.mail.tasks import dispatch_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -79,7 +79,7 @@ async def register(
     entry = await service.queue_verification_email(
         token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
     )
-    await run_in_threadpool(dispatch_verification_email.delay, str(entry.id))
+    await run_in_threadpool(dispatch_email.delay, str(entry.id))
     return UserOut(id=user.id, email=user.email, email_verified=False)
 
 
@@ -198,7 +198,7 @@ async def confirm_email_link(
     """
     try:
         await service.confirm_email(token_repo, user_repo, token, now=datetime.now(UTC))
-    except (InvalidVerificationToken, VerificationTokenExpired):
+    except InvalidVerificationToken, VerificationTokenExpired:
         return HTMLResponse(_CONFIRM_EMAIL_ERROR_HTML, status_code=status.HTTP_400_BAD_REQUEST)
     return HTMLResponse(_CONFIRM_EMAIL_SUCCESS_HTML)
 
@@ -243,4 +243,4 @@ async def resend_verification(
         now=datetime.now(UTC),
     )
     if entry is not None:
-        await run_in_threadpool(dispatch_verification_email.delay, str(entry.id))
+        await run_in_threadpool(dispatch_email.delay, str(entry.id))

@@ -16,6 +16,17 @@ class EmailOutboxStatus(StrEnum):
     DEAD = "dead"
 
 
+class EmailKind(StrEnum):
+    """Which transactional email an outbox row carries.
+
+    The dispatch step selects the template and sender method by this value; the
+    `token` column holds whichever opaque token that kind's link needs.
+    """
+
+    VERIFICATION = "verification"
+    PASSWORD_RESET = "password_reset"
+
+
 class EmailOutboxEntry(Base):
     __tablename__ = "email_outbox"
 
@@ -27,6 +38,12 @@ class EmailOutboxEntry(Base):
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
     token: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default=EmailKind.VERIFICATION,
+        server_default=EmailKind.VERIFICATION.value,
+    )
     status: Mapped[str] = mapped_column(String, nullable=False, default=EmailOutboxStatus.PENDING)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(

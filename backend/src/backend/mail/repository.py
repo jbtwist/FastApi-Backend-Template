@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.mail.models import EmailOutboxEntry, EmailOutboxStatus
+from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
 
 
 class SqlEmailOutboxRepository:
@@ -12,10 +12,20 @@ class SqlEmailOutboxRepository:
         self._db = db
 
     async def create(
-        self, *, user_id: uuid.UUID, email: str, token: str, created_at: datetime
+        self,
+        *,
+        user_id: uuid.UUID,
+        email: str,
+        token: str,
+        created_at: datetime,
+        kind: EmailKind = EmailKind.VERIFICATION,
     ) -> EmailOutboxEntry:
         entry = EmailOutboxEntry(
-            user_id=user_id, email=email, token=token, status=EmailOutboxStatus.PENDING
+            user_id=user_id,
+            email=email,
+            token=token,
+            kind=kind,
+            status=EmailOutboxStatus.PENDING,
         )
         self._db.add(entry)
         await self._db.flush()

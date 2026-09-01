@@ -5,18 +5,25 @@ from datetime import datetime
 from typing import Protocol
 
 from backend.mail.exceptions import EmailOutboxEntryNotFound
-from backend.mail.models import EmailOutboxEntry, EmailOutboxStatus
+from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
 
 DEFAULT_MAX_DISPATCH_ATTEMPTS = 5
 
 
 class EmailSender(Protocol):
     async def send_verification_email(self, *, email: str, token: str) -> None: ...
+    async def send_password_reset_email(self, *, email: str, token: str) -> None: ...
 
 
 class EmailOutboxRepository(Protocol):
     async def create(
-        self, *, user_id: uuid.UUID, email: str, token: str, created_at: datetime
+        self,
+        *,
+        user_id: uuid.UUID,
+        email: str,
+        token: str,
+        created_at: datetime,
+        kind: EmailKind = EmailKind.VERIFICATION,
     ) -> EmailOutboxEntry: ...
     async def get_by_id(self, entry_id: uuid.UUID) -> EmailOutboxEntry | None: ...
     async def mark_sent(self, entry_id: uuid.UUID, *, sent_at: datetime) -> bool: ...
@@ -34,6 +41,7 @@ async def enqueue_email(
     email: str,
     token: str,
     created_at: datetime,
+    kind: EmailKind = EmailKind.VERIFICATION,
 ) -> EmailOutboxEntry:
     """Write a pending outbox row without contacting the email provider.
 
@@ -41,14 +49,27 @@ async def enqueue_email(
     dispatch that follows ever runs, so a caller that writes this in the same
     DB transaction as the triggering action (e.g. registration) can't lose the
     email to a Celery/Redis outage — `sweep_pending_emails` will eventually
-    pick up anything left `PENDING` too long.
+    pick up anything left `PENDING` too long. `kind` selects which template and
+    sender method the dispatch step uses.
     """
     return await outbox_repo.create(
-        user_id=user_id, email=email, token=token, created_at=created_at
+        user_id=user_id, email=email, token=token, created_at=created_at, kind=kind
     )
 
 
-async def dispatch_verification_email(
+async def _send_for_kind(email_sender: EmailSender, entry: EmailOutboxEntry) -> None:
+    """The single switch point wiring an `EmailKind` to a sender method.
+
+    Add a branch here (and a `render_*` template + a `send_*` method on
+    `EmailSender`) to introduce a new kind.
+    """
+    if entry.kind == EmailKind.PASSWORD_RESET:
+        await email_sender.send_password_reset_email(email=entry.email, token=entry.token)
+    else:
+        await email_sender.send_verification_email(email=entry.email, token=entry.token)
+
+
+async def dispatch_email(
     outbox_repo: EmailOutboxRepository,
     email_sender: EmailSender,
     entry_id: uuid.UUID,
@@ -56,13 +77,12 @@ async def dispatch_verification_email(
     now: datetime,
     max_attempts: int = DEFAULT_MAX_DISPATCH_ATTEMPTS,
 ) -> None:
-    """Send one outbox entry's verification email and update its status.
+    """Send one outbox entry's email and update its status.
 
     No-ops if the entry is already `SENT` or `DEAD` — safe to call more than
-    once for the same entry (the Celery task retries and the sweep can both
-    target it). On send failure, increments `attempts` and re-raises so the
-    Celery task's own retry/backoff applies; once `attempts` reaches
-    `max_attempts` the entry is marked `DEAD` and given up on for good.
+    once for the same entry. On send failure, increments `attempts` and
+    re-raises so the Celery task's own retry/backoff applies; once `attempts`
+    reaches `max_attempts` the entry is marked `DEAD` and given up on for good.
 
     Raises:
         EmailOutboxEntryNotFound: no entry with this id exists.
@@ -75,7 +95,7 @@ async def dispatch_verification_email(
         return
 
     try:
-        await email_sender.send_verification_email(email=entry.email, token=entry.token)
+        await _send_for_kind(email_sender, entry)
     except Exception:
         updated = await outbox_repo.mark_attempt_failed(entry_id, attempted_at=now)
         if updated.attempts >= max_attempts:
