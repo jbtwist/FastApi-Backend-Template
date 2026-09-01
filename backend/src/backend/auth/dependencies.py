@@ -9,6 +9,7 @@ from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 from backend.auth.models import User
 from backend.auth.repository import (
     SqlEmailVerificationTokenRepository,
+    SqlPasswordResetTokenRepository,
     SqlRefreshTokenRepository,
     SqlUserRepository,
 )
@@ -35,10 +36,17 @@ def get_email_verification_token_repo(db: DbDep) -> SqlEmailVerificationTokenRep
     return SqlEmailVerificationTokenRepository(db)
 
 
+def get_password_reset_token_repo(db: DbDep) -> SqlPasswordResetTokenRepository:
+    return SqlPasswordResetTokenRepository(db)
+
+
 UserRepoDep = Annotated[SqlUserRepository, Depends(get_user_repo)]
 RefreshTokenRepoDep = Annotated[SqlRefreshTokenRepository, Depends(get_refresh_token_repo)]
 EmailVerificationTokenRepoDep = Annotated[
     SqlEmailVerificationTokenRepository, Depends(get_email_verification_token_repo)
+]
+PasswordResetTokenRepoDep = Annotated[
+    SqlPasswordResetTokenRepository, Depends(get_password_reset_token_repo)
 ]
 
 bearer_scheme = HTTPBearer(auto_error=False)

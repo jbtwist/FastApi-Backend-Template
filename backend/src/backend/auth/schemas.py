@@ -44,3 +44,12 @@ class ConfirmEmailIn(BaseModel):
 
 class ResendVerificationIn(BaseModel):
     email: EmailStr
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=256)

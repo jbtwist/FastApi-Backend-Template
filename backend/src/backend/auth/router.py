@@ -1,6 +1,11 @@
-"""`/auth` endpoints: registration, login, token refresh, logout, and email verification."""
+"""`/auth` endpoints: registration, login, refresh, logout, email verification, password reset."""
 
-from datetime import UTC, datetime
+import asyncio
+import contextlib
+import logging
+import time
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -18,6 +23,7 @@ from backend.auth.dependencies import (
     AuthConfigDep,
     CurrentUserDep,
     EmailVerificationTokenRepoDep,
+    PasswordResetTokenRepoDep,
     RefreshTokenRepoDep,
     UserRepoDep,
 )
@@ -25,27 +31,62 @@ from backend.auth.exceptions import (
     EmailAlreadyRegistered,
     EmailNotVerified,
     InvalidCredentials,
+    InvalidPasswordResetToken,
     InvalidRefreshToken,
     InvalidVerificationToken,
+    PasswordResetTokenExpired,
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
     VerificationTokenExpired,
 )
 from backend.auth.schemas import (
     ConfirmEmailIn,
+    ForgotPasswordIn,
     LoginIn,
     LoginOut,
     LogoutIn,
     RefreshIn,
     RegisterIn,
     ResendVerificationIn,
+    ResetPasswordIn,
     TokenPairOut,
     UserOut,
 )
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import dispatch_email
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _queue_dispatch(entry_id: str) -> None:
+    """Fire the Celery dispatch for a freshly queued outbox row, tolerating a broker outage.
+
+    A failed enqueue must not surface to the caller: on `forgot-password` a 500
+    for registered addresses (vs. 204 for unknown ones) would be an enumeration
+    oracle. The row stays `PENDING`; `sweep_pending_emails` redelivers it.
+    """
+    try:
+        await run_in_threadpool(dispatch_email.delay, entry_id)
+    except Exception:
+        logger.warning("dispatch enqueue failed for outbox entry %s", entry_id, exc_info=True)
+
+
+@contextlib.asynccontextmanager
+async def _response_floor(minimum: timedelta) -> AsyncGenerator:
+    """Pad the enclosed work to at least `minimum` wall-clock time.
+
+    Best-effort defence against a timing oracle — not a hard guarantee against
+    scheduler jitter. A no-op when `minimum` is zero.
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        remaining = minimum.total_seconds() - (time.perf_counter() - start)
+        if remaining > 0:
+            await asyncio.sleep(remaining)
 
 
 def _set_token_cookies(
@@ -79,7 +120,7 @@ async def register(
     entry = await service.queue_verification_email(
         token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
     )
-    await run_in_threadpool(dispatch_email.delay, str(entry.id))
+    await _queue_dispatch(str(entry.id))
     return UserOut(id=user.id, email=user.email, email_verified=False)
 
 
@@ -243,4 +284,70 @@ async def resend_verification(
         now=datetime.now(UTC),
     )
     if entry is not None:
-        await run_in_threadpool(dispatch_email.delay, str(entry.id))
+        await _queue_dispatch(str(entry.id))
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("3/minute"))],
+)
+async def forgot_password(
+    payload: ForgotPasswordIn,
+    reset_token_repo: PasswordResetTokenRepoDep,
+    user_repo: UserRepoDep,
+    outbox_repo: EmailOutboxRepoDep,
+    config: AuthConfigDep,
+) -> None:
+    """Start a password reset.
+
+    Always returns 204 with an empty body, whether or not the address belongs to
+    a registered, verified account — identical response body, status, and (within
+    `AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
+    which addresses have accounts.
+    """
+    async with _response_floor(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
+        entry = await service.request_password_reset(
+            reset_token_repo,
+            user_repo,
+            outbox_repo,
+            email=payload.email,
+            config=config,
+            now=datetime.now(UTC),
+        )
+        if entry is not None:
+            await _queue_dispatch(str(entry.id))
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("5/minute"))],
+)
+async def reset_password(
+    payload: ResetPasswordIn,
+    reset_token_repo: PasswordResetTokenRepoDep,
+    user_repo: UserRepoDep,
+    refresh_token_repo: RefreshTokenRepoDep,
+) -> None:
+    """Set a new password from a reset link's token.
+
+    The token is validated first (cheap) so a bad one is rejected before the
+    password policy check that a later commit adds here — which makes an outbound
+    breach-check call. A policy rejection therefore leaves the link usable.
+    """
+    now = datetime.now(UTC)
+    try:
+        await service.assert_reset_token_valid(reset_token_repo, payload.token, now=now)
+        await service.reset_password(
+            reset_token_repo,
+            user_repo,
+            refresh_token_repo,
+            payload.token,
+            new_password=payload.new_password,
+            now=now,
+        )
+    except (InvalidPasswordResetToken, PasswordResetTokenExpired) as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
+        ) from exc
