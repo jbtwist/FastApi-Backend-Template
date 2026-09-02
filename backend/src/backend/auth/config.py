@@ -12,6 +12,7 @@ class AuthConfig(BaseSettings):
     REFRESH_TOKEN_EXP: timedelta = timedelta(days=30)
     EMAIL_VERIFICATION_TOKEN_EXP: timedelta = timedelta(hours=24)
     PASSWORD_RESET_TOKEN_EXP: timedelta = timedelta(hours=1)
+    FORGOT_PASSWORD_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
     COOKIE_SECURE: bool = True
 
 
