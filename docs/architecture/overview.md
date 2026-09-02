@@ -55,6 +55,30 @@ sequenceDiagram
     API->>DB: revoke_family(family_id)
     API-->>Client: 401 — whole family revoked
 ```
+```
+
+## Password Reset
+
+When a user requests a password reset, a `password_reset_token` is generated,
+and an `email_outbox_entry` is created. To mitigate timing attacks, the
+response time for `POST /auth/forgot-password` is padded to at least
+`AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant DB
+
+    Client->>API: POST /auth/forgot-password
+    API->>DB: create password_reset_token, outbox entry
+    API-->>Client: 204 (padded response)
+
+    Note over Client,API: user clicks reset link in email
+    Client->>API: POST /auth/reset-password
+    API->>DB: validate token, update password_hash
+    API-->>Client: 204
+```
 
 ## Email delivery
 
