@@ -53,4 +53,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The stored, hashed form of a raw refresh or email-verification token (never store the raw token) | `token_hash` | `hashed_token`, `token_digest` |
 | A short-lived token proving ownership of an email address, sent as a link | `email_verification_token` | `verify_token`, `confirmation_token` |
 | The moment a user's email address was confirmed; `NULL` means unverified | `email_verified_at` | `verified_at`, `email_confirmed_at` |
+| A short-lived token used to initiate a password reset | `password_reset_token` | `reset_token` |
+| Auth-domain action: mint a password-reset token and put its email on the outbox | `request_password_reset` | `send_password_reset_email` (misleading — doesn't send) |
 
