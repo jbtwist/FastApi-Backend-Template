@@ -51,6 +51,7 @@ nav:
   - API Reference:
       - reference/index.md
       - Auth: reference/auth.md
+      - Password Policy: reference/password_policy.md
       - Mail: reference/mail.md
   - Architecture:
       - Overview: architecture/overview.md

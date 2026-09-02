@@ -16,8 +16,6 @@ jobs:
       !startsWith(github.event.pull_request.head.ref, 'docs/update-after-')
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GEMINI_CLI_TRUST_WORKSPACE: "true"
     steps:
       - uses: actions/checkout@v5
@@ -39,10 +37,14 @@ jobs:
             PR #${{ github.event.pull_request.number }} ("${{ github.event.pull_request.title }}")
             was just merged into main. Do the following steps in order.
 
-            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to see
-               exactly what changed. This is the only part of the codebase
-               you need to read closely; don't go exploring beyond what's
-               needed to describe this diff accurately.
+            1. Inspect exactly what changed with
+               `git show --stat ${{ github.event.pull_request.merge_commit_sha }}`
+               and then
+               `git diff ${{ github.event.pull_request.merge_commit_sha }}^ ${{ github.event.pull_request.merge_commit_sha }}`.
+               (`gh` has no credentials here — use `git`.) This is the only
+               part of the codebase you need to read closely; don't go
+               exploring beyond what's needed to describe this diff
+               accurately.
 
             2. Read `.claude/skills/docs/SKILL.md` in full, in particular
                section 12 ("Post-merge guardrails") — it governs this run
@@ -75,13 +77,26 @@ jobs:
             3. If step 2 concluded a real update IS needed: create a new
                branch named exactly `docs/update-after-${{ github.event.pull_request.number }}`,
                make the doc changes, then run:
-               `git add -A && git commit -m "docs: sync after #${{ github.event.pull_request.number }}"`,
-               `git push -u origin HEAD`, and
-               `gh pr create --title "docs: sync after #${{ github.event.pull_request.number }}" --body "Automated docs update following #${{ github.event.pull_request.number }}."`.
+               `git add -A && git commit -m "docs: sync after #${{ github.event.pull_request.number }}"`
+               and `git push -u origin HEAD`.
 
-               The checkout already has a GITHUB_TOKEN with write access to
-               this repo — pushing and opening the PR require no further
-               permission or confirmation from anyone. A run that edits
-               files but doesn't push and open the PR has not completed the
-               task, because the runner and its file changes are discarded
-               the moment the job ends.
+               Do NOT run `gh` — it has no credentials in this environment.
+               A later workflow step opens the pull request from the branch
+               you push. Your job is done once the branch is pushed. A run
+               that edits files but doesn't push the branch has not completed
+               the task, because the runner and its file changes are
+               discarded the moment the job ends.
+
+      - name: Open docs PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BR="docs/update-after-${{ github.event.pull_request.number }}"
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            gh pr create --base main --head "$BR" \
+              --title "docs: sync after #${{ github.event.pull_request.number }}" \
+              --body "Automated docs update following #${{ github.event.pull_request.number }}." \
+              || echo "PR already exists or could not be created"
+          else
+            echo "No $BR branch was pushed — docs skill decided no update was needed."
+          fi
