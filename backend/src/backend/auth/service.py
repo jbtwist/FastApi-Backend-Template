@@ -93,6 +93,19 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+async def ensure_email_available(user_repo: UserRepository, *, email: str) -> None:
+    """Raise `EmailAlreadyRegistered` if the normalized email is taken.
+
+    A cheap gate the register handler runs before the password policy, so a
+    duplicate signup 409s without paying for an outbound breach-check call.
+
+    Raises:
+        EmailAlreadyRegistered: a user with the normalized email already exists.
+    """
+    if await user_repo.get_by_email(_normalize_email(email)) is not None:
+        raise EmailAlreadyRegistered
+
+
 async def register_user(user_repo: UserRepository, *, email: str, password: str) -> User:
     """Create a new user with a hashed password.
 

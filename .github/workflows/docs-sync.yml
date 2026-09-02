@@ -15,6 +15,10 @@ jobs:
       github.event.pull_request.merged == true &&
       !startsWith(github.event.pull_request.head.ref, 'docs/update-after-')
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GEMINI_CLI_TRUST_WORKSPACE: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,6 +85,3 @@ jobs:
                files but doesn't push and open the PR has not completed the
                task, because the runner and its file changes are discarded
                the moment the job ends.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_CLI_TRUST_WORKSPACE: "true"
