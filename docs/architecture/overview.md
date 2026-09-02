@@ -60,15 +60,15 @@ sequenceDiagram
 
 Registration and resending verification don't call the email provider
 directly — they write a row to `email_outbox` in the same DB transaction as
-the triggering action, then queue a Celery task to actually send it. A
-periodic sweep re-queues anything left stuck `PENDING`. This keeps the email
-durable even if Celery/Redis is unavailable at the moment of registration.
-See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
+the triggering action, with an `EmailKind` to select the template, then
+queue a Celery task to dispatch it. A periodic sweep re-queues anything left
+stuck `PENDING`. This keeps the email durable even if Celery/Redis is
+unavailable at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
 
 ```mermaid
 flowchart LR
     A[POST /auth/register] -->|same DB transaction| B[(email_outbox: PENDING)]
-    A -->|.delay| C[Celery: dispatch_verification_email]
+    A -->|.delay| C[Celery: dispatch_email]
     C -->|success| D[(email_outbox: SENT)]
     C -->|failure, attempts < max| E[Celery retry with backoff]
     E --> C
