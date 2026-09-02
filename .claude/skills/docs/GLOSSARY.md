@@ -43,16 +43,18 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A durable row recording an email that still needs to be sent, retried independently of the request that created it | `email_outbox_entry` (table `email_outbox`) | `mail_job`, `email_queue_item`, `outbox_row` |
 | Writing an outbox row without contacting the provider (generic mail-layer primitive) | `enqueue_email` | `queue_email`, `add_to_outbox` |
 | Auth-domain action: mint a verification token and put its email on the outbox | `queue_verification_email` | `send_verification_email` (misleading — doesn't send) |
-| The step that actually calls the email provider for one outbox entry | `dispatch_verification_email` | `send_email`, `deliver_email` |
+| The step that actually calls the email provider for one outbox entry, selecting template + sender by the row's `kind` | `dispatch_email` | `dispatch_verification_email`, `send_email`, `deliver_email` |
+| Which transactional email an outbox row carries | `EmailKind`: `verification`, `password_reset` | `email_type`, `template_name` |
 | The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sent`, `dead` | `queued`, `failed`, `completed` |
 | Count of failed dispatch attempts on an outbox entry | `attempts` | `retry_count`, `tries` |
 | The periodic job that re-dispatches outbox entries stuck in `pending` | `sweep` (e.g. `sweep_pending_emails`) | `relay`, `reaper`, `poller` |
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |
-| The stored, hashed form of a raw refresh or email-verification token (never store the raw token) | `token_hash` | `hashed_token`, `token_digest` |
+| The stored, hashed form of a raw opaque token — refresh, email-verification, or password-reset (never store the raw token) | `token_hash` | `hashed_token`, `token_digest` |
 | A short-lived token proving ownership of an email address, sent as a link | `email_verification_token` | `verify_token`, `confirmation_token` |
 | The moment a user's email address was confirmed; `NULL` means unverified | `email_verified_at` | `verified_at`, `email_confirmed_at` |
+| A short-lived token used to initiate a password reset, sent as a link | `password_reset_token` | `reset_token` |
 | The minimum length tier for a password | `PasswordStrength` | `strength`, `level`, `tier` |
 | The breach-check status of a password | `PASSWORD_CHECK_PWNED` | `check_breaches`, `pwned_check` |
 | The maximum length allowed for a password | `PASSWORD_MAX_LENGTH` | `max_length` |

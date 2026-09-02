@@ -40,7 +40,9 @@ async def validate_password_strength(
     is awaited exactly once with the raw password.
 
     Raises:
-        PasswordTooShort / PasswordTooLong / PasswordCompromised
+        PasswordTooShort: `password` is shorter than the active strength floor.
+        PasswordTooLong: `password` exceeds `config.PASSWORD_MAX_LENGTH`.
+        PasswordCompromised: the breach check found `password` in a known breach.
     """
     if len(password) < MIN_LENGTH_BY_STRENGTH[config.PASSWORD_STRENGTH]:
         raise PasswordTooShort
