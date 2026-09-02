@@ -5,6 +5,7 @@ import pytest
 from backend.auth.config import AuthConfig
 from tests.auth.fakes import (
     FakeEmailVerificationTokenRepository,
+    FakePasswordResetTokenRepository,
     FakeRefreshTokenRepository,
     FakeUserRepository,
 )
@@ -20,6 +21,7 @@ def auth_config() -> AuthConfig:
         ACCESS_TOKEN_EXP=timedelta(minutes=15),
         REFRESH_TOKEN_EXP=timedelta(days=7),
         EMAIL_VERIFICATION_TOKEN_EXP=timedelta(hours=24),
+        PASSWORD_RESET_TOKEN_EXP=timedelta(hours=1),
         COOKIE_SECURE=True,
     )
 
@@ -37,3 +39,8 @@ def refresh_token_repo() -> FakeRefreshTokenRepository:
 @pytest.fixture
 def email_verification_token_repo() -> FakeEmailVerificationTokenRepository:
     return FakeEmailVerificationTokenRepository()
+
+
+@pytest.fixture
+def password_reset_token_repo() -> FakePasswordResetTokenRepository:
+    return FakePasswordResetTokenRepository()

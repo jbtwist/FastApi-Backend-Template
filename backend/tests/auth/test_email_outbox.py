@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from backend.auth import service
-from backend.auth.security import hash_email_verification_token as _hash_verification
+from backend.auth.security import hash_opaque_token as _hash_verification
 from backend.mail.models import EmailOutboxStatus
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)

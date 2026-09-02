@@ -222,59 +222,28 @@ class TestAccessToken:
             security.decode_access_token(token_without_exp, config=auth_config)
 
 
-class TestRefreshTokenValue:
-    def test_generate_refresh_token_returns_url_safe_string(self, auth_config):
-        raw = security.generate_refresh_token(config=auth_config)
+class TestOpaqueToken:
+    """`generate_opaque_token` / `hash_opaque_token` back the refresh,
+    email-verification and password-reset token tables alike."""
+
+    def test_generate_returns_url_safe_string(self):
+        raw = security.generate_opaque_token()
 
         assert isinstance(raw, str)
         assert len(raw) >= 32
 
-    def test_generate_refresh_token_is_unique_across_calls(self, auth_config):
-        first = security.generate_refresh_token(config=auth_config)
-        second = security.generate_refresh_token(config=auth_config)
+    def test_generate_is_unique_across_calls(self):
+        assert security.generate_opaque_token() != security.generate_opaque_token()
 
-        assert first != second
+    def test_hash_is_deterministic(self):
+        raw = "some-raw-token-value"
 
-    def test_hash_refresh_token_is_deterministic(self):
-        raw = "some-raw-refresh-token-value"
+        assert security.hash_opaque_token(raw) == security.hash_opaque_token(raw)
 
-        assert security.hash_refresh_token(raw) == security.hash_refresh_token(raw)
+    def test_hash_differs_for_different_input(self):
+        assert security.hash_opaque_token("token-a") != security.hash_opaque_token("token-b")
 
-    def test_hash_refresh_token_differs_for_different_input(self):
-        assert security.hash_refresh_token("token-a") != security.hash_refresh_token("token-b")
+    def test_hash_does_not_return_raw_value(self):
+        raw = "some-raw-token-value"
 
-    def test_hash_refresh_token_does_not_return_raw_value(self):
-        raw = "some-raw-refresh-token-value"
-
-        assert security.hash_refresh_token(raw) != raw
-
-
-class TestEmailVerificationTokenValue:
-    def test_generate_email_verification_token_returns_url_safe_string(self, auth_config):
-        raw = security.generate_email_verification_token(config=auth_config)
-
-        assert isinstance(raw, str)
-        assert len(raw) >= 32
-
-    def test_generate_email_verification_token_is_unique_across_calls(self, auth_config):
-        first = security.generate_email_verification_token(config=auth_config)
-        second = security.generate_email_verification_token(config=auth_config)
-
-        assert first != second
-
-    def test_hash_email_verification_token_is_deterministic(self):
-        raw = "some-raw-verification-token-value"
-
-        assert security.hash_email_verification_token(
-            raw
-        ) == security.hash_email_verification_token(raw)
-
-    def test_hash_email_verification_token_differs_for_different_input(self):
-        assert security.hash_email_verification_token(
-            "token-a"
-        ) != security.hash_email_verification_token("token-b")
-
-    def test_hash_email_verification_token_does_not_return_raw_value(self):
-        raw = "some-raw-verification-token-value"
-
-        assert security.hash_email_verification_token(raw) != raw
+        assert security.hash_opaque_token(raw) != raw

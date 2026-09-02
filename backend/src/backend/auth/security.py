@@ -77,24 +77,19 @@ def decode_access_token(token: str, *, config: AuthConfig) -> dict:
     return payload
 
 
-def generate_refresh_token(*, config: AuthConfig) -> str:
-    """Generate a random opaque refresh token.
+def generate_opaque_token() -> str:
+    """A high-entropy URL-safe token for the DB-backed token tables.
 
-    Not a JWT — verified only against its stored hash.
+    Used for refresh, email-verification and password-reset tokens alike. Not a
+    JWT — verified only against its stored hash (see `hash_opaque_token`).
     """
     return secrets.token_urlsafe(32)
 
 
-def hash_refresh_token(raw_token: str) -> str:
-    """Hash a raw refresh token for storage/lookup. Unsalted: the token itself is high-entropy."""
-    return sha256(raw_token.encode("utf-8")).hexdigest()
+def hash_opaque_token(raw_token: str) -> str:
+    """SHA-256 hex of an opaque token, for storage and lookup.
 
-
-def generate_email_verification_token(*, config: AuthConfig) -> str:
-    """Generate a random opaque email-verification token (mirrors `generate_refresh_token`)."""
-    return secrets.token_urlsafe(32)
-
-
-def hash_email_verification_token(raw_token: str) -> str:
-    """Hash a raw email-verification token for storage/lookup."""
+    Unsalted: the token is already high-entropy. Only the hash is persisted, so
+    a database leak doesn't expose usable tokens.
+    """
     return sha256(raw_token.encode("utf-8")).hexdigest()
