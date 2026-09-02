@@ -168,6 +168,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "fastapi-redis-sdk" },
     { name = "greenlet" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-settings" },
@@ -180,7 +181,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "fakeredis", extra = ["lua"] },
-    { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -202,6 +202,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "fastapi-redis-sdk", specifier = ">=0.8.0" },
     { name = "greenlet", specifier = ">=3.0" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.4" },
@@ -214,7 +215,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "fakeredis", extras = ["lua"], specifier = ">=2.24" },
-    { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "ruff", specifier = ">=0.16.3" },

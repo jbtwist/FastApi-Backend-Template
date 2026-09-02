@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from backend.mail.models import EmailOutboxEntry, EmailOutboxStatus
+from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
 
 
 @dataclass
@@ -11,9 +11,16 @@ class SentVerificationEmail:
     token: str
 
 
+@dataclass
+class SentPasswordResetEmail:
+    email: str
+    token: str
+
+
 class FakeEmailSender:
     def __init__(self) -> None:
         self.sent: list[SentVerificationEmail] = []
+        self.sent_password_reset: list[SentPasswordResetEmail] = []
         self.fail_with: Exception | None = None
 
     async def send_verification_email(self, *, email: str, token: str) -> None:
@@ -21,19 +28,31 @@ class FakeEmailSender:
             raise self.fail_with
         self.sent.append(SentVerificationEmail(email=email, token=token))
 
+    async def send_password_reset_email(self, *, email: str, token: str) -> None:
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.sent_password_reset.append(SentPasswordResetEmail(email=email, token=token))
+
 
 class FakeEmailOutboxRepository:
     def __init__(self) -> None:
         self._entries_by_id: dict[uuid.UUID, EmailOutboxEntry] = {}
 
     async def create(
-        self, *, user_id: uuid.UUID, email: str, token: str, created_at: datetime
+        self,
+        *,
+        user_id: uuid.UUID,
+        email: str,
+        token: str,
+        created_at: datetime,
+        kind: EmailKind = EmailKind.VERIFICATION,
     ) -> EmailOutboxEntry:
         entry = EmailOutboxEntry(
             id=uuid.uuid4(),
             user_id=user_id,
             email=email,
             token=token,
+            kind=kind,
             status=EmailOutboxStatus.PENDING,
             attempts=0,
             created_at=created_at,
