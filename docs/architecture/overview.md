@@ -3,7 +3,8 @@
 `backend/` is a FastAPI app (`backend.main:app`) with two modules so far:
 
 - **`backend.auth`** — registration, login, JWT access tokens, refresh token
-  rotation, email verification, and password reset. See the [reference](../reference/auth.md).
+  rotation, email verification, password reset, and password policy
+  enforcement (strength tiers and breach checking). See the [reference](../reference/auth.md).
 - **`backend.mail`** — a durable outbox for outbound email, dispatched by a
   Celery worker. See the [reference](../reference/mail.md).
 

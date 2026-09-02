@@ -6,4 +6,6 @@
 
 ::: backend.auth.security
 
+::: backend.auth.password_policy
+
 ::: backend.auth.cookies

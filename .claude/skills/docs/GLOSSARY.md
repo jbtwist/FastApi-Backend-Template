@@ -55,4 +55,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The moment a user's email address was confirmed; `NULL` means unverified | `email_verified_at` | `verified_at`, `email_confirmed_at` |
 | A short-lived token used to initiate a password reset | `password_reset_token` | `reset_token` |
 | Auth-domain action: mint a password-reset token and put its email on the outbox | `request_password_reset` | `send_password_reset_email` (misleading — doesn't send) |
+| The minimum complexity tier for accepted passwords | `PasswordStrength`: `low`, `medium`, `high` | `strength`, `complexity_level` |
+| Checker for whether a password has appeared in known data breaches | `PwnedPasswordChecker` | `breach_checker`, `password_compromise_checker` |
 
