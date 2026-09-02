@@ -1,12 +1,15 @@
 import uuid
+from collections.abc import AsyncIterator
 from typing import Annotated
 
+import httpx
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.auth.config import AuthConfig, auth_settings
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 from backend.auth.models import User
+from backend.auth.password_policy import HIBPPwnedPasswordChecker, PwnedPasswordChecker
 from backend.auth.repository import (
     SqlEmailVerificationTokenRepository,
     SqlPasswordResetTokenRepository,
@@ -40,6 +43,20 @@ def get_password_reset_token_repo(db: DbDep) -> SqlPasswordResetTokenRepository:
     return SqlPasswordResetTokenRepository(db)
 
 
+async def get_pwned_password_checker() -> AsyncIterator[PwnedPasswordChecker]:
+    """A HIBP breach checker backed by a per-request httpx client.
+
+    Register/reset are the only callers, so a fresh connection per call is cheap
+    and it sidesteps the lifecycle problems of a module-level client. HIBP asks
+    callers to send a User-Agent; Add-Padding hides the true bucket size.
+    """
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(2.0),
+        headers={"User-Agent": "todoapp-backend", "Add-Padding": "true"},
+    ) as client:
+        yield HIBPPwnedPasswordChecker(client=client)
+
+
 UserRepoDep = Annotated[SqlUserRepository, Depends(get_user_repo)]
 RefreshTokenRepoDep = Annotated[SqlRefreshTokenRepository, Depends(get_refresh_token_repo)]
 EmailVerificationTokenRepoDep = Annotated[
@@ -48,6 +65,7 @@ EmailVerificationTokenRepoDep = Annotated[
 PasswordResetTokenRepoDep = Annotated[
     SqlPasswordResetTokenRepository, Depends(get_password_reset_token_repo)
 ]
+PwnedPasswordCheckerDep = Annotated[PwnedPasswordChecker, Depends(get_pwned_password_checker)]
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
