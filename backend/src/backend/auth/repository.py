@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +59,28 @@ class SqlUserRepository:
         return result.rowcount == 1
 
 
-class RefreshTokenRepository(Protocol):
+class SingleUseTokenRepository(Protocol):
+    """Contract shared by every hashed, expiring, one-shot token repository."""
+
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> Any: ...
+    async def get_by_hash(self, token_hash: str) -> Any | None: ...
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+
+
+class EmailVerificationTokenRepository(SingleUseTokenRepository, Protocol):
+    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None: ...
+
+
+class PasswordResetTokenRepository(SingleUseTokenRepository, Protocol):
+    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None: ...
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None: ...
+
+
+class RefreshTokenRepository(SingleUseTokenRepository, Protocol):
     async def create(
         self,
         *,
@@ -69,14 +90,62 @@ class RefreshTokenRepository(Protocol):
         expires_at: datetime,
     ) -> RefreshToken: ...
     async def get_by_hash(self, token_hash: str) -> RefreshToken | None: ...
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
     async def revoke_all_for_user(self, user_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
 
 
-class SqlRefreshTokenRepository:
+class _SqlSingleUseTokenRepository[TokenT]:
+    """SQL storage for a single-use token table; `model` is set by each subclass."""
+
+    model: type[TokenT]
+
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
+
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> TokenT:
+        token = self.model(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
+        self._db.add(token)
+        await self._db.flush()
+        return token
+
+    async def get_by_hash(self, token_hash: str) -> TokenT | None:
+        result = await self._db.execute(
+            select(self.model).where(self.model.token_hash == token_hash)
+        )
+        return result.scalar_one_or_none()
+
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
+        result = await self._db.execute(
+            update(self.model)
+            .where(self.model.id == token_id, self.model.used_at.is_(None))
+            .values(used_at=used_at)
+        )
+        return result.rowcount == 1
+
+
+class SqlEmailVerificationTokenRepository(
+    _SqlSingleUseTokenRepository[EmailVerificationToken]
+):
+    model = EmailVerificationToken
+
+
+class SqlPasswordResetTokenRepository(_SqlSingleUseTokenRepository[PasswordResetToken]):
+    model = PasswordResetToken
+
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None:
+        await self._db.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
+            .values(used_at=invalidated_at)
+        )
+
+
+class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
+    model = RefreshToken
 
     async def create(
         self,
@@ -96,20 +165,6 @@ class SqlRefreshTokenRepository:
         await self._db.flush()
         return token
 
-    async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
-        result = await self._db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        )
-        return result.scalar_one_or_none()
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        result = await self._db.execute(
-            update(RefreshToken)
-            .where(RefreshToken.id == token_id, RefreshToken.used_at.is_(None))
-            .values(used_at=used_at)
-        )
-        return result.rowcount == 1
-
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None:
         result = await self._db.execute(
             select(RefreshToken).where(
@@ -124,88 +179,4 @@ class SqlRefreshTokenRepository:
             update(RefreshToken)
             .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=revoked_at)
-        )
-
-
-class EmailVerificationTokenRepository(Protocol):
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> EmailVerificationToken: ...
-    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None: ...
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
-
-
-class SqlEmailVerificationTokenRepository:
-    def __init__(self, db: AsyncSession) -> None:
-        self._db = db
-
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> EmailVerificationToken:
-        token = EmailVerificationToken(
-            user_id=user_id, token_hash=token_hash, expires_at=expires_at
-        )
-        self._db.add(token)
-        await self._db.flush()
-        return token
-
-    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None:
-        result = await self._db.execute(
-            select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
-        )
-        return result.scalar_one_or_none()
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        result = await self._db.execute(
-            update(EmailVerificationToken)
-            .where(EmailVerificationToken.id == token_id, EmailVerificationToken.used_at.is_(None))
-            .values(used_at=used_at)
-        )
-        return result.rowcount == 1
-
-
-class PasswordResetTokenRepository(Protocol):
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> PasswordResetToken: ...
-    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None: ...
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
-    async def invalidate_all_for_user(
-        self, user_id: uuid.UUID, *, invalidated_at: datetime
-    ) -> None: ...
-
-
-class SqlPasswordResetTokenRepository:
-    def __init__(self, db: AsyncSession) -> None:
-        self._db = db
-
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> PasswordResetToken:
-        token = PasswordResetToken(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
-        self._db.add(token)
-        await self._db.flush()
-        return token
-
-    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None:
-        result = await self._db.execute(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
-        )
-        return result.scalar_one_or_none()
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        result = await self._db.execute(
-            update(PasswordResetToken)
-            .where(PasswordResetToken.id == token_id, PasswordResetToken.used_at.is_(None))
-            .values(used_at=used_at)
-        )
-        return result.rowcount == 1
-
-    async def invalidate_all_for_user(
-        self, user_id: uuid.UUID, *, invalidated_at: datetime
-    ) -> None:
-        await self._db.execute(
-            update(PasswordResetToken)
-            .where(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
-            .values(used_at=invalidated_at)
         )
