@@ -14,7 +14,7 @@
 import { Platform } from 'react-native';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import { AuthApiError, configureApiClient, resetApiClient } from './api-client';
+import { configureApiClient, resetApiClient } from './api-client';
 import { AuthProvider, useAuth } from './auth-context';
 import { mockFetch, secureStoreSnapshot, seedSecureStore, type MockFetch } from '../../test-utils';
 
