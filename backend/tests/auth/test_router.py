@@ -6,6 +6,7 @@ path. A throwaway FastAPI app is built with fakeredis and the repo dependencies
 overridden by in-memory fakes.
 """
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import fakeredis.aioredis
@@ -14,6 +15,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from redis_fastapi import FastAPIRedis
 from redis_fastapi import deps as redis_fastapi_deps
+from sqlalchemy.exc import IntegrityError
 
 from backend.auth import router as auth_router_module
 from backend.auth import service
@@ -63,11 +65,21 @@ def outbox_repo() -> FakeEmailOutboxRepository:
 
 
 @pytest.fixture
-def app_config() -> AuthConfig:
+def register_response_floor() -> timedelta:
+    """Padding applied to `POST /auth/register`; zeroed by default so tests stay fast.
+
+    Override in a class to exercise the timing floor itself.
+    """
+    return timedelta(0)
+
+
+@pytest.fixture
+def app_config(register_response_floor) -> AuthConfig:
     return AuthConfig(
         JWT_SECRET=TEST_JWT_SECRET,
         PASSWORD_RESET_TOKEN_EXP=timedelta(hours=1),
         FORGOT_PASSWORD_RESPONSE_FLOOR=timedelta(0),
+        AUTH_REGISTER_RESPONSE_FLOOR=register_response_floor,
     )
 
 
@@ -303,7 +315,39 @@ class TestAbuse:
         assert stale.status_code == 400
 
 
-class TestPasswordPolicyAtRegister:
+class TestRegister:
+    """`POST /auth/register` — enumeration-safe: 204 for any acceptable password,
+    identical for a new and an already-registered address (Δ1, FR-036, SC-013)."""
+
+    async def test_new_email_is_204_with_empty_body(self, client, user_repo):
+        res = await client.post(
+            "/auth/register", json={"email": "new@example.com", "password": GOOD_PASSWORD}
+        )
+
+        assert res.status_code == 204
+        assert res.content == b""
+        assert await user_repo.get_by_email("new@example.com") is not None
+
+    async def test_new_email_queues_one_verification_email(
+        self, client, outbox_repo, dispatch_calls
+    ):
+        await client.post(
+            "/auth/register", json={"email": "new@example.com", "password": GOOD_PASSWORD}
+        )
+
+        queued = list(outbox_repo._entries_by_id.values())
+        assert len(queued) == 1
+        assert queued[0].email == "new@example.com"
+        assert len(dispatch_calls) == 1
+
+    async def test_email_is_normalized_before_storage(self, client, user_repo):
+        res = await client.post(
+            "/auth/register", json={"email": "  New@Example.com  ", "password": GOOD_PASSWORD}
+        )
+
+        assert res.status_code == 204
+        assert await user_repo.get_by_email("new@example.com") is not None
+
     async def test_too_short_password_is_422(self, client):
         res = await client.post(
             "/auth/register", json={"email": "new@example.com", "password": "eightchr"}
@@ -323,36 +367,117 @@ class TestPasswordPolicyAtRegister:
         assert res.status_code == 422
         assert "data breach" in res.json()["detail"]
 
-    async def test_strong_unbreached_password_is_201(self, client):
+
+class TestRegisterEnumerationSafety:
+    """An already-registered address must be indistinguishable from a fresh one."""
+
+    async def test_existing_verified_email_gets_identical_204(
+        self, client, verified_user, user_repo, outbox_repo, dispatch_calls
+    ):
+        new = await client.post(
+            "/auth/register", json={"email": "fresh@example.com", "password": GOOD_PASSWORD}
+        )
+        outbox_repo._entries_by_id.clear()
+        dispatch_calls.clear()
+
+        existing = await client.post(
+            "/auth/register", json={"email": "ada@example.com", "password": GOOD_PASSWORD}
+        )
+
+        assert existing.status_code == new.status_code == 204
+        assert existing.content == new.content == b""
+        assert dict(existing.headers) == dict(new.headers)
+
+    async def test_existing_verified_email_creates_no_row_and_sends_no_email(
+        self, client, verified_user, user_repo, outbox_repo, dispatch_calls
+    ):
         res = await client.post(
-            "/auth/register", json={"email": "new@example.com", "password": GOOD_PASSWORD}
+            "/auth/register", json={"email": "ada@example.com", "password": "a-brand-new-long-pw"}
         )
 
-        assert res.status_code == 201
-
-    async def test_duplicate_email_is_409_without_a_breach_check(self, client):
-        first = await client.post(
-            "/auth/register", json={"email": "dup@example.com", "password": GOOD_PASSWORD}
+        assert res.status_code == 204
+        # still exactly one user for that address, and its password is untouched
+        assert await service.authenticate_user(
+            user_repo, email="ada@example.com", password="s3cret-pw"
         )
-        assert first.status_code == 201
+        assert list(outbox_repo._entries_by_id.values()) == []
+        assert dispatch_calls == []
 
-        again = await client.post(
-            "/auth/register", json={"email": "dup@example.com", "password": "a-different-long-one"}
-        )
-
-        assert again.status_code == 409
-
-    async def test_duplicate_email_does_not_reach_the_pwned_checker(self, client, pwned_checker):
-        await client.post(
-            "/auth/register", json={"email": "dup@example.com", "password": GOOD_PASSWORD}
-        )
-        pwned_checker.calls.clear()
-
-        await client.post(
-            "/auth/register", json={"email": "dup@example.com", "password": "a-different-long-one"}
+    async def test_existing_unverified_email_is_a_silent_204_no_op(
+        self, client, user_repo, outbox_repo
+    ):
+        await service.register_user(
+            user_repo, email="grace@example.com", password="s3cret-pw"
         )
 
-        assert pwned_checker.calls == []
+        res = await client.post(
+            "/auth/register", json={"email": "grace@example.com", "password": GOOD_PASSWORD}
+        )
+
+        assert res.status_code == 204
+        assert list(outbox_repo._entries_by_id.values()) == []
+
+    async def test_breached_password_422_is_identical_for_new_and_existing_email(
+        self, client, verified_user, pwned_checker
+    ):
+        pwned_checker.pwned.add("hunter2-hunter2-hunter2")
+
+        unknown = await client.post(
+            "/auth/register",
+            json={"email": "nobody@example.com", "password": "hunter2-hunter2-hunter2"},
+        )
+        existing = await client.post(
+            "/auth/register",
+            json={"email": "ada@example.com", "password": "hunter2-hunter2-hunter2"},
+        )
+
+        assert unknown.status_code == existing.status_code == 422
+        assert unknown.json() == existing.json()
+
+    async def test_a_create_race_resolves_as_204_not_500(
+        self, client, user_repo, monkeypatch
+    ):
+        """Email inserted between the pre-check and our insert (R5)."""
+
+        async def racing_create(*, email: str, password_hash: str):
+            raise IntegrityError("INSERT INTO users", {}, Exception("duplicate key: email"))
+
+        monkeypatch.setattr(user_repo, "create", racing_create)
+
+        res = await client.post(
+            "/auth/register", json={"email": "racer@example.com", "password": GOOD_PASSWORD}
+        )
+
+        assert res.status_code == 204
+        assert res.content == b""
+
+
+class TestRegisterResponseFloor:
+    """Both the new-email and existing-email paths are padded to the floor (R2)."""
+
+    @pytest.fixture
+    def register_response_floor(self) -> timedelta:
+        return timedelta(milliseconds=200)
+
+    async def test_new_email_response_is_padded_to_the_floor(self, client):
+        start = time.perf_counter()
+        res = await client.post(
+            "/auth/register", json={"email": "slow@example.com", "password": GOOD_PASSWORD}
+        )
+        elapsed = time.perf_counter() - start
+
+        assert res.status_code == 204
+        assert elapsed >= 0.2
+
+    async def test_existing_email_response_is_padded_to_the_floor(self, client, verified_user):
+        start = time.perf_counter()
+        res = await client.post(
+            "/auth/register", json={"email": "ada@example.com", "password": GOOD_PASSWORD}
+        )
+        elapsed = time.perf_counter() - start
+
+        assert res.status_code == 204
+        assert elapsed >= 0.2
 
 
 class TestPasswordPolicyAtReset:

@@ -2,10 +2,10 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from backend.auth import service
 from backend.auth.exceptions import (
-    EmailAlreadyRegistered,
     EmailNotVerified,
     InvalidCredentials,
     InvalidPasswordResetToken,
@@ -33,19 +33,50 @@ class TestRegisterUser:
     async def test_creates_user_with_hashed_password(self, user_repo):
         user = await service.register_user(user_repo, email="ada@example.com", password="s3cret-pw")
 
+        assert user is not None
         assert user.email == "ada@example.com"
         assert user.password_hash != "s3cret-pw"
         assert user.password_hash.startswith("$argon2id$")
 
-    async def test_raises_when_email_already_registered(self, user_repo, registered_user):
-        with pytest.raises(EmailAlreadyRegistered):
-            await service.register_user(user_repo, email="ada@example.com", password="other-pw")
+    async def test_returns_none_when_email_already_registered(self, user_repo, registered_user):
+        """Enumeration-safe: no exception — the caller can't tell the address was taken."""
+        result = await service.register_user(
+            user_repo, email="ada@example.com", password="other-pw"
+        )
 
-    async def test_raises_when_email_already_registered_in_different_case(
+        assert result is None
+
+    async def test_returns_none_when_email_already_registered_in_different_case(
         self, user_repo, registered_user
     ):
-        with pytest.raises(EmailAlreadyRegistered):
-            await service.register_user(user_repo, email="Ada@Example.com", password="other-pw")
+        result = await service.register_user(
+            user_repo, email="Ada@Example.com", password="other-pw"
+        )
+
+        assert result is None
+
+    async def test_repeat_registration_does_not_touch_the_existing_user(
+        self, user_repo, registered_user
+    ):
+        original_hash = registered_user.password_hash
+
+        await service.register_user(user_repo, email="ada@example.com", password="other-pw")
+
+        assert (await user_repo.get_by_email("ada@example.com")).password_hash == original_hash
+
+    async def test_treats_a_create_race_as_a_no_op(self, user_repo, monkeypatch):
+        """The address is inserted by a concurrent signup between our check and insert."""
+
+        async def racing_create(*, email: str, password_hash: str):
+            raise IntegrityError("INSERT INTO users", {}, Exception("duplicate key: email"))
+
+        monkeypatch.setattr(user_repo, "create", racing_create)
+
+        result = await service.register_user(
+            user_repo, email="racer@example.com", password="a-long-enough-password"
+        )
+
+        assert result is None
 
 
 class TestAuthenticateUser:
