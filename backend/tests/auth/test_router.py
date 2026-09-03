@@ -26,6 +26,7 @@ from backend.auth.dependencies import (
     get_refresh_token_repo,
     get_user_repo,
 )
+from backend.auth.error_handlers import add_auth_error_handlers
 from backend.auth.exceptions import InvalidCredentials, InvalidRefreshToken
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.fakes import (
@@ -119,6 +120,7 @@ async def client(
     app = FastAPI()
     FastAPIRedis(app).lifespan().rate_limiting()
     app.include_router(auth_router_module.router)
+    add_auth_error_handlers(app)
     app.dependency_overrides.update(
         {
             get_auth_config: lambda: app_config,
