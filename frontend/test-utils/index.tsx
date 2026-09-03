@@ -58,18 +58,22 @@ export function renderHookWithProviders<Result, Props>(
 
 type QueuedResponse = {
   status?: number;
-  /** Parsed by `res.json()`; serialized by `res.text()`. */
+  /**
+   * A string is returned verbatim by `res.text()` and `JSON.parse`d by
+   * `res.json()` (which throws on non-JSON, like a real `Response`). Anything
+   * else is JSON-serialized for `text()` and returned as a deep copy by `json()`.
+   */
   body?: unknown;
   headers?: Record<string, string>;
   /** Reject with a `TypeError` (offline / DNS failure). */
   networkError?: boolean;
-  /** Reject with an `AbortError` (request timed out). */
+  /** Never resolve; reject only when `init.signal` aborts (see `queueTimeout`). */
   timeout?: boolean;
 };
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-export type MockFetch = jest.Mock<FetchImpl> & {
+export type MockFetch = jest.MockedFunction<FetchImpl> & {
   /** Queue one response (FIFO). Chainable. */
   queueResponse: (res?: QueuedResponse) => MockFetch;
   /** Queue a JSON body with a status code (default 200). Chainable. */
@@ -78,13 +82,30 @@ export type MockFetch = jest.Mock<FetchImpl> & {
   queueRateLimited: (retryAfterSeconds?: number) => MockFetch;
   /** Queue a rejected fetch (offline). Chainable. */
   queueNetworkError: () => MockFetch;
-  /** Queue an `AbortError` (timeout). Chainable. */
+  /**
+   * Queue a request that hangs until its `AbortSignal` fires — the caller's
+   * own timeout wiring has to abort it. With no `init.signal` it rejects with
+   * an `AbortError` immediately so naive callers still get a failure. Chainable.
+   */
   queueTimeout: () => MockFetch;
   /** Every request the mock received, as `{ url, init }`. */
   readonly requests: { url: string; init?: RequestInit }[];
   /** Restore whatever `global.fetch` was before this mock installed itself. */
   restore: () => void;
 };
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  if (typeof Request !== 'undefined' && input instanceof Request) return input.url;
+  return String(input);
+}
+
+function abortError(): Error {
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
+}
 
 /**
  * Install a queueable `global.fetch`. Responses are consumed FIFO; a request
@@ -102,12 +123,12 @@ export function mockFetch(): MockFetch {
   const previousFetch = globalThis.fetch;
 
   const fn = jest.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    requests.push({ url: typeof input === 'string' ? input : String(input), init });
+    requests.push({ url: requestUrl(input), init });
 
     const next = queue.shift();
     if (!next) {
       throw new Error(
-        `mockFetch: request with an empty queue (${init?.method ?? 'GET'} ${String(input)}) — ` +
+        `mockFetch: request with an empty queue (${init?.method ?? 'GET'} ${requestUrl(input)}) — ` +
           'add a queue* call for it',
       );
     }
@@ -115,9 +136,12 @@ export function mockFetch(): MockFetch {
       throw new TypeError('Network request failed');
     }
     if (next.timeout) {
-      const error = new Error('The operation was aborted');
-      error.name = 'AbortError';
-      throw error;
+      const signal = init?.signal;
+      if (!signal) throw abortError();
+      if (signal.aborted) throw abortError();
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(abortError()), { once: true });
+      });
     }
 
     const status = next.status ?? 200;
@@ -130,17 +154,46 @@ export function mockFetch(): MockFetch {
       has: (name: string) => headerEntries.some(([key]) => key === name.toLowerCase()),
     };
 
-    return {
-      ok: status >= 200 && status < 300,
-      status,
-      headers,
-      json: async () => (next.body === undefined ? {} : next.body),
-      text: async () => (next.body === undefined ? '' : JSON.stringify(next.body)),
-      clone() {
-        return this;
-      },
-    } as unknown as Response;
-  }) as MockFetch;
+    const bodyText =
+      next.body === undefined
+        ? ''
+        : typeof next.body === 'string'
+          ? next.body
+          : JSON.stringify(next.body);
+    const bodyJson = () => {
+      if (next.body === undefined) return {};
+      if (typeof next.body === 'string') return JSON.parse(next.body) as unknown;
+      return structuredClone(next.body);
+    };
+
+    // A fresh `bodyUsed` per Response so `clone()` is genuinely independent and
+    // a second read throws, like the platform `Response`.
+    const build = (): Response => {
+      let bodyUsed = false;
+      const consume = () => {
+        if (bodyUsed) throw new TypeError('Body is already consumed');
+        bodyUsed = true;
+      };
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        headers,
+        get bodyUsed() {
+          return bodyUsed;
+        },
+        json: async () => {
+          consume();
+          return bodyJson();
+        },
+        text: async () => {
+          consume();
+          return bodyText;
+        },
+        clone: () => build(),
+      } as unknown as Response;
+    };
+    return build();
+  }) as unknown as MockFetch;
 
   fn.queueResponse = (res = {}) => {
     queue.push(res);
