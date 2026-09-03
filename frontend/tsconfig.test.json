@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "react", "react-native", "jest"]
+  },
+  "include": [
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "jest-setup.ts",
+    "test-utils/**/*.ts",
+    "test-utils/**/*.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}
