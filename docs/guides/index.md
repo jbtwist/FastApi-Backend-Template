@@ -1,3 +1,12 @@
 # Guides
 
-<!-- TODO: no how-to guides yet — add one per task once a specific workflow needs documenting (e.g. "how to add a new mail template", "how to run migrations"). -->
+- [Running tests](#running-tests)
+
+## Running tests
+
+To run the frontend tests, use the following command:
+
+```bash
+cd frontend
+npm test
+```
