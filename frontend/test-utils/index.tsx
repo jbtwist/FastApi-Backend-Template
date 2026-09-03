@@ -71,6 +71,21 @@ type QueuedResponse = {
   timeout?: boolean;
 };
 
+/** A queue slot: either a ready response, or one `queueDeferred` holds open. */
+type QueueEntry = QueuedResponse | { deferred: () => Promise<QueuedResponse> };
+
+/** Handle for a request held open by `queueDeferred`. */
+export type DeferredResponse = {
+  /** Resolves once the mock has actually received the request this slot holds. */
+  readonly requested: Promise<void>;
+  /** Settle it with a full response spec (default: an empty `200`). */
+  resolve: (res?: QueuedResponse) => void;
+  /** Settle it with a JSON body and status (default `200`). */
+  resolveJson: (status?: number, body?: unknown, headers?: Record<string, string>) => void;
+  /** Fail it the way an offline fetch does. */
+  rejectNetworkError: () => void;
+};
+
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export type MockFetch = jest.MockedFunction<FetchImpl> & {
@@ -88,6 +103,12 @@ export type MockFetch = jest.MockedFunction<FetchImpl> & {
    * an `AbortError` immediately so naive callers still get a failure. Chainable.
    */
   queueTimeout: () => MockFetch;
+  /**
+   * Queue a request that hangs until the returned handle settles it — the way
+   * to hold one call open while others race past it (single-flight, coalescing,
+   * in-flight deduplication). Returns the handle, so it does not chain.
+   */
+  queueDeferred: () => DeferredResponse;
   /** Every request the mock received, as `{ url, init }`. */
   readonly requests: { url: string; init?: RequestInit }[];
   /** Restore whatever `global.fetch` was before this mock installed itself. */
@@ -118,20 +139,22 @@ function abortError(): Error {
  * ```
  */
 export function mockFetch(): MockFetch {
-  const queue: QueuedResponse[] = [];
+  const queue: QueueEntry[] = [];
   const requests: { url: string; init?: RequestInit }[] = [];
   const previousFetch = globalThis.fetch;
 
   const fn = jest.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     requests.push({ url: requestUrl(input), init });
 
-    const next = queue.shift();
-    if (!next) {
+    const entry = queue.shift();
+    if (!entry) {
       throw new Error(
         `mockFetch: request with an empty queue (${init?.method ?? 'GET'} ${requestUrl(input)}) — ` +
           'add a queue* call for it',
       );
     }
+    // A deferred slot parks the request here until the test settles its handle.
+    const next = 'deferred' in entry ? await entry.deferred() : entry;
     if (next.networkError) {
       throw new TypeError('Network request failed');
     }
@@ -218,6 +241,30 @@ export function mockFetch(): MockFetch {
   fn.queueTimeout = () => {
     queue.push({ timeout: true });
     return fn;
+  };
+  fn.queueDeferred = () => {
+    let markRequested: () => void = () => {};
+    const requested = new Promise<void>((resolve) => {
+      markRequested = resolve;
+    });
+    let settle: (res: QueuedResponse) => void = () => {};
+    const settled = new Promise<QueuedResponse>((resolve) => {
+      settle = resolve;
+    });
+
+    queue.push({
+      deferred: () => {
+        markRequested();
+        return settled;
+      },
+    });
+
+    return {
+      requested,
+      resolve: (res = {}) => settle(res),
+      resolveJson: (status = 200, body, headers) => settle({ status, body, headers }),
+      rejectNetworkError: () => settle({ networkError: true }),
+    };
   };
   Object.defineProperty(fn, 'requests', { get: () => requests });
   fn.restore = () => {
