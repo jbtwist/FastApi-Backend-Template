@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
+
 from backend.auth.config import AuthConfig
 from backend.auth.exceptions import (
-    EmailAlreadyRegistered,
     InvalidVerificationToken,
     VerificationTokenExpired,
 )
@@ -20,34 +21,27 @@ from backend.mail.models import EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
 
 
-async def ensure_email_available(user_repo: UserRepository, *, email: str) -> None:
-    """Raise `EmailAlreadyRegistered` if the normalized email is taken.
-
-    A cheap gate the register handler runs before the password policy, so a
-    duplicate signup 409s without paying for an outbound breach-check call.
-
-    Raises:
-        EmailAlreadyRegistered: a user with the normalized email already exists.
-    """
-    if await user_repo.get_by_email(email.strip().lower()) is not None:
-        raise EmailAlreadyRegistered
-
-
-async def register_user(user_repo: UserRepository, *, email: str, password: str) -> User:
-    """Create a new user with a hashed password.
+async def register_user(
+    user_repo: UserRepository, *, email: str, password: str
+) -> User | None:
+    """Create a new user with a hashed password, or no-op if the email is taken.
 
     Email is lowercased/trimmed before lookup and storage.
 
-    Raises:
-        EmailAlreadyRegistered: a user with the normalized email already exists.
+    Returns the new `User`, or `None` when the normalized email already belongs
+    to an account — including when a concurrent signup wins the insert race. The
+    caller must not disclose which case occurred (enumeration safety, FR-036):
+    a `None` return means "queue no verification email", nothing more.
     """
     normalized_email = email.strip().lower()
-    existing = await user_repo.get_by_email(normalized_email)
-    if existing is not None:
-        raise EmailAlreadyRegistered
+    if await user_repo.get_by_email(normalized_email) is not None:
+        return None
 
     password_hash = hash_password(password)
-    return await user_repo.create(email=normalized_email, password_hash=password_hash)
+    try:
+        return await user_repo.create(email=normalized_email, password_hash=password_hash)
+    except IntegrityError:
+        return None
 
 
 async def queue_verification_email(

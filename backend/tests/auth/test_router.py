@@ -386,7 +386,13 @@ class TestRegisterEnumerationSafety:
 
         assert existing.status_code == new.status_code == 204
         assert existing.content == new.content == b""
-        assert dict(existing.headers) == dict(new.headers)
+        # nothing about the response distinguishes the two — ignoring only the
+        # request-ordinal rate-limit counters and the wall-clock Date header.
+        volatile = {"date", "x-ratelimit-remaining", "x-ratelimit-reset"}
+        assert {k: v for k, v in existing.headers.items() if k not in volatile} == {
+            k: v for k, v in new.headers.items() if k not in volatile
+        }
+        assert "set-cookie" not in existing.headers
 
     async def test_existing_verified_email_creates_no_row_and_sends_no_email(
         self, client, verified_user, user_repo, outbox_repo, dispatch_calls

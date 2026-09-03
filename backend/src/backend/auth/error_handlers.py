@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse
 
 from backend.auth.exceptions import (
     AuthError,
-    EmailAlreadyRegistered,
     EmailNotVerified,
     InvalidCredentials,
     InvalidPasswordResetToken,
@@ -20,7 +19,6 @@ from backend.auth.exceptions import (
 )
 
 _HTTP_BY_ERROR: dict[type[AuthError], tuple[int, str]] = {
-    EmailAlreadyRegistered: (status.HTTP_409_CONFLICT, "Email already registered"),
     InvalidCredentials: (status.HTTP_401_UNAUTHORIZED, "Invalid credentials"),
     EmailNotVerified: (status.HTTP_403_FORBIDDEN, "Email not verified"),
     InvalidVerificationToken: (

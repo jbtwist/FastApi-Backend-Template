@@ -128,8 +128,7 @@ def _set_token_cookies(
 
 @router.post(
     "/register",
-    response_model=UserOut,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(rate_limit("5/minute"))],
 )
 async def register(
@@ -139,17 +138,28 @@ async def register(
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
     pwned_checker: PwnedPasswordCheckerDep,
-) -> UserOut:
-    """Create an account and queue a verification email. The account can't log in until verified."""
-    await service.ensure_email_available(user_repo, email=payload.email)
-    await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
-    user = await service.register_user(user_repo, email=payload.email, password=payload.password)
+) -> None:
+    """Register an account and queue its verification email.
 
-    entry = await service.queue_verification_email(
-        token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
-    )
-    await _queue_dispatch(str(entry.id))
-    return UserOut(id=user.id, email=user.email, email_verified=False)
+    Enumeration-safe (FR-036, SC-013): an already-registered address is a silent
+    no-op with a byte-identical `204` and the same response-floor timing, so the
+    endpoint can't be used to discover which addresses have accounts. The
+    password policy still runs first and can `422` — that check never consults
+    the user table, so it's identical for every address.
+    """
+    await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
+
+    async with _response_floor(config.AUTH_REGISTER_RESPONSE_FLOOR):
+        user = await service.register_user(
+            user_repo, email=payload.email, password=payload.password
+        )
+        if user is None:
+            return
+
+        entry = await service.queue_verification_email(
+            token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
+        )
+        await _queue_dispatch(str(entry.id))
 
 
 @router.post(

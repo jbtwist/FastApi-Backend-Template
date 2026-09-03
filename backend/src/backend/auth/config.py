@@ -28,6 +28,7 @@ class AuthConfig(BaseSettings):
     EMAIL_VERIFICATION_TOKEN_EXP: timedelta = timedelta(hours=24)
     PASSWORD_RESET_TOKEN_EXP: timedelta = timedelta(hours=1)
     FORGOT_PASSWORD_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
+    AUTH_REGISTER_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
     PASSWORD_STRENGTH: PasswordStrength = PasswordStrength.MEDIUM
     PASSWORD_MAX_LENGTH: int = Field(default=128, ge=64)
     PASSWORD_CHECK_PWNED: bool = True
