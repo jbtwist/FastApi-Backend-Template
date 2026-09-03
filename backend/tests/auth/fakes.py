@@ -45,9 +45,58 @@ class FakeUserRepository:
         return True
 
 
-class FakeRefreshTokenRepository:
+class _FakeSingleUseTokenRepository[TokenT]:
+    model: type[TokenT]
+
     def __init__(self) -> None:
-        self._tokens_by_id: dict[uuid.UUID, RefreshToken] = {}
+        self._tokens_by_id: dict[uuid.UUID, TokenT] = {}
+
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> TokenT:
+        token = self.model(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            used_at=None,
+        )
+        self._tokens_by_id[token.id] = token
+        return token
+
+    async def get_by_hash(self, token_hash: str) -> TokenT | None:
+        for token in self._tokens_by_id.values():
+            if token.token_hash == token_hash:
+                return token
+        return None
+
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
+        token = self._tokens_by_id[token_id]
+        if token.used_at is not None:
+            return False
+        token.used_at = used_at
+        return True
+
+
+class FakeEmailVerificationTokenRepository(
+    _FakeSingleUseTokenRepository[EmailVerificationToken]
+):
+    model = EmailVerificationToken
+
+
+class FakePasswordResetTokenRepository(_FakeSingleUseTokenRepository[PasswordResetToken]):
+    model = PasswordResetToken
+
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None:
+        for token in self._tokens_by_id.values():
+            if token.user_id == user_id and token.used_at is None:
+                token.used_at = invalidated_at
+
+
+class FakeRefreshTokenRepository(_FakeSingleUseTokenRepository[RefreshToken]):
+    model = RefreshToken
 
     async def create(
         self,
@@ -69,19 +118,6 @@ class FakeRefreshTokenRepository:
         self._tokens_by_id[token.id] = token
         return token
 
-    async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
-        for token in self._tokens_by_id.values():
-            if token.token_hash == token_hash:
-                return token
-        return None
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        token = self._tokens_by_id[token_id]
-        if token.used_at is not None:
-            return False
-        token.used_at = used_at
-        return True
-
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None:
         for token in self._tokens_by_id.values():
             if token.family_id == family_id and token.revoked_at is None:
@@ -91,72 +127,3 @@ class FakeRefreshTokenRepository:
         for token in self._tokens_by_id.values():
             if token.user_id == user_id and token.revoked_at is None:
                 token.revoked_at = revoked_at
-
-
-class FakePasswordResetTokenRepository:
-    def __init__(self) -> None:
-        self._tokens_by_id: dict[uuid.UUID, PasswordResetToken] = {}
-
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> PasswordResetToken:
-        token = PasswordResetToken(
-            id=uuid.uuid4(),
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-            used_at=None,
-        )
-        self._tokens_by_id[token.id] = token
-        return token
-
-    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None:
-        for token in self._tokens_by_id.values():
-            if token.token_hash == token_hash:
-                return token
-        return None
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        token = self._tokens_by_id[token_id]
-        if token.used_at is not None:
-            return False
-        token.used_at = used_at
-        return True
-
-    async def invalidate_all_for_user(
-        self, user_id: uuid.UUID, *, invalidated_at: datetime
-    ) -> None:
-        for token in self._tokens_by_id.values():
-            if token.user_id == user_id and token.used_at is None:
-                token.used_at = invalidated_at
-
-
-class FakeEmailVerificationTokenRepository:
-    def __init__(self) -> None:
-        self._tokens_by_id: dict[uuid.UUID, EmailVerificationToken] = {}
-
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> EmailVerificationToken:
-        token = EmailVerificationToken(
-            id=uuid.uuid4(),
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-            used_at=None,
-        )
-        self._tokens_by_id[token.id] = token
-        return token
-
-    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None:
-        for token in self._tokens_by_id.values():
-            if token.token_hash == token_hash:
-                return token
-        return None
-
-    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool:
-        token = self._tokens_by_id[token_id]
-        if token.used_at is not None:
-            return False
-        token.used_at = used_at
-        return True
