@@ -7,3 +7,5 @@
 ::: backend.auth.security
 
 ::: backend.auth.cookies
+
+::: backend.auth.error_handlers
