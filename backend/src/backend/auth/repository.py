@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Protocol
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,16 @@ from backend.auth.models import (
     RefreshToken,
     User,
 )
+
+
+class UserRepository(Protocol):
+    async def get_by_email(self, email: str) -> User | None: ...
+    async def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
+    async def create(self, *, email: str, password_hash: str) -> User: ...
+    async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool: ...
+    async def set_password_hash(
+        self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
+    ) -> bool: ...
 
 
 class SqlUserRepository:
@@ -46,6 +57,21 @@ class SqlUserRepository:
             .values(password_hash=password_hash, updated_at=updated_at)
         )
         return result.rowcount == 1
+
+
+class RefreshTokenRepository(Protocol):
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        family_id: uuid.UUID,
+        token_hash: str,
+        expires_at: datetime,
+    ) -> RefreshToken: ...
+    async def get_by_hash(self, token_hash: str) -> RefreshToken | None: ...
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+    async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
+    async def revoke_all_for_user(self, user_id: uuid.UUID, *, revoked_at: datetime) -> None: ...
 
 
 class SqlRefreshTokenRepository:
@@ -101,6 +127,14 @@ class SqlRefreshTokenRepository:
         )
 
 
+class EmailVerificationTokenRepository(Protocol):
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> EmailVerificationToken: ...
+    async def get_by_hash(self, token_hash: str) -> EmailVerificationToken | None: ...
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+
+
 class SqlEmailVerificationTokenRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
@@ -128,6 +162,17 @@ class SqlEmailVerificationTokenRepository:
             .values(used_at=used_at)
         )
         return result.rowcount == 1
+
+
+class PasswordResetTokenRepository(Protocol):
+    async def create(
+        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
+    ) -> PasswordResetToken: ...
+    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None: ...
+    async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None: ...
 
 
 class SqlPasswordResetTokenRepository:
