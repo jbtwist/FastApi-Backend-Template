@@ -16,6 +16,15 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+### Environment
+
+Copy `.env.example` to `.env` and point `EXPO_PUBLIC_API_URL` at your backend
+(`http://localhost:8000` by default).
+
+For the email-verification and password-reset deep links to land back in this
+app during local development, the backend's `backend/.env` needs
+`MAIL_FRONTEND_BASE_URL=http://localhost:8081` (the Expo web dev server origin).
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
