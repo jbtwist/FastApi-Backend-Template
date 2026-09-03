@@ -16,7 +16,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { configureApiClient, resetApiClient } from './api-client';
 import { AuthProvider, useAuth } from './auth-context';
-import { mockFetch, secureStoreSnapshot, seedSecureStore, type MockFetch } from '../../test-utils';
+import { mockFetch, secureStoreSnapshot, seedSecureStore, type MockFetch } from '@/test-utils';
 
 const BASE = 'https://api.test';
 const ACCESS_KEY = 'auth.accessToken';
