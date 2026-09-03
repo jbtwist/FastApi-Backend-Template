@@ -30,14 +30,9 @@ from backend.auth.dependencies import (
     UserRepoDep,
 )
 from backend.auth.exceptions import (
-    EmailAlreadyRegistered,
-    EmailNotVerified,
-    InvalidCredentials,
-    InvalidPasswordResetToken,
     InvalidRefreshToken,
     InvalidVerificationToken,
     PasswordCompromised,
-    PasswordResetTokenExpired,
     PasswordTooLong,
     PasswordTooShort,
     RefreshTokenExpired,
@@ -146,14 +141,9 @@ async def register(
     pwned_checker: PwnedPasswordCheckerDep,
 ) -> UserOut:
     """Create an account and queue a verification email. The account can't log in until verified."""
-    try:
-        await service.ensure_email_available(user_repo, email=payload.email)
-        await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
-        user = await service.register_user(
-            user_repo, email=payload.email, password=payload.password
-        )
-    except EmailAlreadyRegistered as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered") from exc
+    await service.ensure_email_available(user_repo, email=payload.email)
+    await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
+    user = await service.register_user(user_repo, email=payload.email, password=payload.password)
 
     entry = await service.queue_verification_email(
         token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
@@ -178,14 +168,9 @@ async def login(
 
     The cookies are for the web client; the body is for non-browser clients.
     """
-    try:
-        user = await service.authenticate_user(
-            user_repo, email=payload.email, password=payload.password
-        )
-    except InvalidCredentials as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials") from exc
-    except EmailNotVerified as exc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Email not verified") from exc
+    user = await service.authenticate_user(
+        user_repo, email=payload.email, password=payload.password
+    )
 
     pair = await service.issue_token_pair(
         refresh_token_repo, user, config=config, now=datetime.now(UTC)
@@ -289,12 +274,7 @@ async def confirm_email(
     user_repo: UserRepoDep,
 ) -> None:
     """Confirm email via a JSON request, for a frontend client instead of the emailed link."""
-    try:
-        await service.confirm_email(token_repo, user_repo, payload.token, now=datetime.now(UTC))
-    except (InvalidVerificationToken, VerificationTokenExpired) as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token"
-        ) from exc
+    await service.confirm_email(token_repo, user_repo, payload.token, now=datetime.now(UTC))
 
 
 @router.post(
@@ -372,25 +352,13 @@ async def reset_password(
 ) -> None:
     """Set a new password from a reset link's token."""
     now = datetime.now(UTC)
-    try:
-        await service.assert_reset_token_valid(reset_token_repo, payload.token, now=now)
-    except (InvalidPasswordResetToken, PasswordResetTokenExpired) as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
-        ) from exc
-
+    await service.assert_reset_token_valid(reset_token_repo, payload.token, now=now)
     await _enforce_password_policy(payload.new_password, config=config, pwned_checker=pwned_checker)
-
-    try:
-        await service.reset_password(
-            reset_token_repo,
-            user_repo,
-            refresh_token_repo,
-            payload.token,
-            new_password=payload.new_password,
-            now=now,
-        )
-    except (InvalidPasswordResetToken, PasswordResetTokenExpired) as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
-        ) from exc
+    await service.reset_password(
+        reset_token_repo,
+        user_repo,
+        refresh_token_repo,
+        payload.token,
+        new_password=payload.new_password,
+        now=now,
+    )
