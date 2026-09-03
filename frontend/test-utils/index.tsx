@@ -1,16 +1,13 @@
 /**
- * Shared test helpers for the auth feature.
+ * Shared test helpers.
  *
- * Re-exports everything from `@testing-library/react-native` and adds:
- * - `renderWithProviders` / `renderHookWithProviders` — render a component or
- *   hook under the app-wide providers that don't need a navigation tree
- *   (safe-area). Screens that use `expo-router` (`<Link>`, `useRouter`,
- *   `<Redirect>`) should be rendered with `renderRouter` from
+ * Re-exports `@testing-library/react-native` and adds:
+ * - `renderWithProviders` / `renderHookWithProviders` — wrap in the providers
+ *   that need no navigation tree (safe-area). Screens using `expo-router`
+ *   (`<Link>`, `useRouter`, `<Redirect>`) need `renderRouter` from
  *   `expo-router/testing-library` instead.
- * - `mockFetch` — a queueable `global.fetch` stand-in with `Retry-After`
- *   support, for exercising the `/auth` API contract without a server.
- * - the `expo-secure-store` fake helpers (`resetSecureStoreMock`,
- *   `secureStoreSnapshot`, `seedSecureStore`).
+ * - `mockFetch` — a queueable `global.fetch` stand-in.
+ * - the `expo-secure-store` fake helpers.
  */
 import type { ReactElement, ReactNode } from 'react';
 import { jest } from '@jest/globals';

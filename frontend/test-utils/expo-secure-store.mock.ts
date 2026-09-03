@@ -1,12 +1,6 @@
 /**
- * In-memory fake for `expo-secure-store`.
- *
- * Wired in for every test by `jest.mock('expo-secure-store', …)` in
- * `jest-setup.ts`. Implements the async key/value surface that
- * `src/auth/token-store.ts` (T021) depends on — `getItemAsync` /
- * `setItemAsync` / `deleteItemAsync` / `isAvailableAsync` — plus the
- * keychain-accessibility constants so `SecureStore` option objects still
- * resolve at call sites.
+ * In-memory fake for `expo-secure-store`, wired in suite-wide by `jest-setup.ts`.
+ * Covers the async key/value surface plus the keychain-accessibility constants.
  */
 import { jest } from '@jest/globals';
 
@@ -26,7 +20,7 @@ export const deleteItemAsync = jest.fn(async (key: string): Promise<void> => {
 
 export const isAvailableAsync = jest.fn(async (): Promise<boolean> => true);
 
-// Keychain-accessibility constants referenced inside SecureStore option objects.
+// Keychain-accessibility constants, so SecureStore option objects still resolve at call sites.
 export const AFTER_FIRST_UNLOCK = 'AFTER_FIRST_UNLOCK';
 export const AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY = 'AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY';
 export const ALWAYS = 'ALWAYS';
@@ -35,7 +29,7 @@ export const WHEN_PASSCODE_SET_THIS_DEVICE_ONLY = 'WHEN_PASSCODE_SET_THIS_DEVICE
 export const WHEN_UNLOCKED = 'WHEN_UNLOCKED';
 export const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 'WHEN_UNLOCKED_THIS_DEVICE_ONLY';
 
-/** Wipe the fake store and reset call history. Called from `jest-setup.ts` after each test. */
+/** Wipe the fake store and reset call history. */
 export function resetSecureStoreMock(): void {
   store.clear();
   getItemAsync.mockClear();
