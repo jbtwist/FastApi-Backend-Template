@@ -18,7 +18,7 @@ from backend.mail.templates import (
 
 def _confirm_email_url(token: str) -> str:
     query = urlencode({"token": token})
-    return f"{mail_settings.API_BASE_URL}/auth/confirm-email?{query}"
+    return f"{mail_settings.FRONTEND_BASE_URL}/verify-email-confirm?{query}"
 
 
 def _reset_password_url(token: str) -> str:
