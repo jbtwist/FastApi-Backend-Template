@@ -1,0 +1,13 @@
+{
+  "verifying": "Verifying your email…",
+  "success": "Email verified",
+  "successBody": "Your email is verified. You can sign in now.",
+  "invalidTitle": "This link is invalid or expired",
+  "invalidBody": "Request a new verification email and try again.",
+  "requestNew": "Request a new email",
+  "missingToken": "This verification link is missing its token.",
+  "conflictTitle": "A different account is signed in",
+  "conflictBody": "You're signed in as %{email}. Continue as this user, or sign out to verify the other email.",
+  "conflictContinueAs": "Continue as %{email}",
+  "conflictSignOut": "Sign out and verify"
+}
