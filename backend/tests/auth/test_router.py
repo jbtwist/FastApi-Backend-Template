@@ -383,3 +383,22 @@ class TestPasswordPolicyAtReset:
         )
 
         assert res.status_code == 400
+
+
+class TestConfirmEmailLinkRemoved:
+    """Δ2 (FR-046): the server-rendered ``GET /auth/confirm-email`` HTML page is
+    retired — the verification link now points at the frontend, which calls
+    ``POST /auth/confirm-email`` instead.
+    """
+
+    async def test_get_confirm_email_is_no_longer_routed(self, client):
+        res = await client.get("/auth/confirm-email", params={"token": "raw-token"})
+
+        # POST /auth/confirm-email still exists at this path, so GET is now 405.
+        assert res.status_code == 405
+
+    async def test_post_confirm_email_still_works(self, client):
+        res = await client.post("/auth/confirm-email", json={"token": "never-issued"})
+
+        # 400 = reached the handler (invalid token), i.e. the JSON route is intact.
+        assert res.status_code == 400

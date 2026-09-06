@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse
 from redis_fastapi import rate_limit
 
 from backend.auth import service
@@ -31,13 +30,11 @@ from backend.auth.dependencies import (
 )
 from backend.auth.exceptions import (
     InvalidRefreshToken,
-    InvalidVerificationToken,
     PasswordCompromised,
     PasswordTooLong,
     PasswordTooShort,
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
-    VerificationTokenExpired,
 )
 from backend.auth.password_policy import (
     MIN_LENGTH_BY_STRENGTH,
@@ -237,34 +234,6 @@ async def logout(
 async def me(user: CurrentUserDep) -> UserOut:
     """Return the current user, resolved from the access token (cookie or bearer)."""
     return UserOut(id=user.id, email=user.email, email_verified=user.email_verified_at is not None)
-
-
-# TODO: remove these hardcoded HTML responses once the frontend redirect lands.
-_CONFIRM_EMAIL_SUCCESS_HTML = (
-    "<html><body><h1>Email confirmed</h1><p>Your account is now active.</p></body></html>"
-)
-_CONFIRM_EMAIL_ERROR_HTML = (
-    "<html><body><h1>Link expired</h1>"
-    "<p>This confirmation link is invalid or has expired.</p></body></html>"
-)
-
-
-# TODO: redirect to the frontend instead of returning HTML directly, once it exists.
-@router.get("/confirm-email", response_class=HTMLResponse, include_in_schema=False)
-async def confirm_email_link(
-    token_repo: EmailVerificationTokenRepoDep,
-    user_repo: UserRepoDep,
-    token: str,
-) -> HTMLResponse:
-    """Confirm email from the link sent by mail.
-
-    Returns an HTML page directly — there's no frontend route for this yet.
-    """
-    try:
-        await service.confirm_email(token_repo, user_repo, token, now=datetime.now(UTC))
-    except InvalidVerificationToken, VerificationTokenExpired:
-        return HTMLResponse(_CONFIRM_EMAIL_ERROR_HTML, status_code=status.HTTP_400_BAD_REQUEST)
-    return HTMLResponse(_CONFIRM_EMAIL_SUCCESS_HTML)
 
 
 @router.post("/confirm-email", status_code=status.HTTP_204_NO_CONTENT)
