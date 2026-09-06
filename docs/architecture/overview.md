@@ -12,7 +12,9 @@ backend. Persistence is via SQLAlchemy + Alembic migrations
 (`backend/migrations`), on Postgres (`asyncpg`).
 
 `frontend/` is a separate Expo app; it's the "mobile" client referenced in
-the auth decisions below, alongside a browser-based web client.
+the auth decisions below, alongside a browser-based web client. It features an
+internationalization (i18n) subsystem that detects device locales, provides
+translated strings, and persists user language preferences.
 
 ## Authentication
 
