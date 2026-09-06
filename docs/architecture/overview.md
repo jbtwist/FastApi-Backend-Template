@@ -49,6 +49,7 @@ and burns any other outstanding reset token. An invalid or expired token is a
 ```mermaid
 sequenceDiagram
     participant Client
+    participant Frontend
     participant API
     participant DB
 
@@ -57,9 +58,10 @@ sequenceDiagram
     API-->>Client: 201, queues verification email
 
     Note over Client,API: user clicks the emailed confirm-email link
-    Client->>API: GET /auth/confirm-email?token=...
+    Client->>Frontend: redirects to /verify-email-confirm?token=...
+    Frontend->>API: POST /auth/confirm-email
     API->>DB: mark_email_verified
-    API-->>Client: confirmed
+    API-->>Frontend: confirmed
 
     Client->>API: POST /auth/login
     API->>DB: check credentials + email_verified_at

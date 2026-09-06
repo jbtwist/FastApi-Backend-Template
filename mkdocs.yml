@@ -60,3 +60,4 @@ nav:
           - 1. Refresh token rotation: architecture/decisions/0001-refresh-token-rotation-with-family-reuse-detection.md
           - 2. Dual token delivery: architecture/decisions/0002-dual-cookie-and-body-token-delivery.md
           - 3. Durable email outbox: architecture/decisions/0003-durable-email-outbox-before-dispatch.md
+          - 4. Email verification via frontend: architecture/decisions/0004-email-verification-via-frontend.md
