@@ -50,7 +50,8 @@ nav:
   - Guides: guides/index.md
   - API Reference:
       - reference/index.md
-      - Auth: reference/auth.md
+      - Auth (Backend): reference/auth.md
+      - Auth (Frontend): reference/frontend-auth.md
       - Password Policy: reference/password_policy.md
       - Mail: reference/mail.md
   - Architecture:
