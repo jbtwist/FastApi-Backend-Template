@@ -44,6 +44,15 @@ re-hashes the password, revokes every refresh-token session for that user,
 and burns any other outstanding reset token. An invalid or expired token is a
 `400`.
 
+## Frontend Authentication
+
+Client-side applications use `frontend/src/auth/errors.ts` to map backend
+HTTP authentication failures (e.g., 401 Unauthorized, 403 Forbidden, 429
+Too Many Requests) to a unified `AuthUiError` discriminated union. This
+mapping ensures consistent UI responses for common auth scenarios like
+invalid credentials, password policy violations, or rate-limited requests
+across different client environments (web/mobile).
+
 ```mermaid
 sequenceDiagram
     participant Client
