@@ -63,7 +63,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A file or object mapping keys to translations for a specific locale | `TranslationNamespace` | `lang_file`, `strings`, `messages` |
 | A key identifying a string in the i18n subsystem | `TranslationKey` | `i18n_key`, `string_id` |
 | The function used to look up a translation for a key | `t` | `translate`, `localize` |
-| The property of an endpoint ensuring it doesn't disclose if a resource (e.g. a user account) exists | `enumeration safety` | `enumeration_prevention`, `enum_safe` |
+| The frontend layer responsible for transport, error mapping, and automatic token refresh/retry logic | `ApiClient` | `api_client`, `authClient`, `transport`, `network` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `AUTH_REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 
 
