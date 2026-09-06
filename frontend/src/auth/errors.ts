@@ -3,9 +3,9 @@
  * actually render. Source of truth: `specs/002-auth-frontend-flows/contracts/auth-api.md`
  * ("Client error union" + "Mapping rules").
  *
- * This module holds no user-facing copy — screens pass a rendered `AuthUiError`
- * through `i18n/strings.ts`. The one exception is `password-policy.message`,
- * which the contract says carries the server `detail` verbatim.
+ * This module holds no user-facing copy — screens map each `AuthUiError` kind
+ * to a message in `i18n/locales`. The one exception is `password-policy.message`,
+ * which carries the server `detail` verbatim.
  */
 
 /** Which call produced the failure — the mapping depends on it. */
