@@ -14,7 +14,6 @@ from backend.auth.service.password_reset import (
 )
 from backend.auth.service.signup import (
     confirm_email,
-    ensure_email_available,
     queue_verification_email,
     register_user,
     resend_verification_email,
@@ -25,7 +24,6 @@ __all__ = [
     "assert_reset_token_valid",
     "authenticate_user",
     "confirm_email",
-    "ensure_email_available",
     "issue_token_pair",
     "logout",
     "queue_verification_email",
