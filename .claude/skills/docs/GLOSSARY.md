@@ -58,5 +58,10 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The minimum length tier for a password | `PasswordStrength` | `strength`, `level`, `tier` |
 | The breach-check status of a password | `PASSWORD_CHECK_PWNED` | `check_breaches`, `pwned_check` |
 | The maximum length allowed for a password | `PASSWORD_MAX_LENGTH` | `max_length` |
-| Auth-domain action: mint a password-reset token and put its email on the outbox | `request_password_reset` | `send_password_reset_email` (misleading — doesn't send) |
+| A language code + optional country code | `Locale` | `lang_code`, `language`, `l` |
+| The frontend subsystem managing translations | `i18n` | `internationalization`, `localization`, `l10n` |
+| A file or object mapping keys to translations for a specific locale | `TranslationNamespace` | `lang_file`, `strings`, `messages` |
+| A key identifying a string in the i18n subsystem | `TranslationKey` | `i18n_key`, `string_id` |
+| The function used to look up a translation for a key | `t` | `translate`, `localize` |
+
 
