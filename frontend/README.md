@@ -50,6 +50,43 @@ This command will move the starter code to the **app-example** directory and cre
 - If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
 - Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
+## Auth email deep links
+
+The email-verification and password-reset emails link to two frontend routes:
+
+- `/verify-email-confirm?token=…`
+- `/reset-password?token=…`
+
+**Local development** needs no extra setup — the links open on the Expo web dev
+server, and the backend must point at it with `MAIL_FRONTEND_BASE_URL` in
+`backend/.env` (e.g. `http://localhost:8081`). On a device/simulator the
+`frontend://` scheme (already set as `expo.scheme`) resolves the same paths.
+
+**Production** — for an email link to open the installed native app instead of a
+browser (iOS Universal Links / Android App Links), the production web host must
+be wired up in three places:
+
+1. `frontend/app.json`
+   - `expo.ios.associatedDomains` → `["applinks:<your-host>"]`
+   - `expo.android.intentFilters` → the `autoVerify` VIEW filter for `<your-host>`
+     covering `/verify-email-confirm` and `/reset-password`
+
+   Both currently use the placeholder host `auth-template.example.com` — replace
+   it with the real host (the same origin as `MAIL_FRONTEND_BASE_URL`).
+
+2. The web host serves the association files:
+   - `https://<your-host>/.well-known/apple-app-site-association` (JSON, no
+     extension, `Content-Type: application/json`) listing this app's
+     `<TeamID>.<bundleId>` and the two paths.
+   - `https://<your-host>/.well-known/assetlinks.json` listing the Android
+     package name and the release signing-key SHA-256 fingerprint.
+
+3. Rebuild the native apps after changing `app.json` (`eas build`, or
+   `npx expo prebuild --clean` for a local build) — associated-domain and
+   intent-filter changes are native and do not ship over OTA updates.
+
+Until step 2 is in place the links still work: they fall back to the web build.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
