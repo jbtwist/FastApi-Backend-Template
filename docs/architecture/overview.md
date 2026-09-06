@@ -24,6 +24,11 @@ are set as httponly cookies *and* returned in the response body, so browser
 and non-browser clients can each use the delivery mechanism that fits them.
 See [ADR 2](decisions/0002-dual-cookie-and-body-token-delivery.md).
 
+The frontend interacts with these endpoints via `ApiClient`, which handles:
+- **Platform-specific transport**: Attaches the access token as a `Bearer` header for native, or uses `credentials: 'include'` for web.
+- **Single-flight refresh**: Coalesces concurrent 401 errors into a single `/auth/refresh` call and retries the original request, ensuring a smooth session transition.
+- **Error mapping**: Translates API failures into typed `AuthApiError` objects for consistent UI feedback.
+
 Refresh tokens from one login share a `family_id`. Reusing an already-used
 refresh token revokes its whole family — this detects a stolen refresh token
 without signing out the user's other sessions. See
