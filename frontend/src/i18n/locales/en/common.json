@@ -1,0 +1,14 @@
+{
+  "appName": "Taskify",
+  "or": "or",
+  "back": "Back",
+  "backToSignIn": "Back to sign in",
+  "retry": "Try again",
+  "emailLabel": "Email",
+  "emailPlaceholder": "you@example.com",
+  "passwordLabel": "Password",
+  "passwordPlaceholder": "Your password",
+  "newPasswordLabel": "New password",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password"
+}

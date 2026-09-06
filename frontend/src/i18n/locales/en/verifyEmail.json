@@ -1,0 +1,12 @@
+{
+  "title": "Verify your email",
+  "body": "We sent a verification link to %{email}. Open it to finish setting up your account.",
+  "openLinkHint": "Tap the link in that email on this device to verify.",
+  "alsoHint": "You can also sign in or reset your password from here once your email is verified.",
+  "resend": "Resend email",
+  "resendSent": "Verification email sent.",
+  "resendCooldown": {
+    "one": "You can resend in %{count} second.",
+    "other": "You can resend in %{count} seconds."
+  }
+}

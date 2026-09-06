@@ -1,0 +1,7 @@
+{
+  "title": "Create your account",
+  "subtitle": "Enter your email and a password to get started.",
+  "submit": "Create account",
+  "passwordHint": "At least %{min} characters. Common or breached passwords are rejected.",
+  "haveAccount": "Already have an account? Sign in"
+}

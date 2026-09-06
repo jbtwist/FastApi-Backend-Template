@@ -1,0 +1,12 @@
+{
+  "title": "Verifica tu correo",
+  "body": "Enviamos un enlace de verificación a %{email}. Ábrelo para terminar de configurar tu cuenta.",
+  "openLinkHint": "Toca el enlace de ese correo en este dispositivo para verificar.",
+  "alsoHint": "También puedes iniciar sesión o restablecer tu contraseña desde aquí una vez verificado tu correo.",
+  "resend": "Reenviar correo",
+  "resendSent": "Correo de verificación enviado.",
+  "resendCooldown": {
+    "one": "Puedes reenviar en %{count} segundo.",
+    "other": "Puedes reenviar en %{count} segundos."
+  }
+}
