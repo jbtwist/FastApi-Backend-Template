@@ -65,6 +65,7 @@ function toCurrentUser(u: authApi.UserOut): CurrentUser {
   return { id: u.id, email: u.email, emailVerified: u.email_verified };
 }
 
+/** Provides the `AuthContext` to its descendants, managing the authentication state machine. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -181,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** Access the `AuthContext` to read auth status, user, and authentication actions. Must be used inside an `<AuthProvider>`. */
 export function useAuth(): AuthContextValue {
   const value = useContext(AuthContext);
   if (!value) {

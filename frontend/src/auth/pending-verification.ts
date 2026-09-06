@@ -24,6 +24,7 @@ function isPendingVerification(value: unknown): value is PendingVerification {
   );
 }
 
+/** Retrieves the `PendingVerification` state from local storage. */
 export async function get(): Promise<PendingVerification | null> {
   let raw: string | null;
   try {
@@ -40,10 +41,12 @@ export async function get(): Promise<PendingVerification | null> {
   }
 }
 
+/** Saves the `PendingVerification` state to local storage. */
 export async function set(value: PendingVerification): Promise<void> {
   await AsyncStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify(value));
 }
 
+/** Clears the `PendingVerification` state from local storage. */
 export async function clear(): Promise<void> {
   await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
 }
