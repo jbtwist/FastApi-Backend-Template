@@ -3,7 +3,7 @@
  *
  * Re-exports `@testing-library/react-native` and adds:
  * - `renderWithProviders` / `renderHookWithProviders` — wrap in the providers
- *   that need no navigation tree (safe-area). Screens using `expo-router`
+ *   that need no navigation tree (safe-area, locale). Screens using `expo-router`
  *   (`<Link>`, `useRouter`, `<Redirect>`) need `renderRouter` from
  *   `expo-router/testing-library` instead.
  * - `mockFetch` — a queueable `global.fetch` stand-in.
@@ -12,6 +12,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import { jest } from '@jest/globals';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { LocaleProvider } from '@/i18n/provider';
 import {
   render,
   renderHook,
@@ -37,7 +39,11 @@ const SAFE_AREA_METRICS = {
 };
 
 function Providers({ children }: { children: ReactNode }) {
-  return <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>{children}</SafeAreaProvider>;
+  return (
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <LocaleProvider>{children}</LocaleProvider>
+    </SafeAreaProvider>
+  );
 }
 
 export function renderWithProviders(

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-import { mockFetch, type MockFetch } from '../../test-utils';
+import { mockFetch, type MockFetch } from '@/test-utils';
 import {
   AuthApiError,
   SessionExpiredError,
@@ -8,8 +8,8 @@ import {
   ensureFreshSession,
   request,
   resetApiClient,
-} from './api-client';
-import * as tokenStore from './token-store';
+} from '../api-client';
+import * as tokenStore from '../token-store';
 
 const BASE = 'https://api.test';
 

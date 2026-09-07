@@ -60,6 +60,9 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest-setup.ts"
     ],
+    "moduleNameMapper": {
+      "\\.(css)$": "<rootDir>/src/test-utils/css-stub.js"
+    },
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?|@react-navigation/.*|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-native-.*|react-clone-referenced-element|@testing-library/.*))"
     ]

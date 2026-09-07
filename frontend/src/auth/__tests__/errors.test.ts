@@ -2,7 +2,7 @@ import {
   networkErrorToAuthUiError,
   parseRetryAfter,
   toAuthUiError,
-} from './errors';
+} from '../errors';
 
 describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
   it('400 on confirm-email → invalid-token', () => {
@@ -63,7 +63,8 @@ describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
 
   it('422 with no detail → password-policy with a non-empty fallback message', () => {
     const result = toAuthUiError(422, undefined, 'register');
-    expect(result.kind).toBe('password-policy');
+    expect(result).not.toBeNull();
+    expect(result?.kind).toBe('password-policy');
     expect((result as { message: string }).message.length).toBeGreaterThan(0);
   });
 

@@ -3,8 +3,7 @@
  *
  * Native (iOS / Android): the pair lives in the OS keychain / keystore via
  * `expo-secure-store`. Web: a no-op — the browser holds the session in
- * `httponly` cookies that JS must never touch (spec SC-010), so there is
- * nothing to read or write here.
+ * `httponly`.
  *
  * Source: `specs/002-auth-frontend-flows/research.md` §2–§3,
  * `data-model.md` → AuthSession.tokens.
@@ -37,7 +36,7 @@ function isValidPair(value: unknown): value is TokenPair {
  * Read the stored pair. Returns `null` on web, when nothing is stored, when
  * only part of the pair survived, when a value is unreadable, or when secure
  * storage itself throws. A partial / corrupt read also wipes the stray value
- * so the next launch starts clean (spec FR-065).
+ * so the next launch starts clean.
  */
 export async function getTokens(): Promise<TokenPair | null> {
   if (!isNative()) return null;
