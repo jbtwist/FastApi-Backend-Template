@@ -11,5 +11,9 @@
     "src/test-utils/**/*.tsx",
     "**/*.test.ts",
     "**/*.test.tsx"
-  ]
+  ],
+  // `exclude` is inherited, and it filters `include` — without this override the
+  // base config's "**/*.test.ts(x)" strips out every file this project exists to
+  // check, and `tsc` passes by checking nothing.
+  "exclude": ["node_modules"]
 }

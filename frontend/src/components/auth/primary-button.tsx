@@ -1,9 +1,8 @@
 /**
  * The single call-to-action on every auth screen.
  *
- * While `submitting` it shows a spinner in place of the label and ignores taps
- * (spec FR-004 / SC-011 — double-submit guard, state visible within 100 ms via
- * a synchronous re-render). `disabled` is the same minus the spinner.
+ * While `submitting` it shows a spinner in place of the label and ignores taps. 
+ * `disabled` is the same minus the spinner.
  */
 import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
 
@@ -14,9 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 export type PrimaryButtonProps = {
   label: string;
   onPress: () => void;
-  /** Shows a spinner, disables the button, and swallows taps. */
   submitting?: boolean;
-  /** Disables the button and swallows taps (no spinner). */
   disabled?: boolean;
   testID?: string;
   accessibilityHint?: PressableProps['accessibilityHint'];

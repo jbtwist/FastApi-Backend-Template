@@ -1,10 +1,5 @@
 /**
- * Third-party sign-in buttons — one per configured provider (spec US5).
- *
- * Until `authConfig.oauthEnabled` flips on, the buttons render but are visibly
- * inactive: tapping one starts no external flow and instead shows a "coming
- * soon" notice. Meant to sit in `<AuthScreen dividerSlot={…} />`, which draws
- * the "or" divider above it.
+ * Third-party sign-in buttons — one per configured provider.
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -20,9 +15,7 @@ import { FormMessage, type FormMessageValue } from './form-message';
 export type ProviderButtonsProps = {
   /** Providers to show, in order. Defaults to `authConfig.providers`. */
   providers?: OAuthProvider[];
-  /** Whether third-party sign-in is live. Defaults to `authConfig.oauthEnabled`. */
   enabled?: boolean;
-  /** Called with the provider when `enabled` and a button is pressed. */
   onSelect?: (provider: OAuthProvider) => void;
 };
 

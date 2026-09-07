@@ -1,7 +1,7 @@
 /**
  * Shared shell for every auth screen: branding header, a single centered card
  * capped at `MaxContentWidth`, scroll + keyboard avoidance so inputs stay
- * visible. Visuals come entirely from theme tokens (spec FR-012).
+ * visible. Visuals come entirely from theme tokens.
  *
  * `dividerSlot` renders an "or" divider under the card body with the slot
  * content below it — that is where `<ProviderButtons />` (T031) sits.

@@ -1,6 +1,5 @@
 /**
- * Form-level banner (spec Edge Cases — no stale banners; screen-reader
- * announcement).
+ * Form-level banner
  *
  * Renders nothing when `message` is nullish. The text node carries
  * `role="alert"` plus a polite live region so screen readers announce it as it
