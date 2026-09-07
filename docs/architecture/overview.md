@@ -24,10 +24,13 @@ are set as httponly cookies *and* returned in the response body, so browser
 and non-browser clients can each use the delivery mechanism that fits them.
 See [ADR 2](decisions/0002-dual-cookie-and-body-token-delivery.md).
 
-The frontend interacts with these endpoints via `ApiClient`, which handles:
+The frontend manages user authentication state through an `auth-context` state machine (see `frontend/src/auth/auth-context.tsx`). This machine orchestrates the `ApiClient` to handle:
 - **Platform-specific transport**: Attaches the access token as a `Bearer` header for native, or uses `credentials: 'include'` for web.
 - **Single-flight refresh**: Coalesces concurrent 401 errors into a single `/auth/refresh` call and retries the original request, ensuring a smooth session transition.
 - **Error mapping**: Translates API failures into typed `AuthApiError` objects for consistent UI feedback.
+- **Session management**: Handles bootstrapping, login, registration, logout, and session expiration notices.
+
+It also manages ephemeral state for the email verification flow via `pending-verification` (see `frontend/src/auth/pending-verification.ts`), which stores the email address and timestamp of the last verification email sent to throttle resend requests.
 
 Refresh tokens from one login share a `family_id`. Reusing an already-used
 refresh token revokes its whole family — this detects a stolen refresh token
