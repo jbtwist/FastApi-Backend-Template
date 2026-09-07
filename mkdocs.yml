@@ -50,6 +50,7 @@ nav:
   - Guides:
       - Overview: guides/index.md
       - Native Deep-Linking: guides/native-deep-linking.md
+      - Auth UI: guides/auth-ui.md
   - API Reference:
       - reference/index.md
       - Auth (Backend): reference/auth.md
