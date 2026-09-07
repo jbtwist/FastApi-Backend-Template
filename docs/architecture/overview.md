@@ -16,6 +16,11 @@ the auth decisions below, alongside a browser-based web client. It features an
 internationalization (i18n) subsystem that detects device locales, provides
 translated strings, and persists user language preferences.
 
+Frontend routing is organized via Expo Router into groups: `(auth)` for
+unauthenticated screens, and `(app)` for authenticated screens (with a tab
+layout for main features). The root layout (`app/_layout.tsx`) serves as the
+base for session-aware navigation via a `Slot`.
+
 ## Authentication
 
 Login and refresh both return an access token (short-lived JWT, 15 min) and a
