@@ -4,23 +4,41 @@ import type { FormMessageValue } from '@/components/auth/form-message';
 
 import type { Validator } from './validators';
 
+/**
+ * Options for configuring the `useForm` hook.
+ */
 export interface UseFormOptions<T extends Record<string, string>> {
+  /** The initial state of the form values. */
   initialValues: T;
   /** Ordered validators per field; the first failing message is used. */
   validate?: Partial<Record<keyof T, Validator[]>>;
+  /** Called when the form is submitted, if validation passes. */
   onSubmit: (values: T) => void | Promise<void>;
 }
 
+/**
+ * Result returned by the `useForm` hook.
+ */
 export interface UseFormResult<T extends Record<string, string>> {
+  /** Current form values. */
   values: T;
+  /** Current field errors, keyed by field name. */
   errors: Partial<Record<keyof T, string>>;
+  /** Tracked fields, keyed by field name. */
   touched: Partial<Record<keyof T, boolean>>;
+  /** Form-level message (error/info). */
   formMessage: FormMessageValue | null;
+  /** Whether the form is currently submitting. */
   submitting: boolean;
+  /** Sets a field's value and clears associated errors. */
   setValue: (field: keyof T, value: string) => void;
+  /** Marks a field as touched and validates it. */
   handleBlur: (field: keyof T) => void;
+  /** Sets a form-level message. */
   setFormMessage: (message: FormMessageValue | null) => void;
+  /** Resets the form to initial state. */
   reset: () => void;
+  /** Validates and submits the form, if valid. */
   handleSubmit: () => Promise<void>;
 }
 
