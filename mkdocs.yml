@@ -55,6 +55,7 @@ nav:
       - reference/index.md
       - Auth (Backend): reference/auth.md
       - Auth (Frontend): reference/frontend-auth.md
+      - Forms (Frontend): reference/forms.md
       - Password Policy: reference/password_policy.md
       - Mail: reference/mail.md
   - Architecture:
