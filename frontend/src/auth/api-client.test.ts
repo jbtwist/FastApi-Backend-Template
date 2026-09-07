@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-import { mockFetch, type MockFetch } from '../../test-utils';
+import { mockFetch, type MockFetch } from '@/test-utils';
 import {
   AuthApiError,
   SessionExpiredError,

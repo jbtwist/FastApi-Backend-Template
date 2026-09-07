@@ -1,6 +1,6 @@
 import { StyleSheet, Text } from 'react-native';
 
-import { renderWithProviders, screen } from '../../../test-utils';
+import { renderWithProviders, screen } from '@/test-utils';
 
 import { AuthScreen } from './auth-screen';
 

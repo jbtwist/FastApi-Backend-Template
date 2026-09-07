@@ -1,4 +1,4 @@
-import { fireEvent, renderWithProviders, screen } from '../../../test-utils';
+import { fireEvent, renderWithProviders, screen } from '@/test-utils';
 
 import { ProviderButtons } from './provider-buttons';
 

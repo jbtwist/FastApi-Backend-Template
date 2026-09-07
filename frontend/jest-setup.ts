@@ -8,10 +8,10 @@ import { afterEach, beforeEach, jest } from '@jest/globals';
 
 import '@testing-library/react-native';
 
-import { resetSecureStoreMock } from './test-utils/expo-secure-store.mock';
+import { resetSecureStoreMock } from './src/test-utils/expo-secure-store.mock';
 
 // Every test runs against the in-memory SecureStore fake.
-jest.mock('expo-secure-store', () => require('./test-utils/expo-secure-store.mock'));
+jest.mock('expo-secure-store', () => require('./src/test-utils/expo-secure-store.mock'));
 
 // AsyncStorage is a native module — without its official fake, importing
 // anything that reaches `<LocaleProvider>` throws "NativeModule is null".

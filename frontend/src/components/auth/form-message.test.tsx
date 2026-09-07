@@ -1,4 +1,4 @@
-import { renderWithProviders, screen } from '../../../test-utils';
+import { renderWithProviders, screen } from '@/test-utils';
 
 import { FormMessage } from './form-message';
 

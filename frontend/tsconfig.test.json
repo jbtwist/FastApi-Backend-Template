@@ -7,8 +7,8 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "jest-setup.ts",
-    "test-utils/**/*.ts",
-    "test-utils/**/*.tsx",
+    "src/test-utils/**/*.ts",
+    "src/test-utils/**/*.tsx",
     "**/*.test.ts",
     "**/*.test.tsx"
   ]
