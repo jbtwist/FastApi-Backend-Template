@@ -2,7 +2,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { renderWithProviders, screen } from '@/test-utils';
 
-import { AuthScreen } from './auth-screen';
+import { AuthScreen } from '../auth-screen';
 
 describe('<AuthScreen />', () => {
   it('renders the brand, title, subtitle and children', () => {

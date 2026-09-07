@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-import { clearTokens, getTokens, setTokens } from './token-store';
+import { clearTokens, getTokens, setTokens } from '../token-store';
 
 jest.mock('expo-secure-store', () => {
   const store = new Map<string, string>();

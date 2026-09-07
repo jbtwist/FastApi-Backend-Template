@@ -2,7 +2,7 @@ import {
   networkErrorToAuthUiError,
   parseRetryAfter,
   toAuthUiError,
-} from './errors';
+} from '../errors';
 
 describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
   it('400 on confirm-email → invalid-token', () => {

@@ -1,6 +1,6 @@
 import { renderWithProviders, screen } from '@/test-utils';
 
-import { FormMessage } from './form-message';
+import { FormMessage } from '../form-message';
 
 describe('<FormMessage />', () => {
   it('renders nothing when there is no message', () => {

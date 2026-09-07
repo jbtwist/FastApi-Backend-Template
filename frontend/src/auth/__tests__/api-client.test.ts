@@ -8,8 +8,8 @@ import {
   ensureFreshSession,
   request,
   resetApiClient,
-} from './api-client';
-import * as tokenStore from './token-store';
+} from '../api-client';
+import * as tokenStore from '../token-store';
 
 const BASE = 'https://api.test';
 

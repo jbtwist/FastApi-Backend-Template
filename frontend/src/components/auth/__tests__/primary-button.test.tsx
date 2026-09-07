@@ -1,6 +1,6 @@
 import { fireEvent, renderWithProviders, screen } from '@/test-utils';
 
-import { PrimaryButton } from './primary-button';
+import { PrimaryButton } from '../primary-button';
 
 describe('<PrimaryButton />', () => {
   it('renders the label and fires onPress once', () => {

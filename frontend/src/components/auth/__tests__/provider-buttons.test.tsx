@@ -1,6 +1,6 @@
 import { fireEvent, renderWithProviders, screen } from '@/test-utils';
 
-import { ProviderButtons } from './provider-buttons';
+import { ProviderButtons } from '../provider-buttons';
 
 describe('<ProviderButtons />', () => {
   it('renders one button per provider', () => {
