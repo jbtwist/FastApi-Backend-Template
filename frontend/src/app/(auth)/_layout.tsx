@@ -1,9 +1,16 @@
+import { Redirect } from 'expo-router';
 import { Stack } from 'expo-router/stack';
+
+import { useAuth } from '@/auth/auth-context';
 
 /**
  * Unauthenticated screens (sign-in, register, verify-email, forgot-password).
- * The "redirect to (app) when already signed in" guard is wired in T032.
+ * An already-signed-in visitor is bounced into the app.
  */
 export default function AuthLayout() {
+  const { status } = useAuth();
+  if (status === 'signedIn') {
+    return <Redirect href="/(app)" />;
+  }
   return <Stack screenOptions={{ headerShown: false }} />;
 }
