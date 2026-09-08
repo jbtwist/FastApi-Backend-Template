@@ -6,6 +6,7 @@ The project includes a suite of reusable UI components for authentication screen
 
 - `AuthScreen`: A shared shell for all authentication screens. It handles branding, centered layout, scrolling, and keyboard avoidance.
 - `PrimaryButton`: The primary call-to-action button. It supports `submitting` and `disabled` states, including a loading spinner and accessibility support for screen readers.
+- `TextField`: A labelled text input for auth forms. It supports accessible error messages, static hint text, and optional trailing accessories.
 - `FormMessage`: A banner for displaying `error`, `success`, or `info` messages. It uses appropriate `accessibilityLiveRegion` settings to ensure messages are announced by screen readers.
 - `ProviderButtons`: A set of buttons for OAuth providers. It automatically renders buttons based on `authConfig.providers`.
 - `TextField`: A labelled input for authentication forms. It supports accessibility labels, error message rendering with `role="alert"`, and an optional trailing accessory slot.
@@ -18,6 +19,7 @@ Use these components to build consistent authentication interfaces throughout th
 ```tsx
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { PrimaryButton } from '@/components/auth/primary-button';
+import { TextField } from '@/components/auth/text-field';
 import { FormMessage } from '@/components/auth/form-message';
 import { TextField } from '@/components/auth/text-field';
 import { PasswordField } from '@/components/auth/password-field';
