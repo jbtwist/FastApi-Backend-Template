@@ -51,6 +51,8 @@ are set as httponly cookies *and* returned in the response body, so browser
 and non-browser clients can each use the delivery mechanism that fits them.
 See [ADR 2](decisions/0002-dual-cookie-and-body-token-delivery.md).
 
+CORS is configured to allow `CORS_ALLOWED_ORIGINS` for browser clients.
+
 The frontend manages user authentication state through an `auth-context` state machine (see `frontend/src/auth/auth-context.tsx`). This machine orchestrates the `ApiClient` to handle:
 - **Platform-specific transport**: Attaches the access token as a `Bearer` header for native, or uses `credentials: 'include'` for web.
 - **Single-flight refresh**: Coalesces concurrent 401 errors into a single `/auth/refresh` call and retries the original request, ensuring a smooth session transition.
