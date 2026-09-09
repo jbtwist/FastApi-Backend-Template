@@ -133,7 +133,6 @@ export default function RegisterScreen() {
         onChangeText={(next) => setValue('password', next)}
         onBlur={() => handleBlur('password')}
         error={touched.password ? errors.password : undefined}
-        hint={t('register.passwordHint', { min: authConfig.passwordMinLength })}
         autoComplete="new-password"
         textContentType="newPassword"
         returnKeyType="go"

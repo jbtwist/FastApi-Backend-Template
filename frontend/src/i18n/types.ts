@@ -7,7 +7,7 @@ type PluralKey = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 
 /**
  * Every addressable message path in the tree, dot-joined:
- * `'signIn.title'`, `'register.passwordHint'`, `'verifyEmail.resendCooldown'`.
+ * `'signIn.title'`, `'errors.passwordRejected'`, `'verifyEmail.resendCooldown'`.
  * A pluralised leaf (`{ one, other }`) yields the path to the object itself,
  * not to its buckets.
  */

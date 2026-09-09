@@ -96,17 +96,21 @@ beforeEach(async () => {
 });
 
 describe('register screen — layout', () => {
-  it('renders the fields, the password rule hint, the sign-in link and the provider buttons', () => {
+  it('renders the fields, the sign-in link and the provider buttons', () => {
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
     expect(screen.getByLabelText('Password')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeOnTheScreen();
-    expect(
-      screen.getByText('At least 12 characters. Common or breached passwords are rejected.'),
-    ).toBeOnTheScreen();
     expect(screen.getByText('Already have an account? Sign in')).toBeOnTheScreen();
     expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+  });
+
+  it('states no password rule up front — the rules surface only on a rejection', () => {
+    mount();
+
+    expect(screen.queryByText(/12 characters/)).toBeNull();
+    expect(screen.queryByText(/breached/i)).toBeNull();
   });
 
   it('routes to sign-in from the link', async () => {
