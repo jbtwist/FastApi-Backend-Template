@@ -2,6 +2,7 @@
   "verifying": "Verificando tu correo…",
   "success": "Correo verificado",
   "successBody": "Tu correo está verificado. Ya puedes iniciar sesión.",
+  "continue": "Continuar",
   "invalidTitle": "Este enlace no es válido o ha caducado",
   "invalidBody": "Solicita un nuevo correo de verificación e inténtalo de nuevo.",
   "requestNew": "Solicitar un nuevo correo",
