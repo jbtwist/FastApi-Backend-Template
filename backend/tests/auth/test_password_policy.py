@@ -46,7 +46,7 @@ def clean_checker() -> AsyncMock:
 
 class TestAuthConfigPasswordMaxLength:
     """ASVS 2.1.2: at least 64-char passwords must be permitted, so a misconfigured
-    AUTH_PASSWORD_MAX_LENGTH can't silently violate that floor."""
+    PASSWORD_MAX_LENGTH can't silently violate that floor."""
 
     def test_rejects_a_max_length_below_the_asvs_floor(self):
         with pytest.raises(ValidationError):

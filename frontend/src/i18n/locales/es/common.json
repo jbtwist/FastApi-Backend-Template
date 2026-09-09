@@ -1,7 +1,11 @@
 {
   "appName": "Taskify",
   "or": "o",
+  "language": "Idioma",
+  "themeSwitchToDark": "Cambiar al tema oscuro",
+  "themeSwitchToLight": "Cambiar al tema claro",
   "back": "Atrás",
+  "close": "Cerrar",
   "backToSignIn": "Volver a iniciar sesión",
   "retry": "Reintentar",
   "emailLabel": "Correo electrónico",

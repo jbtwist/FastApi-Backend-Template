@@ -1,6 +1,7 @@
 import { createRef } from 'react';
-import { Text, TextInput } from 'react-native';
+import { StyleSheet, Text, TextInput } from 'react-native';
 
+import { Colors } from '@/constants/theme';
 import { fireEvent, renderWithProviders, screen } from '@/test-utils';
 
 import { TextField } from '../text-field';
@@ -45,6 +46,51 @@ describe('<TextField />', () => {
 
     const input = screen.getByLabelText('Work email');
     expect(input.props.accessibilityHint).toBe('We never share this');
+  });
+
+  it('marks itself focused, since the browser focus ring is suppressed on web', () => {
+    renderWithProviders(<TextField label="Email" value="" onChangeText={() => {}} />);
+
+    const input = screen.getByLabelText('Email');
+    const row = () => screen.getByTestId('text-field-row');
+
+    const resting = StyleSheet.flatten(row().props.style);
+    expect(resting.borderColor).toBe(Colors.light.border);
+
+    fireEvent(input, 'focus');
+    const focused = StyleSheet.flatten(row().props.style);
+    expect(focused.borderColor).toBe(Colors.light.tint);
+    expect(focused.borderWidth).toBeGreaterThan(resting.borderWidth);
+
+    fireEvent(input, 'blur');
+    expect(StyleSheet.flatten(row().props.style).borderColor).toBe(Colors.light.border);
+  });
+
+  it('keeps the error colour while focused, so a mistake stays visible', () => {
+    renderWithProviders(
+      <TextField label="Email" value="x" onChangeText={() => {}} error="Enter a valid email" />,
+    );
+
+    fireEvent(screen.getByLabelText('Email'), 'focus');
+
+    expect(StyleSheet.flatten(screen.getByTestId('text-field-row').props.style).borderColor).toBe(
+      Colors.light.danger,
+    );
+  });
+
+  it("still calls the caller's own onFocus and onBlur", () => {
+    const onFocus = jest.fn();
+    const onBlur = jest.fn();
+    renderWithProviders(
+      <TextField label="Email" value="" onChangeText={() => {}} onFocus={onFocus} onBlur={onBlur} />,
+    );
+
+    const input = screen.getByLabelText('Email');
+    fireEvent(input, 'focus');
+    fireEvent(input, 'blur');
+
+    expect(onFocus).toHaveBeenCalledTimes(1);
+    expect(onBlur).toHaveBeenCalledTimes(1);
   });
 
   it('calls onChangeText when the user types', () => {

@@ -10,8 +10,13 @@ import {
   fireEvent,
 } from 'expo-router/testing-library';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { AuthApiError } from '@/auth/api-client';
-import { LocaleProvider } from '@/i18n/provider';
+import { DEFAULT_LOCALE, i18n } from '@/i18n';
+import { LOCALE_STORAGE_KEY } from '@/i18n/config';
+import { LocaleProvider, useLocale } from '@/i18n/provider';
+import { ColorSchemeProvider } from '@/theme/provider';
 
 const mockRegister = jest.fn<Promise<void>, [string, string]>();
 const mockSetPending = jest.fn<Promise<void>, [unknown]>();
@@ -31,10 +36,24 @@ const SAFE_AREA_METRICS = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
+/**
+ * Stands in for `<LanguageSwitcher />`, which renders on web only and so is
+ * absent from this native-preset render.
+ */
+function LocaleProbe() {
+  const { setLocale } = useLocale();
+  return <Text testID="switch-to-es" onPress={() => void setLocale('es')} />;
+}
+
 function Providers({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
-      <LocaleProvider>{children}</LocaleProvider>
+      <LocaleProvider>
+        <ColorSchemeProvider>
+          {children}
+          <LocaleProbe />
+        </ColorSchemeProvider>
+      </LocaleProvider>
     </SafeAreaProvider>
   );
 }
@@ -67,7 +86,9 @@ function submit() {
   fireEvent.press(screen.getByRole('button', { name: 'Create account' }));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  i18n.locale = DEFAULT_LOCALE;
   mockRegister.mockReset();
   mockRegister.mockResolvedValue(undefined);
   mockSetPending.mockReset();
@@ -75,17 +96,21 @@ beforeEach(() => {
 });
 
 describe('register screen — layout', () => {
-  it('renders the fields, the password rule hint, the sign-in link and the provider buttons', () => {
+  it('renders the fields, the sign-in link and the provider buttons', () => {
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
     expect(screen.getByLabelText('Password')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeOnTheScreen();
-    expect(
-      screen.getByText('At least 12 characters. Common or breached passwords are rejected.'),
-    ).toBeOnTheScreen();
     expect(screen.getByText('Already have an account? Sign in')).toBeOnTheScreen();
     expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+  });
+
+  it('states no password rule up front — the rules surface only on a rejection', () => {
+    mount();
+
+    expect(screen.queryByText(/12 characters/)).toBeNull();
+    expect(screen.queryByText(/breached/i)).toBeNull();
   });
 
   it('routes to sign-in from the link', async () => {
@@ -131,6 +156,18 @@ describe('register screen — client validation', () => {
     );
     expect(mockRegister).not.toHaveBeenCalled();
   });
+
+  it('blocks submit on a password longer than the policy maximum', async () => {
+    mount();
+
+    await fillForm('user@example.com', 'a'.repeat(129));
+    submit();
+
+    await waitFor(() =>
+      expect(screen.getByText('Must be at most 128 characters.')).toBeOnTheScreen(),
+    );
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
 });
 
 describe('register screen — submission', () => {
@@ -163,13 +200,8 @@ describe('register screen — submission', () => {
     expect(screen.queryByTestId('register-form-message')).toBeNull();
   });
 
-  it('422 → shows the server password-policy detail on the password field', async () => {
-    mockRegister.mockRejectedValue(
-      new AuthApiError(
-        { kind: 'password-policy', message: 'Password is too short (minimum 12 characters)' },
-        422,
-      ),
-    );
+  it('422 → shows the screen\'s own breached-password copy on the password field', async () => {
+    mockRegister.mockRejectedValue(new AuthApiError({ kind: 'password-policy' }, 422));
 
     const router = mount();
     await fillForm('new@example.com', 'a-strong-password');
@@ -179,9 +211,25 @@ describe('register screen — submission', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('Password is too short (minimum 12 characters)'),
+        screen.getByText('This password has appeared in a data breach. Choose a different one.'),
       ).toBeOnTheScreen(),
     );
+    expect(router.getPathname()).toBe('/register');
+  });
+
+  it('422 on the email → the message goes on the email field, not the password one', async () => {
+    mockRegister.mockRejectedValue(new AuthApiError({ kind: 'invalid-email' }, 422));
+
+    const router = mount();
+    await fillForm('someone@nope.invalid', 'a-strong-password');
+    await act(async () => {
+      submit();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Enter a valid email address.')).toBeOnTheScreen(),
+    );
+    expect(screen.queryByTestId('register-form-message')).toBeNull();
     expect(router.getPathname()).toBe('/register');
   });
 
@@ -197,6 +245,51 @@ describe('register screen — submission', () => {
     await waitFor(() =>
       expect(
         screen.getByText('Too many attempts. Please try again later.'),
+      ).toBeOnTheScreen(),
+    );
+  });
+
+  it('renders the rejection in the active language, not English', async () => {
+    await AsyncStorage.setItem(LOCALE_STORAGE_KEY, 'es');
+    mockRegister.mockRejectedValue(new AuthApiError({ kind: 'password-policy' }, 422));
+
+    mount();
+    await waitFor(() => expect(screen.getByText('Crear cuenta')).toBeOnTheScreen());
+
+    fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'new@example.com');
+    fireEvent.changeText(screen.getByLabelText('Contraseña'), 'a-strong-password');
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Esta contraseña ha aparecido en una filtración de datos. Elige otra.'),
+      ).toBeOnTheScreen(),
+    );
+  });
+
+  it('re-translates a message already on screen when the language changes', async () => {
+    mockRegister.mockRejectedValue(new AuthApiError({ kind: 'password-policy' }, 422));
+
+    mount();
+    await fillForm('new@example.com', 'a-strong-password');
+    await act(async () => {
+      submit();
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByText('This password has appeared in a data breach. Choose a different one.'),
+      ).toBeOnTheScreen(),
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('switch-to-es'));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Esta contraseña ha aparecido en una filtración de datos. Elige otra.'),
       ).toBeOnTheScreen(),
     );
   });

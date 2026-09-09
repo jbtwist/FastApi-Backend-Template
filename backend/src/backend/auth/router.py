@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
-from redis_fastapi import rate_limit
 
 from backend.auth import service
 from backend.auth.config import AuthConfig
@@ -56,6 +55,7 @@ from backend.auth.schemas import (
 )
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import dispatch_email
+from backend.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ async def register(
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
-    async with _response_floor(config.AUTH_REGISTER_RESPONSE_FLOOR):
+    async with _response_floor(config.REGISTER_RESPONSE_FLOOR):
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
         )
@@ -300,7 +300,7 @@ async def forgot_password(
 
     Always returns 204 with an empty body, whether or not the address belongs to
     a registered, verified account — identical response body, status, and (within
-    `AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
+    `FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
     which addresses have accounts.
     """
     async with _response_floor(config.FORGOT_PASSWORD_RESPONSE_FLOOR):

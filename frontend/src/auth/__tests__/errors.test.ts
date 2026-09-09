@@ -50,29 +50,48 @@ describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
   });
 
   it.each(['register', 'reset-password'] as const)(
-    '422 on %s → password-policy carrying the server detail verbatim',
+    '422 on %s → password-policy, dropping the server detail',
     (context) => {
       expect(
         toAuthUiError(422, 'Password is too short (minimum 12 characters)', context),
-      ).toEqual({
-        kind: 'password-policy',
-        message: 'Password is too short (minimum 12 characters)',
-      });
+      ).toEqual({ kind: 'password-policy' });
     },
   );
 
-  it('422 with no detail → password-policy with a non-empty fallback message', () => {
-    const result = toAuthUiError(422, undefined, 'register');
-    expect(result).not.toBeNull();
-    expect(result?.kind).toBe('password-policy');
-    expect((result as { message: string }).message.length).toBeGreaterThan(0);
+  it('422 with no detail → password-policy all the same', () => {
+    expect(toAuthUiError(422, undefined, 'register')).toEqual({ kind: 'password-policy' });
+  });
+
+  it('carries no server copy, whatever detail the backend sent', () => {
+    // Screens render their own translated message, so two different server
+    // wordings must be indistinguishable here.
+    expect(toAuthUiError(422, 'This password has appeared in a data breach', 'register')).toEqual(
+      toAuthUiError(422, 'Password exceeds the maximum length of 128 characters', 'register'),
+    );
+  });
+
+  it.each(['register', 'login', 'forgot-password', 'resend-verification'] as const)(
+    '422 on %s with a rejected email field → invalid-email, not a password message',
+    (context) => {
+      const detail = [
+        {
+          type: 'value_error',
+          loc: ['body', 'email'],
+          msg: 'value is not a valid email address',
+        },
+      ];
+      expect(toAuthUiError(422, detail, context)).toEqual({ kind: 'invalid-email' });
+    },
+  );
+
+  it('422 naming another field → unknown (nothing useful to show)', () => {
+    const detail = [{ type: 'missing', loc: ['body', 'token'], msg: 'Field required' }];
+    expect(toAuthUiError(422, detail, 'reset-password')).toEqual({ kind: 'unknown' });
   });
 
   it('breached-password detail is identical whichever email was used (no divergence)', () => {
     const detail = 'This password has appeared in a data breach; choose another';
-    expect(toAuthUiError(422, detail, 'register')).toEqual(
-      toAuthUiError(422, detail, 'register'),
-    );
+    expect(toAuthUiError(422, detail, 'register')).toEqual(toAuthUiError(422, detail, 'register'));
   });
 
   it.each(['login', 'register', 'reset-password', 'forgot-password', 'resend-verification'] as const)(

@@ -6,6 +6,7 @@
  * user sees:
  *   401 → combined "email or password" error, password cleared, email kept
  *   403 → the account exists but is unverified — go to the verify screen
+ *   422 → a rejected address, shown on the email field
  *   429 / offline / timeout / other → a form-level banner
  */
 import { Link, useRouter } from 'expo-router';
@@ -70,13 +71,17 @@ export default function SignInScreen() {
             });
             return;
           }
+          if (ui.kind === 'invalid-email') {
+            form.setError('email', 'errors.invalidEmail');
+            return;
+          }
           if (ui.kind === 'invalid-credentials') {
             form.setValue('password', '');
           }
-          form.setFormMessage({ kind: 'error', text: t(messageKeyFor(ui)) });
+          form.setFormMessage({ kind: 'error', message: messageKeyFor(ui) });
           return;
         }
-        form.setFormMessage({ kind: 'error', text: t('errors.unknown') });
+        form.setFormMessage({ kind: 'error', message: 'errors.unknown' });
       }
     },
   });
@@ -97,7 +102,7 @@ export default function SignInScreen() {
       }
       dividerSlot={<ProviderButtons />}>
       {signedOutReason ? (
-        <FormMessage message={{ kind: 'info', text: t('session.signedOutNotice') }} />
+        <FormMessage message={{ kind: 'info', message: 'session.signedOutNotice' }} />
       ) : null}
       <FormMessage message={formMessage} testID="sign-in-form-message" />
 

@@ -1,8 +1,17 @@
-import { StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 
 import { renderWithProviders, screen } from '@/test-utils';
 
 import { AuthScreen } from '../auth-screen';
+
+const originalOS = Platform.OS;
+function setPlatform(os: typeof Platform.OS) {
+  Object.defineProperty(Platform, 'OS', { configurable: true, get: () => os });
+}
+
+afterEach(() => {
+  setPlatform(originalOS);
+});
 
 describe('<AuthScreen />', () => {
   it('renders the brand, title, subtitle and children', () => {
@@ -55,6 +64,24 @@ describe('<AuthScreen />', () => {
     expect(screen.getByTestId('auth-screen-divider')).toBeOnTheScreen();
     expect(screen.getByText('or')).toBeOnTheScreen();
     expect(screen.getByText('providers')).toBeOnTheScreen();
+  });
+
+  it('shows the language switcher on web only — native follows the device', () => {
+    setPlatform('ios');
+    const { rerender } = renderWithProviders(
+      <AuthScreen title="Sign in">
+        <Text>body</Text>
+      </AuthScreen>,
+    );
+    expect(screen.queryByTestId('language-switcher')).toBeNull();
+
+    setPlatform('web');
+    rerender(
+      <AuthScreen title="Sign in">
+        <Text>body</Text>
+      </AuthScreen>,
+    );
+    expect(screen.getByTestId('language-switcher')).toBeOnTheScreen();
   });
 
   it('renders the footer slot', () => {

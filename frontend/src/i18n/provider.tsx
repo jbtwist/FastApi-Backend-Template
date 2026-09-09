@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
 
 import { LOCALE_STORAGE_KEY, type Locale } from './config';
 import { resolveInitialLocale } from './detect';
@@ -51,6 +52,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, []);
+
+  // The prerendered HTML carries `lang="en"`; keep it truthful for screen
+  // readers and translation prompts once the real locale is known.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = useCallback(async (next: Locale) => {
     i18n.locale = next;

@@ -12,6 +12,7 @@ import {
 
 import { AuthApiError } from '@/auth/api-client';
 import { LocaleProvider } from '@/i18n/provider';
+import { ColorSchemeProvider } from '@/theme/provider';
 
 const mockConfirm = jest.fn<Promise<void>, [string]>();
 const mockSignOut = jest.fn<Promise<void>, []>();
@@ -43,7 +44,9 @@ const SAFE_AREA_METRICS = {
 function Providers({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
-      <LocaleProvider>{children}</LocaleProvider>
+      <LocaleProvider>
+        <ColorSchemeProvider>{children}</ColorSchemeProvider>
+      </LocaleProvider>
     </SafeAreaProvider>
   );
 }

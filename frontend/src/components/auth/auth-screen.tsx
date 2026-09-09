@@ -10,6 +10,8 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -41,9 +43,15 @@ export function AuthScreen({ title, subtitle, children, footer, dividerSlot }: A
         ]}
         keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { maxWidth: MaxContentWidth }]} testID="auth-screen-card">
-          <ThemedText type="small" themeColor="tint" style={styles.brand}>
-            {t('common.appName')}
-          </ThemedText>
+          <View style={styles.header}>
+            <ThemedText type="small" themeColor="tint" style={styles.brand}>
+              {t('common.appName')}
+            </ThemedText>
+            <View style={styles.switchers}>
+              {Platform.OS === 'web' ? <LanguageSwitcher /> : null}
+              <ThemeSwitcher />
+            </View>
+          </View>
           <ThemedText type="subtitle">{title}</ThemedText>
           {subtitle ? (
             <ThemedText type="default" themeColor="textSecondary">
@@ -84,6 +92,19 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
     gap: Spacing.three,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  switchers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: Spacing.two,
   },
   brand: {
     fontWeight: '700',

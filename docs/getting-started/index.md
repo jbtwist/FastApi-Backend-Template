@@ -27,17 +27,30 @@ curl -X POST http://localhost:8000/auth/register \
   -d '{"email": "you@example.com", "password": "correct-horse-battery"}'
 ```
 
-Returns the new user with `"email_verified": false`. This also queues a
-verification email — check your SMTP catcher's inbox for it.
+Returns `204 No Content` with an empty body, and queues a verification email —
+check your SMTP catcher's inbox for it.
+
+The response is deliberately identical whether or not the address was already
+registered, so it can't be used to discover who has an account. That means a
+`204` is not confirmation that a new user was created.
 
 ## 2. Confirm your email
 
-Open the confirmation link from the email (`GET /auth/confirm-email?token=...`)
-in a browser, or extract the `token` query parameter and call it directly:
+The emailed link points at the frontend, not the API
+(`{FRONTEND_BASE_URL}/verify-email-confirm?token=...` — see
+[the verification-link decision](../architecture/decisions/0004-email-verification-via-frontend.md)).
+Opening it in the running Expo app confirms the address for you.
+
+To do it from the terminal instead, take the `token` query parameter out of the
+link and post it:
 
 ```bash
-curl "http://localhost:8000/auth/confirm-email?token=<token-from-the-email>"
+curl -X POST http://localhost:8000/auth/confirm-email \
+  -H "Content-Type: application/json" \
+  -d '{"token": "<token-from-the-email>"}'
 ```
+
+Returns `204 No Content`. An expired or already-used token is a `400`.
 
 ## 3. Log in
 

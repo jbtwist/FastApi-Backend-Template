@@ -1,7 +1,8 @@
-import { DEFAULT_LOCALE, i18n } from '@/i18n';
+import { DEFAULT_LOCALE, i18n, t } from '@/i18n';
 import { en, es } from '@/i18n/locales';
+import { resolveMessage } from '@/i18n/message';
 
-import { email, minLength, required } from './validators';
+import { email, maxLength, minLength, required } from './validators';
 
 describe('required', () => {
   it('rejects empty and whitespace-only values', () => {
@@ -37,8 +38,26 @@ describe('minLength', () => {
     expect(min12('            ')).toBeUndefined();
   });
 
-  it('mentions the required length in the message', () => {
-    expect(minLength(12)('short')).toContain('12');
+  it('carries the required length as an option, not baked into text', () => {
+    expect(minLength(12)('short')).toEqual({
+      key: 'validation.minLength',
+      options: { min: 12 },
+    });
+  });
+});
+
+describe('maxLength', () => {
+  it('accepts the boundary and rejects one character past it', () => {
+    const max128 = maxLength(128);
+    expect(max128('a'.repeat(128))).toBeUndefined();
+    expect(max128('a'.repeat(129))).toBeDefined();
+  });
+
+  it('carries the allowed length as an option, not baked into text', () => {
+    expect(maxLength(128)('a'.repeat(129))).toEqual({
+      key: 'validation.maxLength',
+      options: { max: 128 },
+    });
   });
 });
 
@@ -47,13 +66,17 @@ describe('messages', () => {
     i18n.locale = DEFAULT_LOCALE;
   });
 
-  it('reads the catalogue at call time, so a locale switch applies', () => {
-    const min12 = minLength(12);
-    expect(required('')).toBe(en.validation.required);
+  it('returns keys, so the caller decides the language and can re-decide it', () => {
+    expect(required('')).toBe('validation.required');
+    expect(email('nope')).toBe('validation.email');
+  });
+
+  it('resolves through the catalogue in whichever locale is active', () => {
+    expect(resolveMessage(t, required('')!)).toBe(en.validation.required);
 
     i18n.locale = 'es';
-    expect(required('')).toBe(es.validation.required);
-    expect(email('nope')).toBe(es.validation.email);
-    expect(min12('short')).toContain('12');
+    expect(resolveMessage(t, required('')!)).toBe(es.validation.required);
+    expect(resolveMessage(t, email('nope')!)).toBe(es.validation.email);
+    expect(resolveMessage(t, minLength(12)('short')!)).toContain('12');
   });
 });

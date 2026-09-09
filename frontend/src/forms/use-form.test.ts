@@ -1,4 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { en } from '@/i18n/locales';
+// `useForm` translates its errors, so it needs the locale provider.
+import { act, renderHookWithProviders, waitFor } from '@/test-utils';
 
 import { useForm } from './use-form';
 import { minLength, required } from './validators';
@@ -6,7 +8,7 @@ import { minLength, required } from './validators';
 type Values = { email: string; password: string };
 
 const setup = (onSubmit: (v: Values) => void | Promise<void>) =>
-  renderHook(() =>
+  renderHookWithProviders(() =>
     useForm<Values>({
       initialValues: { email: '', password: '' },
       validate: { email: [required], password: [required, minLength(12)] },
@@ -26,7 +28,7 @@ it('starts empty and idle', () => {
 it('setValue updates the field and clears its error + the form message', () => {
   const { result } = setup(jest.fn());
 
-  act(() => result.current.setFormMessage({ kind: 'error', text: 'boom' }));
+  act(() => result.current.setFormMessage({ kind: 'error', message: 'errors.unknown' }));
   act(() => result.current.handleBlur('email'));
   expect(result.current.errors.email).toBeDefined();
 
@@ -39,8 +41,8 @@ it('setValue updates the field and clears its error + the form message', () => {
 it('setError forces a field error and marks it touched; setValue clears it', () => {
   const { result } = setup(jest.fn());
 
-  act(() => result.current.setError('password', 'Password is too short (minimum 12 characters)'));
-  expect(result.current.errors.password).toBe('Password is too short (minimum 12 characters)');
+  act(() => result.current.setError('password', 'errors.passwordRejected'));
+  expect(result.current.errors.password).toBe(en.errors.passwordRejected);
   expect(result.current.touched.password).toBe(true);
 
   act(() => result.current.setValue('password', 'a-strong-password'));

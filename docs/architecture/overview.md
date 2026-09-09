@@ -11,10 +11,32 @@ Redis backs rate limiting (`fastapi-redis-sdk`) and Celery's broker/result
 backend. Persistence is via SQLAlchemy + Alembic migrations
 (`backend/migrations`), on Postgres (`asyncpg`).
 
+Routes declare their limit through `backend.rate_limit.rate_limit`, a thin
+wrapper over the library's dependency, so `RATE_LIMIT_ENABLED=false` can
+lift enforcement process-wide for a load test — otherwise a stress run measures
+Redis serving `429`s rather than the application. Disabled, the library's
+dependency is not installed at all rather than installed and told to skip: the
+limiter takes the Redis backend as its own dependency, so a skipping limiter
+would still need Redis up and still contend on its pool. Importing `rate_limit`
+straight from `redis_fastapi` bypasses the switch, so routes must not.
+
 `frontend/` is a separate Expo app; it's the "mobile" client referenced in
 the auth decisions below, alongside a browser-based web client. It features an
 internationalization (i18n) subsystem that detects device locales, provides
 translated strings, and persists user language preferences.
+
+Two provider-held preferences follow the same shape: `LocaleProvider` for
+language and `ColorSchemeProvider` for the light/dark palette. Each starts from
+the device setting and switches to the user's stored choice once they make one,
+so "follow the device" is the absence of a preference rather than a value either
+has to represent. Neither reaches the backend — both are per-install and live in
+AsyncStorage.
+
+No text the backend writes is ever rendered. Auth failures are classified from
+HTTP status and endpoint context into an `AuthUiError`, and each screen picks
+its own translated message, which is what keeps error copy in the user's
+language without the API needing a localisation layer (see
+[ADR 5](decisions/0005-frontend-owns-auth-error-copy.md)).
 
 Frontend routing is organized via Expo Router into groups: `(auth)` for
 unauthenticated screens, and `(app)` for authenticated screens (with a tab
@@ -44,13 +66,13 @@ without signing out the user's other sessions. See
 
 Every password-setting path — registration and password reset — runs the same
 policy (`backend.auth.password_policy.validate_password_strength`): a
-length-tier minimum (`AUTH_PASSWORD_STRENGTH`, default `medium` / 12 chars),
-a `AUTH_PASSWORD_MAX_LENGTH` ceiling, and a k-anonymity check against Have I
+length-tier minimum (`PASSWORD_STRENGTH`, default `medium` / 12 chars),
+a `PASSWORD_MAX_LENGTH` ceiling, and a k-anonymity check against Have I
 Been Pwned that fails open, so a HIBP outage never blocks a password change.
 Each failure is a `422`.
 
 `POST /auth/forgot-password` always answers `204` with an empty body —
-identical status, body, and (within `AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`)
+identical status, body, and (within `FORGOT_PASSWORD_RESPONSE_FLOOR`)
 timing whether or not the address has a verified account, so it can't be used
 to enumerate users. Only a verified account gets a `password_reset_token`
 emailed (via the same outbox as verification, `EmailKind.PASSWORD_RESET`).

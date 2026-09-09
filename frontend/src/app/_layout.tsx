@@ -1,10 +1,10 @@
 import { DarkTheme, DefaultTheme, Slot, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { LocaleProvider } from '@/i18n/provider';
+import { ColorSchemeProvider, useActiveColorScheme } from '@/theme/provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,15 +20,24 @@ function RootNavigator() {
   );
 }
 
+/** Inside the provider, so navigation chrome follows the override too. */
+function NavigationTheme({ children }: { children: React.ReactNode }) {
+  const scheme = useActiveColorScheme();
+  return (
+    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>{children}</ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   return (
     <LocaleProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
-      </ThemeProvider>
+      <ColorSchemeProvider>
+        <NavigationTheme>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </NavigationTheme>
+      </ColorSchemeProvider>
     </LocaleProvider>
   );
 }

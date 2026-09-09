@@ -152,6 +152,12 @@ class CustomModel(BaseModel):
 
 `pydantic-settings` is its own package since Pydantic v2.
 
+Split by domain for code locality, but no `env_prefix`: the `.env` file is one
+flat namespace, so a field's name *is* its environment variable name. Field
+names must be unique across every settings class and self-describing on their
+own — where a bare name would be ambiguous (`PROVIDER`), make the subject part
+of the name (`EMAIL_PROVIDER`) rather than reintroducing a namespace.
+
 ```python
 # src/auth/config.py
 from datetime import timedelta
@@ -159,7 +165,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AuthConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="AUTH_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     JWT_ALG: str
     JWT_SECRET: str

@@ -2,6 +2,5 @@
   "title": "Crea tu cuenta",
   "subtitle": "Introduce tu correo y una contraseña para empezar.",
   "submit": "Crear cuenta",
-  "passwordHint": "Al menos %{min} caracteres. Se rechazan las contraseñas comunes o filtradas.",
   "haveAccount": "¿Ya tienes una cuenta? Inicia sesión"
 }

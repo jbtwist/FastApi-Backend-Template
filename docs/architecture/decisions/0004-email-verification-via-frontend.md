@@ -12,7 +12,7 @@ The system previously used a server-side HTML page for email verification (`GET 
 
 ## Decision
 
-All email verification links will point to the frontend application: `{MAIL_FRONTEND_BASE_URL}/verify-email-confirm?token=...`.
+All email verification links will point to the frontend application: `{FRONTEND_BASE_URL}/verify-email-confirm?token=...`.
 
 The backend `GET /auth/confirm-email` endpoint has been retired. The frontend application is responsible for consuming the token from the URL, displaying the appropriate UI, and calling the existing `POST /auth/confirm-email` API endpoint to complete the verification process.
 
@@ -26,4 +26,4 @@ The backend `GET /auth/confirm-email` endpoint has been retired. The frontend ap
 - The frontend now has full control over the email verification user journey.
 - The API is further simplified, moving away from serving HTML pages.
 - Frontend must implement the `/verify-email-confirm` route and corresponding API call.
-- The `MAIL_FRONTEND_BASE_URL` configuration must be correctly set in the backend to build the correct verification link.
+- The `FRONTEND_BASE_URL` configuration must be correctly set in the backend to build the correct verification link.

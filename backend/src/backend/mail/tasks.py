@@ -20,7 +20,7 @@ async def _dispatch_email(entry_id: str) -> None:
             _email_sender,
             uuid.UUID(entry_id),
             now=datetime.now(UTC),
-            max_attempts=mail_settings.MAX_DISPATCH_ATTEMPTS,
+            max_attempts=mail_settings.EMAIL_MAX_DISPATCH_ATTEMPTS,
         )
 
 
@@ -39,13 +39,13 @@ def dispatch_email(entry_id: str) -> None:
     type. Two retry layers apply: Celery retries this task up to 5 times with
     exponential backoff (capped at 600s) for transient failures within one run,
     while the service function tracks `attempts` on the outbox row itself and
-    marks it `DEAD` once that count reaches `MAX_DISPATCH_ATTEMPTS`.
+    marks it `DEAD` once that count reaches `EMAIL_MAX_DISPATCH_ATTEMPTS`.
     """
     asyncio.run(_dispatch_email(entry_id))
 
 
 async def _sweep_pending_emails() -> list[str]:
-    cutoff = datetime.now(UTC) - timedelta(seconds=mail_settings.SWEEP_STALE_AFTER_SECONDS)
+    cutoff = datetime.now(UTC) - timedelta(seconds=mail_settings.EMAIL_SWEEP_STALE_AFTER_SECONDS)
     async with WorkerSessionFactory() as db, db.begin():
         outbox_repo = SqlEmailOutboxRepository(db)
         stale = await mail_service.list_stale_pending_emails(outbox_repo, older_than=cutoff)
@@ -54,7 +54,9 @@ async def _sweep_pending_emails() -> list[str]:
 
 @celery_app.task(name="backend.mail.tasks.sweep_pending_emails")
 def sweep_pending_emails() -> None:
-    """Celery beat task (`SWEEP_INTERVAL_SECONDS`): re-dispatch outbox entries stuck `PENDING`.
+    """Celery beat task: re-dispatch outbox entries stuck `PENDING`.
+
+    Runs every `EMAIL_SWEEP_INTERVAL_SECONDS`.
 
     Safety net for entries whose dispatch was never queued or got lost, not the
     primary delivery path — the endpoints that enqueue email already queue

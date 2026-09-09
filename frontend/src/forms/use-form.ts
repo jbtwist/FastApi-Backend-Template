@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { FormMessageValue } from '@/components/auth/form-message';
+import { resolveMessage, type Message } from '@/i18n/message';
+import { useTranslation } from '@/i18n/provider';
 
 import type { Validator } from './validators';
 
@@ -22,7 +24,7 @@ export interface UseFormOptions<T extends Record<string, string>> {
 export interface UseFormResult<T extends Record<string, string>> {
   /** Current form values. */
   values: T;
-  /** Current field errors, keyed by field name. */
+  /** Current field errors, translated into the active language. */
   errors: Partial<Record<keyof T, string>>;
   /** Tracked fields, keyed by field name. */
   touched: Partial<Record<keyof T, boolean>>;
@@ -35,7 +37,7 @@ export interface UseFormResult<T extends Record<string, string>> {
   /** Marks a field as touched and validates it. */
   handleBlur: (field: keyof T) => void;
   /** Force a field error (e.g. a server rejection); also marks it touched so it shows. */
-  setError: (field: keyof T, message: string | undefined) => void;
+  setError: (field: keyof T, message: Message | undefined) => void;
   /** Sets a form-level message. */
   setFormMessage: (message: FormMessageValue | null) => void;
   /** Resets the form to initial state. */
@@ -48,7 +50,7 @@ function firstError<T extends Record<string, string>>(
   validate: UseFormOptions<T>['validate'],
   field: keyof T,
   value: string,
-): string | undefined {
+): Message | undefined {
   for (const validator of validate?.[field] ?? []) {
     const message = validator(value);
     if (message) return message;
@@ -59,15 +61,17 @@ function firstError<T extends Record<string, string>>(
 /**
  * Tiny form state hook shared by every auth screen: values, per-field errors,
  * `touched`, a form-level banner, and a `submitting` flag that also guards
- * against a double submit (spec FR-004, SC-011). No form library.
+ * against a double submit. No form library.
  */
 export function useForm<T extends Record<string, string>>(
   options: UseFormOptions<T>,
 ): UseFormResult<T> {
   const { initialValues, validate, onSubmit } = options;
 
+  const { t } = useTranslation();
+
   const [values, setValues] = useState<T>(initialValues);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof T, Message>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
   const [formMessage, setFormMessage] = useState<FormMessageValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -94,7 +98,7 @@ export function useForm<T extends Record<string, string>>(
     [validate],
   );
 
-  const setError = useCallback((field: keyof T, message: string | undefined) => {
+  const setError = useCallback((field: keyof T, message: Message | undefined) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     setErrors((prev) => ({ ...prev, [field]: message }));
   }, []);
@@ -111,7 +115,7 @@ export function useForm<T extends Record<string, string>>(
   const handleSubmit = useCallback(async () => {
     if (submittingRef.current) return;
 
-    const nextErrors: Partial<Record<keyof T, string>> = {};
+    const nextErrors: Partial<Record<keyof T, Message>> = {};
     const nextTouched: Partial<Record<keyof T, boolean>> = {};
     let hasError = false;
     for (const field of Object.keys(values) as (keyof T)[]) {
@@ -142,9 +146,17 @@ export function useForm<T extends Record<string, string>>(
     }
   }, [onSubmit, validate, values]);
 
+  const translatedErrors = useMemo(() => {
+    const resolved: Partial<Record<keyof T, string>> = {};
+    for (const [field, message] of Object.entries(errors) as [keyof T, Message | undefined][]) {
+      if (message !== undefined) resolved[field] = resolveMessage(t, message);
+    }
+    return resolved;
+  }, [errors, t]);
+
   return {
     values,
-    errors,
+    errors: translatedErrors,
     touched,
     formMessage,
     submitting,

@@ -57,15 +57,22 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A short-lived token used to initiate a password reset, sent as a link | `password_reset_token` | `reset_token` |
 | The minimum length tier for a password | `PasswordStrength` | `strength`, `level`, `tier` |
 | The breach-check status of a password | `PASSWORD_CHECK_PWNED` | `check_breaches`, `pwned_check` |
+| Whether per-route rate limiting is enforced; off only for load testing | `RATE_LIMIT_ENABLED` | `disable_rate_limit`, `throttling_off`, `stress_mode` |
 | The maximum length allowed for a password | `PASSWORD_MAX_LENGTH` | `max_length` |
 | A language code + optional country code | `Locale` | `lang_code`, `language`, `l` |
 | The frontend subsystem managing translations | `i18n` | `internationalization`, `localization`, `l10n` |
 | A file or object mapping keys to translations for a specific locale | `TranslationNamespace` | `lang_file`, `strings`, `messages` |
 | A key identifying a string in the i18n subsystem | `TranslationKey` | `i18n_key`, `string_id` |
 | The function used to look up a translation for a key | `t` | `translate`, `localize` |
+| A message held as data rather than resolved text — a `TranslationKey`, or a key plus the options its placeholders need — so it can be translated at render time | `Message` | `messageKey`, `i18nMessage`, `LocalizedString` |
+| A language's name written in that language, shown in the picker and never translated | endonym (`LOCALE_LABELS`) | `languageName`, `displayName` |
+| Which of the two palettes is active | `ColorScheme`: `light`, `dark` | `theme`, `mode`, `appearance` |
+| The user's explicitly stored palette choice; absent means follow the device | `preference` (`COLOR_SCHEME_STORAGE_KEY`) | `themeOverride`, `forcedScheme` |
+| The palette actually on screen — the preference if set, else the device's | `useActiveColorScheme` | `currentTheme`, `resolvedScheme` |
+| A backend `/auth` failure classified into the outcomes screens render, carrying no server text | `AuthUiError` | `ApiError`, `authError`, `ErrorKind` |
 | The frontend layer responsible for transport, error mapping, and automatic token refresh/retry logic | `ApiClient` | `api_client`, `authClient`, `auth-client`, `transport`, `network` |
 | The state machine managing auth session status (signedOut, signedIn, etc.) | `auth-context` | `auth_context` |
 | Store for email/timestamp of the last verification email, used to throttle resends | `PendingVerification` | `pending_verification` |
-| The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `AUTH_REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
+| The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 
 

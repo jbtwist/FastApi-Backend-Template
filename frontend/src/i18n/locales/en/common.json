@@ -1,7 +1,11 @@
 {
   "appName": "Taskify",
   "or": "or",
+  "language": "Language",
+  "themeSwitchToDark": "Switch to dark theme",
+  "themeSwitchToLight": "Switch to light theme",
   "back": "Back",
+  "close": "Close",
   "backToSignIn": "Back to sign in",
   "retry": "Try again",
   "emailLabel": "Email",

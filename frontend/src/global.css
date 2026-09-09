@@ -6,4 +6,39 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+
+  /* Kept in step with the active palette by `ColorSchemeProvider`. The values
+     here are the light palette, used before that effect runs and on any
+     platform where it doesn't. */
+  --input-background: #ffffff;
+  --input-text: #000000;
+}
+
+/* React Native Web renders `TextInput` as an `<input>`, which the browser gives
+   its own focus ring — a second box around the one the field already draws.
+   `TextField` renders focus itself (a thicker, tinted border), so removing the
+   UA ring costs no visibility for keyboard users. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+[data-focusvisible-polyfill] {
+  outline: none;
+}
+
+/* Chrome and Safari repaint an autofilled field with their own background and
+   text colour, at a specificity no inline style can reach — so a filled field
+   would drop out of the theme and turn white, worst in dark mode. An inset
+   shadow is the only way to cover that background; `-webkit-text-fill-color`
+   is the only way to recolour the text. The absurd transition delay keeps the
+   browser's fade from flashing its colour on the way in. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--input-background) inset !important;
+  box-shadow: 0 0 0 1000px var(--input-background) inset !important;
+  -webkit-text-fill-color: var(--input-text) !important;
+  caret-color: var(--input-text);
+  transition: background-color 100000s ease-in-out 0s;
 }
