@@ -76,6 +76,15 @@ export class Db {
     }
   }
 
+  /** How many emails of one kind have been queued for an address. */
+  async countOutboxEntries(email: string, kind: EmailKind): Promise<number> {
+    const { rows } = await this.client.query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM email_outbox WHERE email = $1 AND kind = $2',
+      [email, kind],
+    );
+    return Number(rows[0].count);
+  }
+
   /** Whether the account exists and has confirmed its address. */
   async isEmailVerified(email: string): Promise<boolean> {
     // `user` is a reserved word in Postgres, hence the quoting.

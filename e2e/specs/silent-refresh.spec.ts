@@ -10,16 +10,11 @@
  * `ACCESS_TOKEN_EXP` is 10 seconds in `.env.e2e` so these run in real time.
  */
 import { accessTokenExpSeconds, backendUrl } from '../config/env';
-import { expectOnSignIn, expectSignedIn, signUpAndSignIn } from '../fixtures/auth';
+import { expectOnSignIn, expectSignedIn, refreshCookie, signUpAndSignIn } from '../fixtures/auth';
 import { expect, test } from '../fixtures/test';
 
 /** Long enough that the access token is certainly stale. */
 const PAST_EXPIRY_MS = (accessTokenExpSeconds + 2) * 1000;
-
-async function refreshCookie(page: import('@playwright/test').Page): Promise<string | undefined> {
-  const cookies = await page.context().cookies();
-  return cookies.find((c) => c.name === 'refresh_token')?.value;
-}
 
 test('an expired access token is renewed without signing the user out', async ({
   page,

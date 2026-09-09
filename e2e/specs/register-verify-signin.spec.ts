@@ -50,6 +50,26 @@ test('signing in before verifying lands on the verify screen', async ({
   await expect(page.getByText(email)).toBeVisible();
 });
 
+test('registering an address that already has an account changes nothing', async ({
+  page,
+  db,
+  email,
+  password,
+}) => {
+  await register(page, email, password);
+  await db.waitForOutboxToken(email, 'verification');
+  expect(await db.countOutboxEntries(email, 'verification')).toBe(1);
+
+  // Same address, different password. The screen must not betray that the
+  // account exists, and the second attempt must not touch it.
+  await register(page, email, 'e2e-Impostor-2026');
+
+  expect(await db.countOutboxEntries(email, 'verification')).toBe(1);
+  await confirmEmail(page, db, email);
+  await submitSignIn(page, email, password);
+  await expectSignedIn(page);
+});
+
 test('a verification link that was never issued is rejected', async ({ page }) => {
   await page.goto('/verify-email-confirm?token=not-a-real-token');
 

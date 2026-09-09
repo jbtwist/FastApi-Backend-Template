@@ -43,6 +43,17 @@ export async function expectSignedIn(page: Page): Promise<void> {
   await expect(page.getByText(/Welcome to\s+Expo/)).toBeVisible();
 }
 
+/**
+ * The current refresh token from the browser's cookie jar.
+ *
+ * Httponly, so the page itself cannot read it; Playwright can, which is what
+ * makes rotation and revocation observable from a test.
+ */
+export async function refreshCookie(page: Page): Promise<string | undefined> {
+  const cookies = await page.context().cookies();
+  return cookies.find((c) => c.name === 'refresh_token')?.value;
+}
+
 /** Asserts the browser is on the sign-in screen. */
 export async function expectOnSignIn(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/sign-in$/);

@@ -12,6 +12,7 @@ import {
   expectOnSignIn,
   expectSignedIn,
   newPasswordField,
+  refreshCookie,
   signUpAndSignIn,
 } from '../fixtures/auth';
 import { expect, test } from '../fixtures/test';
@@ -39,6 +40,29 @@ test('logout clears both cookies and closes the signed-in area', async ({
 
   await page.goto('/');
   await expectOnSignIn(page);
+});
+
+test('logout revokes the refresh token server-side, not just the cookie', async ({
+  page,
+  request,
+  db,
+  email,
+  password,
+}) => {
+  await signUpAndSignIn(page, db, email, password);
+  // Captured while the session is live, standing in for a token someone else
+  // already has. Clearing the cookie would not take it away from them.
+  const captured = await refreshCookie(page);
+  expect(captured).toBeTruthy();
+
+  await page.request.post(`${backendUrl}/auth/logout`);
+
+  // `request` has its own cookie jar, so the captured token is the only
+  // credential in play.
+  const replay = await request.post(`${backendUrl}/auth/refresh`, {
+    data: { refresh_token: captured },
+  });
+  expect(replay.status()).toBe(401);
 });
 
 test('a session survives a reload', async ({ page, db, email, password }) => {
