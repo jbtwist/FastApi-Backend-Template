@@ -11,6 +11,15 @@ Redis backs rate limiting (`fastapi-redis-sdk`) and Celery's broker/result
 backend. Persistence is via SQLAlchemy + Alembic migrations
 (`backend/migrations`), on Postgres (`asyncpg`).
 
+Routes declare their limit through `backend.rate_limit.rate_limit`, a thin
+wrapper over the library's dependency, so `AUTH_RATE_LIMIT_ENABLED=false` can
+lift enforcement process-wide for a load test — otherwise a stress run measures
+Redis serving `429`s rather than the application. Disabled, the library's
+dependency is not installed at all rather than installed and told to skip: the
+limiter takes the Redis backend as its own dependency, so a skipping limiter
+would still need Redis up and still contend on its pool. Importing `rate_limit`
+straight from `redis_fastapi` bypasses the switch, so routes must not.
+
 `frontend/` is a separate Expo app; it's the "mobile" client referenced in
 the auth decisions below, alongside a browser-based web client. It features an
 internationalization (i18n) subsystem that detects device locales, provides

@@ -1,9 +1,15 @@
+import contextlib
+import logging
+
 import fakeredis.aioredis
 import pytest
 from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 from redis_fastapi import FastAPIRedis, rate_limit
 from redis_fastapi import deps as redis_fastapi_deps
+
+from backend.auth.config import AuthConfig, auth_settings
+from backend.rate_limit import rate_limit as switchable_rate_limit
 
 
 @pytest.fixture
@@ -47,3 +53,88 @@ class TestRateLimit:
 
         assert response.headers["X-RateLimit-Limit"] == "2"
         assert 0 <= int(response.headers["X-RateLimit-Remaining"]) < 2
+
+
+@pytest.fixture
+def build_client(monkeypatch: pytest.MonkeyPatch):
+    """Build a client whose route goes through `backend.rate_limit.rate_limit`.
+
+    The switch is read when the dependency is built, so the setting has to be
+    patched before the route is declared — hence a factory rather than a plain
+    fixture.
+    """
+    fake_redis = fakeredis.aioredis.FakeRedis(server=fakeredis.aioredis.FakeServer())
+
+    async def fake_get_async_redis(request):
+        return fake_redis
+
+    monkeypatch.setattr(redis_fastapi_deps, "get_async_redis", fake_get_async_redis)
+
+    @contextlib.asynccontextmanager
+    async def _build(*, enabled: bool):
+        monkeypatch.setattr(auth_settings, "RATE_LIMIT_ENABLED", enabled)
+
+        app = FastAPI()
+        FastAPIRedis(app).lifespan().rate_limiting()
+
+        @app.get("/switched", dependencies=[Depends(switchable_rate_limit("2/minute"))])
+        async def switched() -> dict[str, bool]:
+            return {"ok": True}
+
+        transport = ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with AsyncClient(transport=transport, base_url="http://test") as ac:
+                yield ac
+
+    return _build
+
+
+class TestRateLimitSwitch:
+    async def test_enabled_by_default(self):
+        assert AuthConfig.model_fields["RATE_LIMIT_ENABLED"].default is True
+
+    async def test_enforces_the_limit_while_enabled(self, build_client):
+        async with build_client(enabled=True) as client:
+            await client.get("/switched")
+            await client.get("/switched")
+
+            assert (await client.get("/switched")).status_code == 429
+
+    async def test_serves_every_request_while_disabled(self, build_client):
+        async with build_client(enabled=False) as client:
+            for _ in range(5):
+                assert (await client.get("/switched")).status_code == 200
+
+    async def test_disabled_never_touches_redis(self, build_client, monkeypatch):
+        """A stress run should not need Redis up, nor contend on its pool."""
+        async with build_client(enabled=False) as client:
+            monkeypatch.setattr(
+                redis_fastapi_deps,
+                "get_async_redis",
+                lambda request: pytest.fail("rate limiter reached Redis while disabled"),
+            )
+
+            assert (await client.get("/switched")).status_code == 200
+
+    async def test_warns_once_when_the_route_is_built(self, caplog, monkeypatch):
+        monkeypatch.setattr(auth_settings, "RATE_LIMIT_ENABLED", False)
+
+        with caplog.at_level(logging.WARNING, logger="backend.rate_limit"):
+            switchable_rate_limit("2/minute")
+
+        assert "rate limiting is DISABLED" in caplog.text
+
+    async def test_stays_silent_per_request(self, build_client, caplog):
+        """A warning per request would put a log write in the hot path."""
+        async with build_client(enabled=False) as client:
+            # Drop the one warning emitted while the route was being built.
+            caplog.clear()
+            with caplog.at_level(logging.WARNING, logger="backend.rate_limit"):
+                for _ in range(3):
+                    await client.get("/switched")
+
+        assert caplog.text == ""
+
+    async def test_rejects_a_caller_supplied_skip_when(self):
+        with pytest.raises(TypeError, match="skip_when is reserved"):
+            switchable_rate_limit("2/minute", skip_when=lambda _request: True)

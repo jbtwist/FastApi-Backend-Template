@@ -33,6 +33,7 @@ class AuthConfig(BaseSettings):
     PASSWORD_MAX_LENGTH: int = Field(default=128, ge=64)
     PASSWORD_CHECK_PWNED: bool = True
     COOKIE_SECURE: bool = True
+    RATE_LIMIT_ENABLED: bool = True
 
 
 auth_settings = AuthConfig()

@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
-from redis_fastapi import rate_limit
 
 from backend.auth import service
 from backend.auth.config import AuthConfig
@@ -56,6 +55,7 @@ from backend.auth.schemas import (
 )
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import dispatch_email
+from backend.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
