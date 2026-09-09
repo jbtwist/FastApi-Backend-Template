@@ -9,8 +9,17 @@ The project includes a suite of reusable UI components for authentication screen
 - `TextField`: A labelled text input for auth forms. It supports accessible error messages, static hint text, and optional trailing accessories.
 - `FormMessage`: A banner for displaying `error`, `success`, or `info` messages. It uses appropriate `accessibilityLiveRegion` settings to ensure messages are announced by screen readers.
 - `ProviderButtons`: A set of buttons for OAuth providers. It automatically renders buttons based on `authConfig.providers`.
-- `TextField`: A labelled input for authentication forms. It supports accessibility labels, error message rendering with `role="alert"`, and an optional trailing accessory slot.
 - `PasswordField`: A specialized input for password fields. It extends `TextField` by providing a secure input masking (`secureTextEntry`) and a built-in "Show/Hide" toggle button for accessibility.
+
+`AuthScreen` also renders two controls in its header, so every auth screen gets
+them without asking:
+
+- `LanguageSwitcher`: The language picker — web only. See [Add a language](add-a-language.md).
+- `ThemeSwitcher`: An icon toggle between the light and dark palettes. See [Switch and extend the theme](theming.md).
+
+`FormMessage` takes a translation key rather than text, and translates it on
+every render — see [Show an auth error message](auth-error-messages.md) for why
+that matters.
 
 ## Usage
 
@@ -21,12 +30,12 @@ import { AuthScreen } from '@/components/auth/auth-screen';
 import { PrimaryButton } from '@/components/auth/primary-button';
 import { TextField } from '@/components/auth/text-field';
 import { FormMessage } from '@/components/auth/form-message';
-import { TextField } from '@/components/auth/text-field';
 import { PasswordField } from '@/components/auth/password-field';
 
 // In your screen component
-<AuthScreen title="Sign In" subtitle="Welcome back!">
-  <FormMessage message={errorMessage} />
+<AuthScreen title={t('signIn.title')} subtitle={t('signIn.subtitle')}>
+  {/* A key, not text — the banner translates it on every render. */}
+  <FormMessage message={{ kind: 'error', message: 'errors.invalidCredentials' }} />
   
   <TextField 
     label="Email" 

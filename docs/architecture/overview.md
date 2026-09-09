@@ -16,6 +16,19 @@ the auth decisions below, alongside a browser-based web client. It features an
 internationalization (i18n) subsystem that detects device locales, provides
 translated strings, and persists user language preferences.
 
+Two provider-held preferences follow the same shape: `LocaleProvider` for
+language and `ColorSchemeProvider` for the light/dark palette. Each starts from
+the device setting and switches to the user's stored choice once they make one,
+so "follow the device" is the absence of a preference rather than a value either
+has to represent. Neither reaches the backend — both are per-install and live in
+AsyncStorage.
+
+No text the backend writes is ever rendered. Auth failures are classified from
+HTTP status and endpoint context into an `AuthUiError`, and each screen picks
+its own translated message, which is what keeps error copy in the user's
+language without the API needing a localisation layer (see
+[ADR 5](decisions/0005-frontend-owns-auth-error-copy.md)).
+
 Frontend routing is organized via Expo Router into groups: `(auth)` for
 unauthenticated screens, and `(app)` for authenticated screens (with a tab
 layout for main features). The root layout (`app/_layout.tsx`) serves as the

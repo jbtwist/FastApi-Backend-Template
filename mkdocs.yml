@@ -53,12 +53,11 @@ nav:
       - Auth UI: guides/auth-ui.md
       - Auth Workflow: guides/auth-workflow.md
       - Auth Error Messages: guides/auth-error-messages.md
+      - Add a Language: guides/add-a-language.md
       - Theming: guides/theming.md
   - API Reference:
       - reference/index.md
       - Auth (Backend): reference/auth.md
-      - Auth (Frontend): reference/frontend-auth.md
-      - Forms (Frontend): reference/forms.md
       - Password Policy: reference/password_policy.md
       - Mail: reference/mail.md
   - Architecture:
