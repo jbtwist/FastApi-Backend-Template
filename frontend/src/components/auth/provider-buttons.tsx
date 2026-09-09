@@ -48,7 +48,7 @@ export function ProviderButtons({
             accessibilityState={{ disabled: !enabled }}
             onPress={() => {
               if (!enabled) {
-                setNotice({ kind: 'info', text: t('providers.comingSoon') });
+                setNotice({ kind: 'info', message: 'providers.comingSoon' });
                 return;
               }
               onSelect?.(provider);

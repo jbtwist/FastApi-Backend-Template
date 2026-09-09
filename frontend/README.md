@@ -21,6 +21,14 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 Copy `.env.example` to `.env` and point `EXPO_PUBLIC_API_URL` at your backend
 (`http://localhost:8000` by default).
 
+`EXPO_PUBLIC_PASSWORD_MIN_LENGTH` and `EXPO_PUBLIC_PASSWORD_MAX_LENGTH` must
+match the backend's `AUTH_PASSWORD_STRENGTH` floor (low = 8, medium = 12,
+high = 15) and `AUTH_PASSWORD_MAX_LENGTH`. The register form checks both before
+submitting, so the only policy rule the server has left to reject on is the
+breach check — which is what lets the app show a translated reason instead of
+the server's English one. Leave them out and the defaults (12 / 128) apply.
+Expo inlines these at bundle time, so rebuild after changing them.
+
 For the email-verification and password-reset deep links to land back in this
 app during local development, the backend's `backend/.env` needs
 `MAIL_FRONTEND_BASE_URL=http://localhost:8081` (the Expo web dev server origin).

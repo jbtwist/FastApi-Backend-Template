@@ -1,11 +1,11 @@
 /**
  * Maps backend `/auth` failures onto the small set of outcomes the screens
- * actually render. Source of truth: `specs/002-auth-frontend-flows/contracts/auth-api.md`
- * ("Client error union" + "Mapping rules").
+ * actually render.
  *
- * This module holds no user-facing copy — screens map each `AuthUiError` kind
- * to a message in `i18n/locales`. The one exception is `password-policy.message`,
- * which carries the server `detail` verbatim.
+ * This module holds no user-facing copy, and no server copy either: an error is
+ * identified by its status and the endpoint that produced it, then screens map
+ * the resulting kind to a translated message in `i18n/locales`. Nothing the
+ * backend writes reaches the user, so every message follows the app's language.
  */
 
 export type AuthEndpointContext =
@@ -20,10 +20,24 @@ export type AuthEndpointContext =
   | 'reset-password'
   | 'authed';
 
+/**
+ * A rendered auth failure, identified only by what the app can derive itself.
+ *
+ * A kind carries a payload only when the screen needs a value the catalogue
+ * cannot supply — an address to echo, a countdown to show. None of them carries
+ * a message: the screen picks that from `i18n/locales`.
+ *
+ * `password-policy` deliberately does not say *which* rule was broken. The
+ * server has three (too short, too long, breached) and distinguishes them only
+ * in English prose. Screens that pre-validate both lengths against
+ * `authConfig.passwordMinLength` and `authConfig.passwordMaxLength` are
+ * therefore left with one possible cause — the breach check — and can name it
+ * in the user's language. See ADR 5.
+ */
 export type AuthUiError =
   | { kind: 'invalid-credentials' }
   | { kind: 'email-not-verified'; email: string }
-  | { kind: 'password-policy'; message: string }
+  | { kind: 'password-policy' }
   | { kind: 'invalid-email' }
   | { kind: 'invalid-token' }
   | { kind: 'rate-limited'; retryAfterSeconds?: number }
@@ -38,8 +52,6 @@ export interface ToAuthUiErrorOptions {
   retryAfterSeconds?: number;
 }
 
-const PASSWORD_POLICY_FALLBACK = 'This password is not allowed. Choose another.';
-
 const INVALID_TOKEN_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
   'confirm-email',
   'reset-password',
@@ -49,16 +61,6 @@ const PASSWORD_POLICY_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
   'register',
   'reset-password',
 ]);
-
-/**
- * The backend's `detail` comes in two shapes, both under `422`: a plain string
- * for a policy rejection we wrote, and a list of items for a request-body
- * schema violation (FastAPI's own validation error). Only the first is a
- * message worth showing.
- */
-function detailMessage(detail: unknown): string | undefined {
-  return typeof detail === 'string' ? detail : undefined;
-}
 
 /**
  * Field names a schema violation points at — `loc: ['body', 'email']` yields
@@ -75,11 +77,23 @@ function invalidFields(detail: unknown): string[] {
 }
 
 /**
- * Turn an HTTP status + the response body's `detail` into an `AuthUiError`.
+ * Turn an HTTP status + the response body's `detail` into an {@link AuthUiError}.
  *
- * Returns `null` when the status is not a UI concern — a `401` on `me` /
- * `refresh` / `logout` / an authed call drives the refresh-or-sign-out logic in
- * `api-client`/`auth-context`, not a banner.
+ * `detail` is read for its *shape*, never its text: a list is FastAPI's own
+ * schema violation and names the offending field, so a `422` mentioning `email`
+ * becomes `invalid-email` rather than a password rejection. Any other shape on a
+ * password endpoint is a policy rejection, and the prose it carries is dropped.
+ *
+ * @param status HTTP status from the response.
+ * @param detail The response body's `detail`, inspected structurally.
+ * @param context Endpoint that produced the failure. The same status means
+ *   different things per endpoint — a `400` is only a bad token on the two
+ *   token-consuming endpoints, and a `422` is only a password rejection on the
+ *   two that set a password.
+ * @param options Values the caller holds that the response does not.
+ * @returns The error to render, or `null` when the status is not a UI concern —
+ *   a `401` on `me` / `refresh` / `logout` / an authed call drives the
+ *   refresh-or-sign-out logic in `api-client`/`auth-context`, not a banner.
  */
 export function toAuthUiError(
   status: number,
@@ -109,14 +123,9 @@ export function toAuthUiError(
         return fields.includes('email') ? { kind: 'invalid-email' } : { kind: 'unknown' };
       }
 
-      if (PASSWORD_POLICY_CONTEXTS.has(context)) {
-        const trimmed = detailMessage(detail)?.trim();
-        return {
-          kind: 'password-policy',
-          message: trimmed && trimmed.length > 0 ? trimmed : PASSWORD_POLICY_FALLBACK,
-        };
-      }
-      return { kind: 'unknown' };
+      return PASSWORD_POLICY_CONTEXTS.has(context)
+        ? { kind: 'password-policy' }
+        : { kind: 'unknown' };
     }
 
     case 429:

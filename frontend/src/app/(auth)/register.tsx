@@ -5,9 +5,15 @@
  * both a fresh address and one that already exists, and this screen never
  * branches on which it was — every accepted request lands on `/verify-email`.
  * Only the server-side failures get mapped:
- *   422 → the password policy `detail` on the password field, or a rejected
- *         address on the email field
+ *   422 → a rejected password on the password field, or a rejected address on
+ *         the email field
  *   429 / offline / timeout / other → a form-level banner
+ *
+ * Every message is this screen's own translated copy; the server's `detail`
+ * never reaches the user. That is affordable because the form already rejects
+ * both password lengths itself, leaving the breach check as the only rule the
+ * server can still fail — so a `password-policy` 422 can be named precisely
+ * without reading what the server wrote. See ADR 5.
  */
 import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -26,7 +32,7 @@ import { TextField } from '@/components/auth/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useForm } from '@/forms/use-form';
-import { email as emailRule, minLength, required } from '@/forms/validators';
+import { email as emailRule, maxLength, minLength, required } from '@/forms/validators';
 import type { TranslationKey } from '@/i18n/types';
 import { useTranslation } from '@/i18n/provider';
 
@@ -55,7 +61,11 @@ export default function RegisterScreen() {
     initialValues: { email: '', password: '' },
     validate: {
       email: [required, emailRule],
-      password: [required, minLength(authConfig.passwordMinLength)],
+      password: [
+        required,
+        minLength(authConfig.passwordMinLength),
+        maxLength(authConfig.passwordMaxLength),
+      ],
     },
     onSubmit: async ({ email, password }) => {
       try {
@@ -69,17 +79,17 @@ export default function RegisterScreen() {
         if (error instanceof AuthApiError) {
           const ui = error.uiError;
           if (ui.kind === 'password-policy') {
-            form.setError('password', ui.message);
+            form.setError('password', 'errors.passwordRejected');
             return;
           }
           if (ui.kind === 'invalid-email') {
-            form.setError('email', t('errors.invalidEmail'));
+            form.setError('email', 'errors.invalidEmail');
             return;
           }
-          form.setFormMessage({ kind: 'error', text: t(messageKeyFor(ui)) });
+          form.setFormMessage({ kind: 'error', message: messageKeyFor(ui) });
           return;
         }
-        form.setFormMessage({ kind: 'error', text: t('errors.unknown') });
+        form.setFormMessage({ kind: 'error', message: 'errors.unknown' });
       }
     },
   });

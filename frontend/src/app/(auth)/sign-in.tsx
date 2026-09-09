@@ -72,16 +72,16 @@ export default function SignInScreen() {
             return;
           }
           if (ui.kind === 'invalid-email') {
-            form.setError('email', t('errors.invalidEmail'));
+            form.setError('email', 'errors.invalidEmail');
             return;
           }
           if (ui.kind === 'invalid-credentials') {
             form.setValue('password', '');
           }
-          form.setFormMessage({ kind: 'error', text: t(messageKeyFor(ui)) });
+          form.setFormMessage({ kind: 'error', message: messageKeyFor(ui) });
           return;
         }
-        form.setFormMessage({ kind: 'error', text: t('errors.unknown') });
+        form.setFormMessage({ kind: 'error', message: 'errors.unknown' });
       }
     },
   });
@@ -102,7 +102,7 @@ export default function SignInScreen() {
       }
       dividerSlot={<ProviderButtons />}>
       {signedOutReason ? (
-        <FormMessage message={{ kind: 'info', text: t('session.signedOutNotice') }} />
+        <FormMessage message={{ kind: 'info', message: 'session.signedOutNotice' }} />
       ) : null}
       <FormMessage message={formMessage} testID="sign-in-form-message" />
 

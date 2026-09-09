@@ -240,9 +240,7 @@ describe('register — native', () => {
       act(async () => {
         await result.current.register('new@b.c', 'short');
       }),
-    ).rejects.toMatchObject({
-      uiError: { kind: 'password-policy', message: 'Password is too short (minimum 12 characters)' },
-    });
+    ).rejects.toMatchObject({ uiError: { kind: 'password-policy' } });
   });
 });
 

@@ -77,16 +77,17 @@ export default function VerifyEmailScreen() {
     try {
       await resendVerification(email);
       await pendingVerification.set({ email, lastSentAt: Date.now() });
-      setMessage({ kind: 'success', text: t('verifyEmail.resendSent') });
+      setMessage({ kind: 'success', message: 'verifyEmail.resendSent' });
       setSecondsLeft(authConfig.resendCooldownSeconds);
     } catch (error) {
-      const text =
-        error instanceof AuthApiError ? t(messageKeyFor(error.uiError)) : t('errors.unknown');
-      setMessage({ kind: 'error', text });
+      setMessage({
+        kind: 'error',
+        message: error instanceof AuthApiError ? messageKeyFor(error.uiError) : 'errors.unknown',
+      });
     } finally {
       setSending(false);
     }
-  }, [email, sending, secondsLeft, t]);
+  }, [email, sending, secondsLeft]);
 
   return (
     <AuthScreen

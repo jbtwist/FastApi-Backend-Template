@@ -2,6 +2,7 @@
   "invalidCredentials": "El correo o la contraseña no son correctos.",
   "invalidEmail": "Introduce una dirección de correo válida.",
   "emailNotVerified": "Verifica tu correo antes de iniciar sesión.",
+  "passwordRejected": "Esta contraseña ha aparecido en una filtración de datos. Elige otra.",
   "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
   "offline": "Parece que no tienes conexión. Comprueba tu red e inténtalo de nuevo.",
   "timeout": "La solicitud tardó demasiado. Inténtalo de nuevo más tarde.",
