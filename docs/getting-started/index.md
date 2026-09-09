@@ -9,7 +9,7 @@ refresh the session.
 Start the backend and its dependencies (Postgres, Redis, the Celery worker
 and beat scheduler, and an SMTP catcher such as [Mailpit](https://mailpit.axllent.org/)
 on `localhost:1025` — see `backend/.env.example` for the expected connection
-settings):
+settings).
 
 ```bash
 cd backend

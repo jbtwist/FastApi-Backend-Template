@@ -26,3 +26,9 @@ The registration process involves three steps:
 ### Ungated Routes
 
 Specific routes that support deep linking or external access (e.g., `reset-password`, `verify-email-confirm`) operate outside these routing gates and are never automatically redirected, regardless of the user's authentication status.
+
+## Password Reset
+
+1.  **Request:** The user submits their email address via the `/forgot-password` screen. This endpoint is enumeration-safe, returning the same response regardless of whether the email is registered or verified.
+2.  **Email Notice:** The user is directed to the "check your email" panel, which confirms the request was processed without revealing whether the email exists.
+3.  **Reset:** The user clicks the link in the emailed password reset link, which leads them to the frontend's `/reset-password` screen to define their new password.
