@@ -8,7 +8,7 @@
  *   `keyboardType`, `secureTextEntry`, …) passes straight through, and the ref
  *   forwards to the underlying `TextInput`.
  */
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, useState, type ReactNode } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -36,11 +36,27 @@ export type TextFieldProps = Omit<TextInputProps, 'style'> & {
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, error, hint, trailing, containerStyle, inputStyle, accessibilityLabel, ...inputProps },
+  {
+    label,
+    error,
+    hint,
+    trailing,
+    containerStyle,
+    inputStyle,
+    accessibilityLabel,
+    onFocus,
+    onBlur,
+    ...inputProps
+  },
   ref,
 ) {
   const theme = useTheme();
   const hasError = Boolean(error);
+  // The browser's own focus ring is suppressed on web (see `global.css`), so the
+  // field has to draw focus itself or keyboard users lose track of where they are.
+  const [focused, setFocused] = useState(false);
+
+  const borderColor = hasError ? theme.danger : focused ? theme.tint : theme.border;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -49,12 +65,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       </ThemedText>
 
       <View
+        testID="text-field-row"
         style={[
           styles.inputRow,
-          {
-            backgroundColor: theme.inputBackground,
-            borderColor: hasError ? theme.danger : theme.border,
-          },
+          { backgroundColor: theme.inputBackground, borderColor },
+          focused && !hasError && styles.inputRowFocused,
         ]}>
         <TextInput
           ref={ref}
@@ -62,6 +77,14 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
           aria-invalid={hasError}
           placeholderTextColor={theme.textSecondary}
           style={[styles.input, { color: theme.text }, inputStyle]}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
           {...inputProps}
         />
         {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
@@ -98,6 +121,11 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     minHeight: 48,
+  },
+  // Thickens the existing border rather than adding a ring, so the field does
+  // not shift by a pixel when it takes focus.
+  inputRowFocused: {
+    borderWidth: 2,
   },
   input: {
     flex: 1,

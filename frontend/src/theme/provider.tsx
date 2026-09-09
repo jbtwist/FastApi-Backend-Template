@@ -18,7 +18,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
 
+import { Colors } from '@/constants/theme';
 import { useColorScheme as useDeviceColorScheme } from '@/hooks/use-color-scheme';
 
 import { COLOR_SCHEME_STORAGE_KEY, isColorScheme, type ColorScheme } from './config';
@@ -71,6 +73,17 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheme = preference ?? normalize(device);
+
+  // Hand the palette to CSS. Autofilled inputs can only be recoloured from a
+  // stylesheet (see `global.css`), and `color-scheme` is what makes the browser
+  // paint scrollbars and its own form widgets to match.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.style.setProperty('--input-background', Colors[scheme].inputBackground);
+    root.style.setProperty('--input-text', Colors[scheme].text);
+    root.style.colorScheme = scheme;
+  }, [scheme]);
 
   const value = useMemo<ColorSchemeContextValue>(
     () => ({ scheme, preference, setScheme }),
