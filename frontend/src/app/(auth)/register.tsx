@@ -5,7 +5,8 @@
  * both a fresh address and one that already exists, and this screen never
  * branches on which it was — every accepted request lands on `/verify-email`.
  * Only the server-side failures get mapped:
- *   422 → the password policy `detail`, shown on the password field
+ *   422 → the password policy `detail` on the password field, or a rejected
+ *         address on the email field
  *   429 / offline / timeout / other → a form-level banner
  */
 import { Link, useRouter } from 'expo-router';
@@ -69,6 +70,10 @@ export default function RegisterScreen() {
           const ui = error.uiError;
           if (ui.kind === 'password-policy') {
             form.setError('password', ui.message);
+            return;
+          }
+          if (ui.kind === 'invalid-email') {
+            form.setError('email', t('errors.invalidEmail'));
             return;
           }
           form.setFormMessage({ kind: 'error', text: t(messageKeyFor(ui)) });

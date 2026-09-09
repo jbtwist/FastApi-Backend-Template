@@ -116,7 +116,8 @@ interface RawResponse {
   ok: boolean;
   status: number;
   retryAfterSeconds?: number;
-  detail?: string;
+  /** Raw `detail` from the body — a string or a validation-error list; `errors.ts` reads its shape. */
+  detail: unknown;
   json: unknown;
 }
 
@@ -167,9 +168,7 @@ async function rawFetch(
   }
 
   const detail =
-    json && typeof json === 'object' && typeof (json as { detail?: unknown }).detail === 'string'
-      ? (json as { detail: string }).detail
-      : undefined;
+    json && typeof json === 'object' ? (json as { detail?: unknown }).detail : undefined;
 
   return {
     ok: response.ok,

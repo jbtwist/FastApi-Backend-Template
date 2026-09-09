@@ -68,6 +68,25 @@ describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
     expect((result as { message: string }).message.length).toBeGreaterThan(0);
   });
 
+  it.each(['register', 'login', 'forgot-password', 'resend-verification'] as const)(
+    '422 on %s with a rejected email field → invalid-email, not a password message',
+    (context) => {
+      const detail = [
+        {
+          type: 'value_error',
+          loc: ['body', 'email'],
+          msg: 'value is not a valid email address',
+        },
+      ];
+      expect(toAuthUiError(422, detail, context)).toEqual({ kind: 'invalid-email' });
+    },
+  );
+
+  it('422 naming another field → unknown (nothing useful to show)', () => {
+    const detail = [{ type: 'missing', loc: ['body', 'token'], msg: 'Field required' }];
+    expect(toAuthUiError(422, detail, 'reset-password')).toEqual({ kind: 'unknown' });
+  });
+
   it('breached-password detail is identical whichever email was used (no divergence)', () => {
     const detail = 'This password has appeared in a data breach; choose another';
     expect(toAuthUiError(422, detail, 'register')).toEqual(

@@ -26,6 +26,7 @@ export type AuthUiError =
   | { kind: 'invalid-credentials' }
   | { kind: 'email-not-verified'; email: string }
   | { kind: 'password-policy'; message: string }
+  | { kind: 'invalid-email' }
   | { kind: 'invalid-token' }
   | { kind: 'rate-limited'; retryAfterSeconds?: number }
   | { kind: 'offline' }
@@ -52,7 +53,31 @@ const PASSWORD_POLICY_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
 ]);
 
 /**
- * Turn an HTTP status + optional `detail` string into an `AuthUiError`.
+ * The backend's `detail` comes in two shapes, both under `422`: a plain string
+ * for a policy rejection we wrote, and a list of items for a request-body
+ * schema violation (FastAPI's own validation error). Only the first is a
+ * message worth showing.
+ */
+function detailMessage(detail: unknown): string | undefined {
+  return typeof detail === 'string' ? detail : undefined;
+}
+
+/**
+ * Field names a schema violation points at — `loc: ['body', 'email']` yields
+ * `'email'`. Empty for any other `detail` shape.
+ */
+function invalidFields(detail: unknown): string[] {
+  if (!Array.isArray(detail)) return [];
+  return detail.flatMap((item) => {
+    const loc = (item as { loc?: unknown })?.loc;
+    if (!Array.isArray(loc)) return [];
+    const field = loc[loc.length - 1];
+    return typeof field === 'string' && field !== 'body' ? [field] : [];
+  });
+}
+
+/**
+ * Turn an HTTP status + the response body's `detail` into an `AuthUiError`.
  *
  * Returns `null` when the status is not a UI concern — a `401` on `me` /
  * `refresh` / `logout` / an authed call drives the refresh-or-sign-out logic in
@@ -60,7 +85,7 @@ const PASSWORD_POLICY_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
  */
 export function toAuthUiError(
   status: number,
-  detail: string | undefined,
+  detail: unknown,
   context: AuthEndpointContext,
   options: ToAuthUiErrorOptions = {},
 ): AuthUiError | null {
@@ -81,15 +106,24 @@ export function toAuthUiError(
       }
       return { kind: 'unknown' };
 
-    case 422:
+    case 422: {
+      // A rejected email is a schema violation on every endpoint that takes
+      // one, so it is checked before the password policy — otherwise a bad
+      // address would be reported as a bad password.
+      const fields = invalidFields(detail);
+      if (fields.length > 0) {
+        return fields.includes('email') ? { kind: 'invalid-email' } : { kind: 'unknown' };
+      }
+
       if (PASSWORD_POLICY_CONTEXTS.has(context)) {
-        const trimmed = detail?.trim();
+        const trimmed = detailMessage(detail)?.trim();
         return {
           kind: 'password-policy',
           message: trimmed && trimmed.length > 0 ? trimmed : PASSWORD_POLICY_FALLBACK,
         };
       }
       return { kind: 'unknown' };
+    }
 
     case 429:
       return options.retryAfterSeconds === undefined

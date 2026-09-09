@@ -6,6 +6,7 @@
  * user sees:
  *   401 → combined "email or password" error, password cleared, email kept
  *   403 → the account exists but is unverified — go to the verify screen
+ *   422 → a rejected address, shown on the email field
  *   429 / offline / timeout / other → a form-level banner
  */
 import { Link, useRouter } from 'expo-router';
@@ -68,6 +69,10 @@ export default function SignInScreen() {
               pathname: '/verify-email',
               params: { email: ui.email || email },
             });
+            return;
+          }
+          if (ui.kind === 'invalid-email') {
+            form.setError('email', t('errors.invalidEmail'));
             return;
           }
           if (ui.kind === 'invalid-credentials') {

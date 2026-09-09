@@ -1,5 +1,6 @@
 {
   "invalidCredentials": "El correo o la contraseña no son correctos.",
+  "invalidEmail": "Introduce una dirección de correo válida.",
   "emailNotVerified": "Verifica tu correo antes de iniciar sesión.",
   "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
   "offline": "Parece que no tienes conexión. Comprueba tu red e inténtalo de nuevo.",

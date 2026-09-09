@@ -185,6 +185,22 @@ describe('register screen — submission', () => {
     expect(router.getPathname()).toBe('/register');
   });
 
+  it('422 on the email → the message goes on the email field, not the password one', async () => {
+    mockRegister.mockRejectedValue(new AuthApiError({ kind: 'invalid-email' }, 422));
+
+    const router = mount();
+    await fillForm('someone@nope.invalid', 'a-strong-password');
+    await act(async () => {
+      submit();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Enter a valid email address.')).toBeOnTheScreen(),
+    );
+    expect(screen.queryByTestId('register-form-message')).toBeNull();
+    expect(router.getPathname()).toBe('/register');
+  });
+
   it('429 → rate-limited banner', async () => {
     mockRegister.mockRejectedValue(new AuthApiError({ kind: 'rate-limited' }, 429));
 

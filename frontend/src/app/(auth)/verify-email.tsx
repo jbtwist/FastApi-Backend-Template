@@ -25,6 +25,8 @@ import { useTranslation } from '@/i18n/provider';
 
 function messageKeyFor(error: AuthUiError): TranslationKey {
   switch (error.kind) {
+    case 'invalid-email':
+      return 'errors.invalidEmail';
     case 'rate-limited':
       return 'errors.rateLimited';
     case 'offline':
