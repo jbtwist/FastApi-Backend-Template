@@ -8,11 +8,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DATABASE_URL: PostgresDsn
-    # Browser origins allowed to call this API. Comma-separated in the
-    # environment; each deployment (dev, acceptance, production) sets its own,
-    # and the default only covers the local Expo web dev server.
-    # `NoDecode` keeps pydantic-settings from JSON-parsing the raw value so the
-    # validator below can split it.
     CORS_ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:8081"]
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")

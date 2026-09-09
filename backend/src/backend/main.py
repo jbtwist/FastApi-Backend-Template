@@ -11,7 +11,6 @@ app = FastAPI(title="GTD Backend")
 FastAPIRedis(app).lifespan().rate_limiting()
 app.include_router(auth_router)
 add_auth_error_handlers(app)
-# Last, so CORS wraps the rate-limiting middleware and its 429s carry the headers.
 add_cors(app, allowed_origins=settings.CORS_ALLOWED_ORIGINS)
 
 

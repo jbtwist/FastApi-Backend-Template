@@ -8,7 +8,6 @@
  * which carries the server `detail` verbatim.
  */
 
-/** Which call produced the failure — the mapping depends on it. */
 export type AuthEndpointContext =
   | 'login'
   | 'register'
@@ -19,7 +18,6 @@ export type AuthEndpointContext =
   | 'resend-verification'
   | 'forgot-password'
   | 'reset-password'
-  /** any other authenticated request routed through the api-client */
   | 'authed';
 
 export type AuthUiError =
@@ -97,7 +95,6 @@ export function toAuthUiError(
 
     case 401:
       if (context === 'login') return { kind: 'invalid-credentials' };
-      // me / refresh / logout / authed → handled by session logic.
       return null;
 
     case 403:
@@ -107,9 +104,6 @@ export function toAuthUiError(
       return { kind: 'unknown' };
 
     case 422: {
-      // A rejected email is a schema violation on every endpoint that takes
-      // one, so it is checked before the password policy — otherwise a bad
-      // address would be reported as a bad password.
       const fields = invalidFields(detail);
       if (fields.length > 0) {
         return fields.includes('email') ? { kind: 'invalid-email' } : { kind: 'unknown' };
@@ -166,6 +160,5 @@ export function parseRetryAfter(headerValue: string | null | undefined): number 
 
   const dateMs = Date.parse(value);
   if (Number.isNaN(dateMs)) return undefined;
-
   return Math.max(0, Math.round((dateMs - Date.now()) / 1000));
 }

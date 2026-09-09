@@ -4,13 +4,11 @@
  * Responsibilities (contracts/auth-api.md — "Transport per platform" +
  * "Refresh-on-401 protocol"):
  *  - attach the session: `Authorization: Bearer` on native, `credentials: 'include'`
- *    on web (the browser sends the httponly cookies);
- *  - map any failure to a typed `AuthUiError` via `errors.ts`;
+ *    on web
+ *  - map any failure to a typed `AuthUiError` via `errors.ts`
  *  - on a `401` for an authenticated call, run a **single-flight** refresh and
  *    retry the original request exactly once; if the refresh fails, clear the
  *    local session and notify the provider.
- *
- * `auth-api.ts` (T023) builds the typed per-endpoint calls on top of `request()`.
  */
 import { Platform } from 'react-native';
 
@@ -86,12 +84,8 @@ export interface RequestOptions {
   context: AuthEndpointContext;
   /**
    * Whether this call carries the session and should trigger refresh-on-401.
-   * Defaults to `true` for `me` / `authed`, `false` for the public endpoints
-   * (`login`, `register`, `forgot-password`, `confirm-email`, `reset-password`,
-   * `resend-verification`) and for `refresh` / `logout` (which manage their own).
-   */
   authed?: boolean;
-  /** Email typed into the form — attached to a `403` `email-not-verified`. */
+  /** Email typed into the form. */
   submittedEmail?: string;
   /** Caller-supplied abort signal, combined with the internal timeout. */
   signal?: AbortSignal;
@@ -116,7 +110,6 @@ interface RawResponse {
   ok: boolean;
   status: number;
   retryAfterSeconds?: number;
-  /** Raw `detail` from the body — a string or a validation-error list; `errors.ts` reads its shape. */
   detail: unknown;
   json: unknown;
 }
