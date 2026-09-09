@@ -46,7 +46,9 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started: getting-started/index.md
+  - Getting started:
+      - With the API: getting-started/index.md
+      - In the web client: getting-started/web-client.md
   - Guides:
       - Overview: guides/index.md
       - Native Deep-Linking: guides/native-deep-linking.md

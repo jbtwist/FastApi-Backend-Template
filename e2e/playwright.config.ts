@@ -48,7 +48,23 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      // Writes PNGs into docs/, so it is deliberately not part of `npm test`.
+      // Run it with `npm run screenshots` after a UI change.
+      name: 'docs',
+      testDir: './screenshots',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Retina-density captures, and a light palette regardless of what the
+        // machine running the capture prefers.
+        deviceScaleFactor: 2,
+        colorScheme: 'light',
+        viewport: { width: 1100, height: 900 },
+      },
+    },
+  ],
 
   webServer: [
     {

@@ -1,8 +1,11 @@
-# Getting started: register, verify, and log in
+# Getting started: register, verify, and log in with the API
 
 This walks through the full account flow against a locally running backend:
 register, confirm the email, log in, call an authenticated endpoint, and
-refresh the session.
+refresh the session. Everything here is `curl` against the API.
+
+To walk the same flow through the Expo web client instead, with screenshots of
+each screen, see [Create an account in the web client](web-client.md).
 
 ## Prerequisites
 
