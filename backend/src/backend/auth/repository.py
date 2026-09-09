@@ -62,9 +62,7 @@ class SqlUserRepository:
 class SingleUseTokenRepository(Protocol):
     """Contract shared by every hashed, expiring, one-shot token repository."""
 
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> Any: ...
+    async def create(self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime) -> Any: ...
     async def get_by_hash(self, token_hash: str) -> Any | None: ...
     async def mark_used(self, token_id: uuid.UUID, *, used_at: datetime) -> bool: ...
 
@@ -102,9 +100,7 @@ class _SqlSingleUseTokenRepository[TokenT]:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> TokenT:
+    async def create(self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime) -> TokenT:
         token = self.model(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
         self._db.add(token)
         await self._db.flush()
@@ -125,9 +121,7 @@ class _SqlSingleUseTokenRepository[TokenT]:
         return result.rowcount == 1
 
 
-class SqlEmailVerificationTokenRepository(
-    _SqlSingleUseTokenRepository[EmailVerificationToken]
-):
+class SqlEmailVerificationTokenRepository(_SqlSingleUseTokenRepository[EmailVerificationToken]):
     model = EmailVerificationToken
 
 

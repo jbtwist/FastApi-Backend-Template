@@ -51,9 +51,7 @@ class _FakeSingleUseTokenRepository[TokenT]:
     def __init__(self) -> None:
         self._tokens_by_id: dict[uuid.UUID, TokenT] = {}
 
-    async def create(
-        self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
-    ) -> TokenT:
+    async def create(self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime) -> TokenT:
         token = self.model(
             id=uuid.uuid4(),
             user_id=user_id,
@@ -78,9 +76,7 @@ class _FakeSingleUseTokenRepository[TokenT]:
         return True
 
 
-class FakeEmailVerificationTokenRepository(
-    _FakeSingleUseTokenRepository[EmailVerificationToken]
-):
+class FakeEmailVerificationTokenRepository(_FakeSingleUseTokenRepository[EmailVerificationToken]):
     model = EmailVerificationToken
 
 
