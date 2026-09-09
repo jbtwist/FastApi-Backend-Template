@@ -1,10 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { Text } from 'react-native';
+
 import { en, es } from '@/i18n/locales';
+import { useLocale } from '@/i18n/provider';
 import { fireEvent, renderWithProviders, screen, waitFor } from '@/test-utils';
-import { LanguageSwitcher } from '@/components/language-switcher';
 
 import { FormMessage } from '../form-message';
+
+/** Switches locale without going through the picker's UI. */
+function LocaleProbe() {
+  const { setLocale } = useLocale();
+  return <Text testID="switch-to-es" onPress={() => void setLocale('es')} />;
+}
 
 describe('<FormMessage />', () => {
   beforeEach(async () => {
@@ -55,13 +63,13 @@ describe('<FormMessage />', () => {
   it('follows a language switch while it is on screen', async () => {
     renderWithProviders(
       <>
-        <LanguageSwitcher />
+        <LocaleProbe />
         <FormMessage message={{ kind: 'error', message: 'errors.unknown' }} />
       </>,
     );
     expect(screen.getByRole('alert')).toHaveTextContent(en.errors.unknown);
 
-    fireEvent.press(screen.getByRole('radio', { name: 'Español' }));
+    fireEvent.press(screen.getByTestId('switch-to-es'));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(es.errors.unknown));
   });
