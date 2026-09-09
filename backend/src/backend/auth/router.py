@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 
 from backend.auth import service
 from backend.auth.config import AuthConfig
@@ -33,7 +34,6 @@ from backend.auth.exceptions import (
     PasswordTooLong,
     PasswordTooShort,
     RefreshTokenExpired,
-    RefreshTokenReuseDetected,
 )
 from backend.auth.password_policy import (
     MIN_LENGTH_BY_STRENGTH,
@@ -192,6 +192,22 @@ async def login(
     )
 
 
+def _signed_out_response(*, config: AuthConfig) -> JSONResponse:
+    """A 401 that also clears both token cookies.
+
+    Returned rather than raised, for two reasons. A raise discards the injected
+    `Response`, so cookies set on it never reach the client; and it rolls the
+    request's transaction back, which would undo the family revocation that `ReuseDetected`
+    carries. The body matches what `HTTPException` would have produced.
+    """
+    response = JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Not authenticated"}
+    )
+    response.set_cookie(**clear_access_token_cookie(config=config))
+    response.set_cookie(**clear_refresh_token_cookie(config=config))
+    return response
+
+
 @router.post("/refresh", response_model=TokenPairOut)
 async def refresh(
     response: Response,
@@ -199,28 +215,29 @@ async def refresh(
     config: AuthConfigDep,
     payload: RefreshIn | None = None,
     refresh_token: str | None = Cookie(default=None),
-) -> TokenPairOut:
+) -> TokenPairOut | JSONResponse:
     """Rotate the refresh token for a new pair.
 
     Reuse of an already-used token revokes its whole family. Accepts the
-    refresh token from either the request body or the cookie (body takes
-    priority) so both browser and non-browser clients can call it.
+    refresh token from either the request body or the cookie so both
+    browser and non-browser clients can call it.
     """
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        return _signed_out_response(config=config)
 
     try:
-        pair = await service.rotate_refresh_token(
+        result = await service.rotate_refresh_token(
             refresh_token_repo, raw_refresh_token, config=config, now=datetime.now(UTC)
         )
-    except (InvalidRefreshToken, RefreshTokenExpired, RefreshTokenReuseDetected) as exc:
-        response.set_cookie(**clear_access_token_cookie(config=config))
-        response.set_cookie(**clear_refresh_token_cookie(config=config))
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated") from exc
+    except InvalidRefreshToken, RefreshTokenExpired:
+        return _signed_out_response(config=config)
 
-    _set_token_cookies(response, pair, config=config)
-    return TokenPairOut(access_token=pair.access_token, refresh_token=pair.refresh_token)
+    if isinstance(result, service.ReuseDetected):
+        return _signed_out_response(config=config)
+
+    _set_token_cookies(response, result, config=config)
+    return TokenPairOut(access_token=result.access_token, refresh_token=result.refresh_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

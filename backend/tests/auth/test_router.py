@@ -412,9 +412,7 @@ class TestRegisterEnumerationSafety:
     async def test_existing_unverified_email_is_a_silent_204_no_op(
         self, client, user_repo, outbox_repo
     ):
-        await service.register_user(
-            user_repo, email="grace@example.com", password="s3cret-pw"
-        )
+        await service.register_user(user_repo, email="grace@example.com", password="s3cret-pw")
 
         res = await client.post(
             "/auth/register", json={"email": "grace@example.com", "password": GOOD_PASSWORD}
@@ -440,9 +438,7 @@ class TestRegisterEnumerationSafety:
         assert unknown.status_code == existing.status_code == 422
         assert unknown.json() == existing.json()
 
-    async def test_a_create_race_resolves_as_204_not_500(
-        self, client, user_repo, monkeypatch
-    ):
+    async def test_a_create_race_resolves_as_204_not_500(self, client, user_repo, monkeypatch):
         """Email inserted between the pre-check and our insert (R5)."""
 
         async def racing_create(*, email: str, password_hash: str):
@@ -514,3 +510,63 @@ class TestPasswordPolicyAtReset:
         )
 
         assert res.status_code == 400
+
+
+def _cleared_cookie_names(res) -> set[str]:
+    """Names of the cookies this response tells the browser to drop."""
+    return {
+        header.split("=", 1)[0]
+        for header in res.headers.get_list("set-cookie")
+        if "Max-Age=0" in header
+    }
+
+
+class TestRefresh:
+    """The rotation endpoint, whose 401 is returned rather than raised.
+
+    A raise would discard the injected `Response` (losing the cookie clearing)
+    and roll back the request transaction (losing a reuse revocation). The
+    durability half of that is covered against real Postgres in
+    tests/auth/test_reuse_revocation.py; here it is the HTTP surface.
+    """
+
+    async def test_rotation_returns_a_new_pair_and_sets_both_cookies(
+        self, client, refresh_token_repo, app_config, verified_user
+    ):
+        session = await service.issue_token_pair(
+            refresh_token_repo, verified_user, config=app_config, now=datetime.now(UTC)
+        )
+
+        res = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
+
+        assert res.status_code == 200
+        assert res.json()["refresh_token"] != session.refresh_token
+        assert res.cookies.get("access_token")
+        assert res.cookies.get("refresh_token")
+
+    async def test_replaying_a_spent_token_is_401_and_clears_both_cookies(
+        self, client, refresh_token_repo, app_config, verified_user
+    ):
+        session = await service.issue_token_pair(
+            refresh_token_repo, verified_user, config=app_config, now=datetime.now(UTC)
+        )
+        spent = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
+        assert spent.status_code == 200
+
+        res = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
+
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+        assert _cleared_cookie_names(res) == {"access_token", "refresh_token"}
+
+    async def test_an_unknown_token_is_401_and_clears_both_cookies(self, client):
+        res = await client.post("/auth/refresh", json={"refresh_token": "never-issued"})
+
+        assert res.status_code == 401
+        assert _cleared_cookie_names(res) == {"access_token", "refresh_token"}
+
+    async def test_no_token_at_all_is_401_and_clears_both_cookies(self, client):
+        res = await client.post("/auth/refresh")
+
+        assert res.status_code == 401
+        assert _cleared_cookie_names(res) == {"access_token", "refresh_token"}

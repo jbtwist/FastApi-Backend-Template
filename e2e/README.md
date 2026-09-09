@@ -62,10 +62,15 @@ That is why no mail server is in the loop.
 - Nothing in `backend/` or `frontend/` is modified to make this run.
   Configuration reaches both through the environment only.
 
-## Known defect
+## What it has already caught
 
-`specs/silent-refresh.spec.ts` carries one `test.fail()`: replaying a spent
-refresh token is refused, but the family revocation it is supposed to trigger
-never lands, so the stolen chain's successor keeps working. The revocation is
-written and then rolled back when the route raises. Remove the annotation once
-the backend is fixed.
+Stolen-refresh-token detection revoked nothing. `rotate_refresh_token` did call
+`revoke_family`, but the endpoint raised to answer 401 and `get_db` wraps each
+request in `session.begin()` — so the rollback took the revocation with it, and
+the thief's successor token kept working. Reuse is now reported as a return
+value and the endpoint returns its 401 instead of raising.
+
+The pytest suite could not see it: its fake repositories have no transaction to
+roll back. `specs/silent-refresh.spec.ts` covers it from the browser, and
+`backend/tests/auth/test_reuse_revocation.py` now covers it against real
+Postgres.

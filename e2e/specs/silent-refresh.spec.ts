@@ -84,15 +84,6 @@ test('a spent refresh token is rejected on replay', async ({
   expect(replay.status()).toBe(401);
 });
 
-// KNOWN DEFECT — remove `test.fail()` once the backend is fixed, at which point
-// this starts passing and Playwright flags the stale annotation.
-//
-// `rotate_refresh_token` does call `revoke_family` when it sees a spent token,
-// but `get_db` wraps the request in `session.begin()` and the route turns the
-// reuse exception into an `HTTPException`. The raise rolls the transaction
-// back, taking the revocation with it: the replay is refused, and the stolen
-// chain's successor keeps working. The unit tests miss it because their fake
-// repositories have no transaction to roll back.
 test('replaying a spent refresh token revokes the whole family', async ({
   page,
   request,
@@ -100,7 +91,6 @@ test('replaying a spent refresh token revokes the whole family', async ({
   email,
   password,
 }) => {
-  test.fail();
   const { spent } = await rotateOnce(page, db, email, password);
 
   await request.post(`${backendUrl}/auth/refresh`, { data: { refresh_token: spent } });

@@ -1,6 +1,7 @@
 """Signup, login/session, and password-reset business logic."""
 
 from backend.auth.service.login import (
+    ReuseDetected,
     TokenPair,
     authenticate_user,
     issue_token_pair,
@@ -20,6 +21,7 @@ from backend.auth.service.signup import (
 )
 
 __all__ = [
+    "ReuseDetected",
     "TokenPair",
     "assert_reset_token_valid",
     "authenticate_user",
