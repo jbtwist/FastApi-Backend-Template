@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -20,9 +20,8 @@ function Probe() {
   return <Text testID="probe">{useTheme().background}</Text>;
 }
 
-function background() {
-  return screen.getByTestId('probe').props.children;
-}
+const background = () => screen.getByTestId('probe').props.children;
+const toggle = () => fireEvent.press(screen.getByTestId('theme-switcher'));
 
 describe('<ThemeSwitcher />', () => {
   beforeEach(async () => {
@@ -30,27 +29,45 @@ describe('<ThemeSwitcher />', () => {
     mockDeviceScheme = 'light';
   });
 
-  it('offers light and dark only — never a "system" option', () => {
+  it('is a single icon button, not a pair of labelled options', () => {
     renderWithProviders(<ThemeSwitcher />);
 
-    expect(screen.getAllByRole('radio')).toHaveLength(2);
-    expect(screen.getByRole('radio', { name: 'Light' })).toBeOnTheScreen();
-    expect(screen.getByRole('radio', { name: 'Dark' })).toBeOnTheScreen();
-    expect(screen.queryByRole('radio', { name: /system/i })).toBeNull();
+    expect(screen.getByTestId('theme-switcher')).toBeOnTheScreen();
+    expect(screen.queryByText('Light')).toBeNull();
+    expect(screen.queryByText('Dark')).toBeNull();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
-  it('marks the device scheme as selected before any choice is made', async () => {
-    mockDeviceScheme = 'dark';
+  it('shows the sun while the light palette is active and the moon while dark is', async () => {
     renderWithProviders(<ThemeSwitcher />);
 
-    expect(screen.getByRole('radio', { name: 'Dark' }).props.accessibilityState).toMatchObject({
+    expect(screen.getByTestId('theme-switcher-icon-light')).toBeOnTheScreen();
+    expect(screen.queryByTestId('theme-switcher-icon-dark')).toBeNull();
+
+    toggle();
+
+    await waitFor(() => expect(screen.getByTestId('theme-switcher-icon-dark')).toBeOnTheScreen());
+    expect(screen.queryByTestId('theme-switcher-icon-light')).toBeNull();
+  });
+
+  it('names the action it will perform, not the state it is in', () => {
+    renderWithProviders(<ThemeSwitcher />);
+
+    const button = screen.getByTestId('theme-switcher');
+    expect(button.props.accessibilityLabel).toBe('Switch to dark theme');
+    expect(button.props.accessibilityState).toMatchObject({ checked: false });
+
+    toggle();
+
+    expect(screen.getByTestId('theme-switcher').props.accessibilityLabel).toBe(
+      'Switch to light theme',
+    );
+    expect(screen.getByTestId('theme-switcher').props.accessibilityState).toMatchObject({
       checked: true,
     });
-    // Reflecting the device is not the same as having chosen it.
-    expect(await AsyncStorage.getItem(COLOR_SCHEME_STORAGE_KEY)).toBeNull();
   });
 
-  it('repaints on press', async () => {
+  it('repaints on press, and back again on a second press', async () => {
     renderWithProviders(
       <>
         <ThemeSwitcher />
@@ -59,19 +76,30 @@ describe('<ThemeSwitcher />', () => {
     );
     expect(background()).toBe(Colors.light.background);
 
-    fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
-
+    toggle();
     await waitFor(() => expect(background()).toBe(Colors.dark.background));
+
+    toggle();
+    await waitFor(() => expect(background()).toBe(Colors.light.background));
   });
 
   it('persists the choice so the next launch keeps it', async () => {
     renderWithProviders(<ThemeSwitcher />);
 
-    fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
+    toggle();
 
     await waitFor(async () =>
       expect(await AsyncStorage.getItem(COLOR_SCHEME_STORAGE_KEY)).toBe('dark'),
     );
+  });
+
+  it('starts from the device scheme, without having stored a choice', async () => {
+    mockDeviceScheme = 'dark';
+    renderWithProviders(<ThemeSwitcher />);
+
+    expect(screen.getByTestId('theme-switcher-icon-dark')).toBeOnTheScreen();
+    // Reflecting the device is not the same as having chosen it.
+    expect(await AsyncStorage.getItem(COLOR_SCHEME_STORAGE_KEY)).toBeNull();
   });
 
   it('restores a stored choice over the device setting', async () => {
@@ -105,7 +133,7 @@ describe('<ThemeSwitcher />', () => {
     );
     const { rerender } = renderWithProviders(ui);
 
-    fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
+    toggle();
     await waitFor(() => expect(background()).toBe(Colors.dark.background));
 
     mockDeviceScheme = 'light';
@@ -114,9 +142,17 @@ describe('<ThemeSwitcher />', () => {
     expect(background()).toBe(Colors.dark.background);
   });
 
-  it('labels the group for assistive tech', () => {
+  it('tints on hover and clears when the cursor leaves', () => {
     renderWithProviders(<ThemeSwitcher />);
+    const button = screen.getByTestId('theme-switcher');
+    const fill = () => StyleSheet.flatten(button.props.style).backgroundColor;
 
-    expect(screen.getByTestId('theme-switcher').props.accessibilityLabel).toBe('Theme');
+    expect(fill()).toBeUndefined();
+
+    fireEvent(button, 'hoverIn');
+    expect(fill()).toBe(Colors.light.backgroundElement);
+
+    fireEvent(button, 'hoverOut');
+    expect(fill()).toBeUndefined();
   });
 });

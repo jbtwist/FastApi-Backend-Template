@@ -16,17 +16,17 @@ const theme = useTheme();
 1. the user's stored choice, if they have made one;
 2. the device's setting otherwise.
 
-The switcher offers **Light** and **Dark** only. "Follow the device" is not a
-third option — it is the absence of a stored choice, which is the state every
-new install starts in. So a user who never touches the control keeps tracking
-their OS, and one who picks a side stays pinned to it until they pick the other.
-There is no way back to following the device short of clearing app storage; that
-is the deliberate cost of keeping the control to two buttons.
+The switcher is a single icon button that flips between the two. There is no
+"system" option: following the device is the absence of a stored choice, which is
+the state every new install starts in. So a user who never touches the control
+keeps tracking their OS, and one who presses it stays pinned until they press it
+again. There is no way back to following the device short of clearing app
+storage; that is the deliberate cost of keeping this to one button.
 
-Because the two states are indistinguishable in the UI, the switcher marks
-whichever option matches **what is currently on screen**. Before any choice that
-is the device's scheme, so the control always describes the visible theme rather
-than showing nothing selected.
+The icon shows the scheme **currently on screen** — a sun under the light
+palette, a moon under the dark one — so before any choice it reflects the
+device. Because an icon can't express what pressing will do, the accessibility
+label names the action instead ("Switch to dark theme") rather than the state.
 
 The choice persists under `taskify.colorScheme` in AsyncStorage.
 
