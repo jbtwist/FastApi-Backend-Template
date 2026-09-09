@@ -87,6 +87,6 @@ class SmtpEmailSender(EmailSenderMixin):
 
 
 def get_email_sender() -> EmailSender:
-    if mail_settings.PROVIDER == "ses":
+    if mail_settings.EMAIL_PROVIDER == "ses":
         return SesEmailSender()
     return SmtpEmailSender()

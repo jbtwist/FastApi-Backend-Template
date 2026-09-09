@@ -37,7 +37,7 @@ registered, so it can't be used to discover who has an account. That means a
 ## 2. Confirm your email
 
 The emailed link points at the frontend, not the API
-(`{MAIL_FRONTEND_BASE_URL}/verify-email-confirm?token=...` — see
+(`{FRONTEND_BASE_URL}/verify-email-confirm?token=...` — see
 [the verification-link decision](../architecture/decisions/0004-email-verification-via-frontend.md)).
 Opening it in the running Expo app confirms the address for you.
 

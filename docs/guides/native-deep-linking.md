@@ -9,7 +9,7 @@ The configuration is handled in `frontend/app.json`:
 - **iOS:** Configure `expo.ios.associatedDomains` with `applinks:<host>`.
 - **Android:** Configure `expo.android.intentFilters` with an `autoVerify` VIEW filter for the `<host>` covering `/verify-email-confirm` and `/reset-password`.
 
-The `<host>` placeholder is `auth-template.example.com`. During deployment, this should be replaced with the actual domain used for auth services (the same as the backend's `MAIL_FRONTEND_BASE_URL`).
+The `<host>` placeholder is `auth-template.example.com`. During deployment, this should be replaced with the actual domain used for auth services (the same as the backend's `FRONTEND_BASE_URL`).
 
 ## Hosting Requirements
 

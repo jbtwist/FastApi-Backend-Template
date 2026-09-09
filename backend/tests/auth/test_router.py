@@ -79,7 +79,7 @@ def app_config(register_response_floor) -> AuthConfig:
         JWT_SECRET=TEST_JWT_SECRET,
         PASSWORD_RESET_TOKEN_EXP=timedelta(hours=1),
         FORGOT_PASSWORD_RESPONSE_FLOOR=timedelta(0),
-        AUTH_REGISTER_RESPONSE_FLOOR=register_response_floor,
+        REGISTER_RESPONSE_FLOOR=register_response_floor,
     )
 
 

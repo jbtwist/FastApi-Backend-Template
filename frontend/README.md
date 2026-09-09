@@ -22,8 +22,8 @@ Copy `.env.example` to `.env` and point `EXPO_PUBLIC_API_URL` at your backend
 (`http://localhost:8000` by default).
 
 `EXPO_PUBLIC_PASSWORD_MIN_LENGTH` and `EXPO_PUBLIC_PASSWORD_MAX_LENGTH` must
-match the backend's `AUTH_PASSWORD_STRENGTH` floor (low = 8, medium = 12,
-high = 15) and `AUTH_PASSWORD_MAX_LENGTH`. The register form checks both before
+match the backend's `PASSWORD_STRENGTH` floor (low = 8, medium = 12,
+high = 15) and `PASSWORD_MAX_LENGTH`. The register form checks both before
 submitting, so the only policy rule the server has left to reject on is the
 breach check — which is what lets the app show a translated reason instead of
 the server's English one. Leave them out and the defaults (12 / 128) apply.
@@ -31,7 +31,7 @@ Expo inlines these at bundle time, so rebuild after changing them.
 
 For the email-verification and password-reset deep links to land back in this
 app during local development, the backend's `backend/.env` needs
-`MAIL_FRONTEND_BASE_URL=http://localhost:8081` (the Expo web dev server origin).
+`FRONTEND_BASE_URL=http://localhost:8081` (the Expo web dev server origin).
 
 In the output, you'll find options to open the app in a
 
@@ -66,7 +66,7 @@ The email-verification and password-reset emails link to two frontend routes:
 - `/reset-password?token=…`
 
 **Local development** needs no extra setup — the links open on the Expo web dev
-server, and the backend must point at it with `MAIL_FRONTEND_BASE_URL` in
+server, and the backend must point at it with `FRONTEND_BASE_URL` in
 `backend/.env` (e.g. `http://localhost:8081`). On a device/simulator the
 `frontend://` scheme (already set as `expo.scheme`) resolves the same paths.
 
@@ -80,7 +80,7 @@ be wired up in three places:
      covering `/verify-email-confirm` and `/reset-password`
 
    Both currently use the placeholder host `auth-template.example.com` — replace
-   it with the real host (the same origin as `MAIL_FRONTEND_BASE_URL`).
+   it with the real host (the same origin as `FRONTEND_BASE_URL`).
 
 2. The web host serves the association files:
    - `https://<your-host>/.well-known/apple-app-site-association` (JSON, no

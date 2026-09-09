@@ -91,8 +91,8 @@ change on both sides rather than a code change.
   `useForm` and `FormMessage` translate on the way out instead.
 - The backend's `detail` strings are free to change; nothing in the client reads
   them.
-- `authConfig`'s two bounds must match the server's `AUTH_PASSWORD_STRENGTH`
-  floor (low = 8, medium = 12, high = 15) and `AUTH_PASSWORD_MAX_LENGTH`. If
+- `authConfig`'s two bounds must match the server's `PASSWORD_STRENGTH`
+  floor (low = 8, medium = 12, high = 15) and `PASSWORD_MAX_LENGTH`. If
   they drift, a length rejection reaches the screen and is labelled as a breach
   — wrong copy, though the server still enforces the real rule. `.env.example`
   and `frontend/README.md` state the constraint.

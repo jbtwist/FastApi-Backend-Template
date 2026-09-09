@@ -146,7 +146,7 @@ async def register(
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
-    async with _response_floor(config.AUTH_REGISTER_RESPONSE_FLOOR):
+    async with _response_floor(config.REGISTER_RESPONSE_FLOOR):
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
         )
@@ -300,7 +300,7 @@ async def forgot_password(
 
     Always returns 204 with an empty body, whether or not the address belongs to
     a registered, verified account — identical response body, status, and (within
-    `AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
+    `FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
     which addresses have accounts.
     """
     async with _response_floor(config.FORGOT_PASSWORD_RESPONSE_FLOOR):

@@ -15,6 +15,6 @@ celery_app.conf.timezone = "UTC"
 celery_app.conf.beat_schedule = {
     "sweep-pending-emails": {
         "task": "backend.mail.tasks.sweep_pending_emails",
-        "schedule": timedelta(seconds=mail_settings.SWEEP_INTERVAL_SECONDS),
+        "schedule": timedelta(seconds=mail_settings.EMAIL_SWEEP_INTERVAL_SECONDS),
     },
 }

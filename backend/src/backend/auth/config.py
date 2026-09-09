@@ -19,7 +19,16 @@ class PasswordStrength(StrEnum):
 
 
 class AuthConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="AUTH_", env_file=".env", extra="ignore")
+    """Auth knobs, read from the flat `.env` namespace.
+
+    Deliberately no `env_prefix`: settings are split into classes for code
+    locality, but the `.env` file is one global namespace, so a field's name is
+    its environment variable name. Field names must therefore be unique across
+    `AuthConfig`, `MailConfig` and `backend.config.Settings`, and self-describing
+    on their own — nothing scopes them at read time.
+    """
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     JWT_SECRET: str
     JWT_ALG: str = "HS256"
@@ -28,7 +37,7 @@ class AuthConfig(BaseSettings):
     EMAIL_VERIFICATION_TOKEN_EXP: timedelta = timedelta(hours=24)
     PASSWORD_RESET_TOKEN_EXP: timedelta = timedelta(hours=1)
     FORGOT_PASSWORD_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
-    AUTH_REGISTER_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
+    REGISTER_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)
     PASSWORD_STRENGTH: PasswordStrength = PasswordStrength.MEDIUM
     PASSWORD_MAX_LENGTH: int = Field(default=128, ge=64)
     PASSWORD_CHECK_PWNED: bool = True

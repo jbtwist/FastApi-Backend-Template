@@ -85,8 +85,8 @@ server has left, so the screen renders `errors.passwordRejected`.
 
 This holds only while `authConfig` matches the server. Set
 `EXPO_PUBLIC_PASSWORD_MIN_LENGTH` and `EXPO_PUBLIC_PASSWORD_MAX_LENGTH` to the
-backend's `AUTH_PASSWORD_STRENGTH` floor (low = 8, medium = 12, high = 15) and
-`AUTH_PASSWORD_MAX_LENGTH`. If they drift, a length rejection is labelled as a
+backend's `PASSWORD_STRENGTH` floor (low = 8, medium = 12, high = 15) and
+`PASSWORD_MAX_LENGTH`. If they drift, a length rejection is labelled as a
 breach.
 
 Any other screen that sets a password — password reset — must apply both

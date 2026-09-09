@@ -12,7 +12,7 @@ backend. Persistence is via SQLAlchemy + Alembic migrations
 (`backend/migrations`), on Postgres (`asyncpg`).
 
 Routes declare their limit through `backend.rate_limit.rate_limit`, a thin
-wrapper over the library's dependency, so `AUTH_RATE_LIMIT_ENABLED=false` can
+wrapper over the library's dependency, so `RATE_LIMIT_ENABLED=false` can
 lift enforcement process-wide for a load test — otherwise a stress run measures
 Redis serving `429`s rather than the application. Disabled, the library's
 dependency is not installed at all rather than installed and told to skip: the
@@ -66,13 +66,13 @@ without signing out the user's other sessions. See
 
 Every password-setting path — registration and password reset — runs the same
 policy (`backend.auth.password_policy.validate_password_strength`): a
-length-tier minimum (`AUTH_PASSWORD_STRENGTH`, default `medium` / 12 chars),
-a `AUTH_PASSWORD_MAX_LENGTH` ceiling, and a k-anonymity check against Have I
+length-tier minimum (`PASSWORD_STRENGTH`, default `medium` / 12 chars),
+a `PASSWORD_MAX_LENGTH` ceiling, and a k-anonymity check against Have I
 Been Pwned that fails open, so a HIBP outage never blocks a password change.
 Each failure is a `422`.
 
 `POST /auth/forgot-password` always answers `204` with an empty body —
-identical status, body, and (within `AUTH_FORGOT_PASSWORD_RESPONSE_FLOOR`)
+identical status, body, and (within `FORGOT_PASSWORD_RESPONSE_FLOOR`)
 timing whether or not the address has a verified account, so it can't be used
 to enumerate users. Only a verified account gets a `password_reset_token`
 emailed (via the same outbox as verification, `EmailKind.PASSWORD_RESET`).
