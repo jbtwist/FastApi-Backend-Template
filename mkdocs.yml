@@ -53,6 +53,7 @@ nav:
       - Auth UI: guides/auth-ui.md
       - Auth Workflow: guides/auth-workflow.md
       - Auth Error Messages: guides/auth-error-messages.md
+      - Theming: guides/theming.md
   - API Reference:
       - reference/index.md
       - Auth (Backend): reference/auth.md

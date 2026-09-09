@@ -16,6 +16,7 @@ import { AuthApiError } from '@/auth/api-client';
 import { DEFAULT_LOCALE, i18n } from '@/i18n';
 import { LOCALE_STORAGE_KEY } from '@/i18n/config';
 import { LocaleProvider, useLocale } from '@/i18n/provider';
+import { ColorSchemeProvider } from '@/theme/provider';
 
 const mockRegister = jest.fn<Promise<void>, [string, string]>();
 const mockSetPending = jest.fn<Promise<void>, [unknown]>();
@@ -48,8 +49,10 @@ function Providers({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <LocaleProvider>
-        {children}
-        <LocaleProbe />
+        <ColorSchemeProvider>
+          {children}
+          <LocaleProbe />
+        </ColorSchemeProvider>
       </LocaleProvider>
     </SafeAreaProvider>
   );
