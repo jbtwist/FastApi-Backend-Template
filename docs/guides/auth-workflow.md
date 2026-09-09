@@ -15,6 +15,14 @@ Routing is gated based on the authentication status:
 - **Authenticated Area (`/(app)`):** If a user is `signedOut`, they are automatically redirected to `/(auth)/sign-in`.
 - **Unauthenticated Area (`/(auth)`):** If a user is `signedIn`, they are automatically redirected to `/(app)`.
 
+## Registration and Email Verification
+
+The registration process involves three steps:
+
+1.  **Registration:** The user submits a new account via the `/register` screen. This endpoint is enumeration-safe, returning the same response regardless of whether the email is already registered.
+2.  **Verification Notice:** Upon successful registration, the user is redirected to the `/verify-email` screen, which prompts them to check their email.
+3.  **Confirmation:** The user clicks the link in their verification email, which directs them to the top-level, ungated `/verify-email-confirm` screen to complete the activation process.
+
 ### Ungated Routes
 
 Specific routes that support deep linking or external access (e.g., `reset-password`, `verify-email-confirm`) operate outside these routing gates and are never automatically redirected, regardless of the user's authentication status.
