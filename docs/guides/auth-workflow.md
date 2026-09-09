@@ -15,13 +15,13 @@ Routing is gated based on the authentication status:
 - **Authenticated Area (`/(app)`):** If a user is `signedOut`, they are automatically redirected to `/(auth)/sign-in`.
 - **Unauthenticated Area (`/(auth)`):** If a user is `signedIn`, they are automatically redirected to `/(app)`.
 
-## Registration and Email Verification
+## Registration, Email Verification, and Password Reset
 
-The registration process involves three steps:
+The authentication workflow supports user registration and password recovery:
 
-1.  **Registration:** The user submits a new account via the `/register` screen. This endpoint is enumeration-safe, returning the same response regardless of whether the email is already registered.
-2.  **Verification Notice:** Upon successful registration, the user is redirected to the `/verify-email` screen, which prompts them to check their email.
-3.  **Confirmation:** The user clicks the link in their verification email, which directs them to the top-level, ungated `/verify-email-confirm` screen to complete the activation process.
+1.  **Registration:** The user submits a new account via the `/register` screen.
+2.  **Email Verification:** Upon registration, the user is redirected to the `/verify-email` screen. Confirmation happens at the top-level, ungated `/verify-email-confirm` screen.
+3.  **Password Reset:** Users can initiate a password reset via the `/(auth)/forgot-password` screen. This sends an email with a reset link pointing to the top-level, ungated `/reset-password` screen, which processes the token, validates the new password, and provides feedback on success or failure.
 
 ### Ungated Routes
 
