@@ -6,6 +6,16 @@ export type Locale = (typeof SUPPORTED_LOCALES)[number];
 /** Used before detection resolves and as the fallback for any gap in a translation. */
 export const DEFAULT_LOCALE: Locale = 'en';
 
+/**
+ * Each language's name in its own language, for the switcher. Not translated:
+ * a reader looking for their language recognises the endonym, not its English
+ * (or Spanish) name.
+ */
+export const LOCALE_LABELS: Record<Locale, string> = {
+  en: 'English',
+  es: 'Español',
+};
+
 /** AsyncStorage key holding the user's explicit language choice (absent = follow the device). */
 export const LOCALE_STORAGE_KEY = 'taskify.locale';
 

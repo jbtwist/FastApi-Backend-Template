@@ -26,6 +26,6 @@ export function t(key: TranslationKey, options?: TranslateOptions): string {
   return i18n.t(key, options);
 }
 
-export { DEFAULT_LOCALE, SUPPORTED_LOCALES, isSupportedLocale } from './config';
+export { DEFAULT_LOCALE, LOCALE_LABELS, SUPPORTED_LOCALES, isSupportedLocale } from './config';
 export type { Locale } from './config';
 export type { TranslationKey } from './types';

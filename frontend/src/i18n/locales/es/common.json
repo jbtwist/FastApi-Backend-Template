@@ -1,6 +1,7 @@
 {
   "appName": "Taskify",
   "or": "o",
+  "language": "Idioma",
   "back": "Atrás",
   "backToSignIn": "Volver a iniciar sesión",
   "retry": "Reintentar",
