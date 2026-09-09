@@ -34,6 +34,8 @@ export interface UseFormResult<T extends Record<string, string>> {
   setValue: (field: keyof T, value: string) => void;
   /** Marks a field as touched and validates it. */
   handleBlur: (field: keyof T) => void;
+  /** Force a field error (e.g. a server rejection); also marks it touched so it shows. */
+  setError: (field: keyof T, message: string | undefined) => void;
   /** Sets a form-level message. */
   setFormMessage: (message: FormMessageValue | null) => void;
   /** Resets the form to initial state. */
@@ -92,6 +94,11 @@ export function useForm<T extends Record<string, string>>(
     [validate],
   );
 
+  const setError = useCallback((field: keyof T, message: string | undefined) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setErrors((prev) => ({ ...prev, [field]: message }));
+  }, []);
+
   const reset = useCallback(() => {
     setValues(initialValues);
     setErrors({});
@@ -143,6 +150,7 @@ export function useForm<T extends Record<string, string>>(
     submitting,
     setValue,
     handleBlur,
+    setError,
     setFormMessage,
     reset,
     handleSubmit,

@@ -36,6 +36,17 @@ it('setValue updates the field and clears its error + the form message', () => {
   expect(result.current.formMessage).toBeNull();
 });
 
+it('setError forces a field error and marks it touched; setValue clears it', () => {
+  const { result } = setup(jest.fn());
+
+  act(() => result.current.setError('password', 'Password is too short (minimum 12 characters)'));
+  expect(result.current.errors.password).toBe('Password is too short (minimum 12 characters)');
+  expect(result.current.touched.password).toBe(true);
+
+  act(() => result.current.setValue('password', 'a-strong-password'));
+  expect(result.current.errors.password).toBeUndefined();
+});
+
 it('handleBlur marks the field touched and validates just that field', () => {
   const { result } = setup(jest.fn());
   act(() => result.current.handleBlur('password'));

@@ -2,6 +2,7 @@
   "verifying": "Verifying your email…",
   "success": "Email verified",
   "successBody": "Your email is verified. You can sign in now.",
+  "continue": "Continue",
   "invalidTitle": "This link is invalid or expired",
   "invalidBody": "Request a new verification email and try again.",
   "requestNew": "Request a new email",
