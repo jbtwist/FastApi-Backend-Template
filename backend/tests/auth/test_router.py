@@ -317,7 +317,7 @@ class TestAbuse:
 
 class TestRegister:
     """`POST /auth/register` — enumeration-safe: 204 for any acceptable password,
-    identical for a new and an already-registered address (Δ1, FR-036, SC-013)."""
+    identical for a new and an already-registered address."""
 
     async def test_new_email_is_204_with_empty_body(self, client, user_repo):
         res = await client.post(
