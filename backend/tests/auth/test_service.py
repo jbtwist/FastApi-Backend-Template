@@ -13,7 +13,6 @@ from backend.auth.exceptions import (
     InvalidVerificationToken,
     PasswordResetTokenExpired,
     RefreshTokenExpired,
-    RefreshTokenReuseDetected,
     VerificationTokenExpired,
 )
 from backend.auth.security import hash_opaque_token as _hash
@@ -217,10 +216,10 @@ class TestRotateRefreshToken:
             refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
         )
 
-        with pytest.raises(RefreshTokenReuseDetected):
-            await service.rotate_refresh_token(
-                refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
-            )
+        replayed = await service.rotate_refresh_token(
+            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+        )
+        assert isinstance(replayed, service.ReuseDetected)
 
         with pytest.raises(InvalidRefreshToken):
             await service.rotate_refresh_token(
@@ -240,10 +239,10 @@ class TestRotateRefreshToken:
             refresh_token_repo, session_a.refresh_token, config=auth_config, now=NOW
         )
 
-        with pytest.raises(RefreshTokenReuseDetected):
-            await service.rotate_refresh_token(
-                refresh_token_repo, session_a.refresh_token, config=auth_config, now=NOW
-            )
+        replayed = await service.rotate_refresh_token(
+            refresh_token_repo, session_a.refresh_token, config=auth_config, now=NOW
+        )
+        assert isinstance(replayed, service.ReuseDetected)
 
         rotated_b = await service.rotate_refresh_token(
             refresh_token_repo, session_b.refresh_token, config=auth_config, now=NOW
@@ -313,10 +312,10 @@ class TestRotateRefreshToken:
         )
         monkeypatch.setattr(refresh_token_repo, "mark_used", AsyncMock(return_value=False))
 
-        with pytest.raises(RefreshTokenReuseDetected):
-            await service.rotate_refresh_token(
-                refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
-            )
+        loser = await service.rotate_refresh_token(
+            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+        )
+        assert isinstance(loser, service.ReuseDetected)
 
         record = await refresh_token_repo.get_by_hash(_hash(original.refresh_token))
         assert record.revoked_at == NOW

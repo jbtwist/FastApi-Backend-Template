@@ -21,9 +21,7 @@ from backend.mail.models import EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
 
 
-async def register_user(
-    user_repo: UserRepository, *, email: str, password: str
-) -> User | None:
+async def register_user(user_repo: UserRepository, *, email: str, password: str) -> User | None:
     """Create a new user with a hashed password, or no-op if the email is taken.
 
     Email is lowercased/trimmed before lookup and storage.

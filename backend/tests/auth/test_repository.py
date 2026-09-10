@@ -126,16 +126,10 @@ class TestSqlRefreshTokenRepository:
         assert (await repo.get_by_hash("in")).revoked_at == NOW
         assert (await repo.get_by_hash("out")).revoked_at is None
 
-    async def test_revoke_all_for_user_revokes_every_open_token(
-        self, db: AsyncSession, user: User
-    ):
+    async def test_revoke_all_for_user_revokes_every_open_token(self, db: AsyncSession, user: User):
         repo = SqlRefreshTokenRepository(db)
-        await repo.create(
-            user_id=user.id, family_id=uuid.uuid4(), token_hash="a", expires_at=LATER
-        )
-        await repo.create(
-            user_id=user.id, family_id=uuid.uuid4(), token_hash="b", expires_at=LATER
-        )
+        await repo.create(user_id=user.id, family_id=uuid.uuid4(), token_hash="a", expires_at=LATER)
+        await repo.create(user_id=user.id, family_id=uuid.uuid4(), token_hash="b", expires_at=LATER)
 
         await repo.revoke_all_for_user(user.id, revoked_at=NOW)
         await db.flush()

@@ -10,7 +10,6 @@ from backend.auth.exceptions import (
     InvalidCredentials,
     InvalidRefreshToken,
     RefreshTokenExpired,
-    RefreshTokenReuseDetected,
 )
 from backend.auth.models import User
 from backend.auth.repository import RefreshTokenRepository, UserRepository
@@ -29,6 +28,18 @@ class TokenPair:
 
     access_token: str
     refresh_token: str
+
+
+@dataclass
+class ReuseDetected:
+    """A spent refresh token was presented again; its family is now revoked.
+
+    Returned rather than raised so that the revocation reaches the database.
+    A request is one transaction and an exception leaving the endpoint rolls it back.
+    The caller still answers 401.
+    """
+
+    family_id: uuid.UUID
 
 
 async def authenticate_user(user_repo: UserRepository, *, email: str, password: str) -> User:
@@ -89,19 +100,23 @@ async def rotate_refresh_token(
     *,
     config: AuthConfig,
     now: datetime,
-) -> TokenPair:
+) -> TokenPair | ReuseDetected:
     """Exchange a refresh token for a new pair, retiring the old one within its family.
 
     Each refresh token is single-use: this consumes `raw_refresh_token` and
     issues a replacement in the same `family_id`. If a token that was already
-    used (or already lost the race to be marked used) is presented again,
-    that's treated as a stolen/replayed token — the whole family is revoked,
+    used is presented again, that's treated as a stolen token and the whole family is revoked,
     which signs out every device sharing that login's rotation chain.
+
+    Returns:
+        The new `TokenPair`, or `ReuseDetected` if `raw_refresh_token` had
+        already been spent. Reuse is a return value, not an exception, because
+        the revocation it performs has to survive the 401 the caller sends
+        back; see `ReuseDetected`.
 
     Raises:
         InvalidRefreshToken: the token doesn't exist or its family was already revoked.
         RefreshTokenExpired: the token exists but is past `expires_at`.
-        RefreshTokenReuseDetected: the token was already used once before (reuse/replay).
     """
     record = await refresh_token_repo.get_by_hash(hash_opaque_token(raw_refresh_token))
     if record is None or record.revoked_at is not None:
@@ -109,7 +124,7 @@ async def rotate_refresh_token(
 
     if record.used_at is not None:
         await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
-        raise RefreshTokenReuseDetected
+        return ReuseDetected(family_id=record.family_id)
 
     if record.expires_at <= now:
         raise RefreshTokenExpired
@@ -117,7 +132,7 @@ async def rotate_refresh_token(
     won_race = await refresh_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
         await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
-        raise RefreshTokenReuseDetected
+        return ReuseDetected(family_id=record.family_id)
 
     new_raw_refresh_token = generate_opaque_token()
     await refresh_token_repo.create(

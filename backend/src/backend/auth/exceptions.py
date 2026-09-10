@@ -22,10 +22,6 @@ class RefreshTokenExpired(AuthError):
     pass
 
 
-class RefreshTokenReuseDetected(AuthError):
-    pass
-
-
 class EmailNotVerified(AuthError):
     pass
 
