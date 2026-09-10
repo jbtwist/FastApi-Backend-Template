@@ -10,15 +10,14 @@ suite, so what you see here is what the current code renders — see
 
 ## Prerequisites
 
-Start Postgres and the backend, then the Expo web client:
-
-```bash
-cd backend
-uv run uvicorn backend.main:app --reload
-```
+Set up and start the backend first — services, `.env`, migrations and
+processes are all listed under
+[the API walkthrough's prerequisites](index.md#prerequisites). Then serve the
+web client:
 
 ```bash
 cd frontend
+npm install
 npm run web
 ```
 
@@ -26,6 +25,13 @@ The client reads `EXPO_PUBLIC_API_URL` at build time and falls back to
 `http://localhost:8000`. The backend has to list the client's origin in
 `CORS_ALLOWED_ORIGINS` — it defaults to `http://localhost:8081`, which is where
 Expo serves the web bundle.
+
+Two backend settings matter more here than they do over `curl`:
+
+- `COOKIE_SECURE` must be `false`, or the browser silently drops the auth
+  cookies the API sets over plain `http`.
+- `EXPO_PUBLIC_PASSWORD_MIN_LENGTH` has to agree with the backend's
+  `PASSWORD_STRENGTH` — see [step 1](#1-register).
 
 You also need somewhere for the verification email to land. Either run an SMTP
 catcher such as [Mailpit](https://mailpit.axllent.org/) on `localhost:1025`

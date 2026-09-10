@@ -9,18 +9,105 @@ each screen, see [Create an account in the web client](web-client.md).
 
 ## Prerequisites
 
-Start the backend and its dependencies (Postgres, Redis, the Celery worker
-and beat scheduler, and an SMTP catcher such as [Mailpit](https://mailpit.axllent.org/)
-on `localhost:1025` — see `backend/.env.example` for the expected connection
-settings).
+### Have these running
+
+Five pieces sit behind the API. The first three you install and start yourself;
+the two Celery processes are started from `backend/` further down.
+
+| | Where the defaults expect it | What needs it |
+| --- | --- | --- |
+| **Postgres** 14 or newer | `localhost:5432` | everything — the API will not start without it |
+| **Redis** | `localhost:6379` | the per-route rate limiter on db `0`, the Celery broker on db `1` |
+| An **SMTP catcher**, e.g. [Mailpit](https://mailpit.axllent.org/) | `localhost:1025` | where the worker delivers, so you can read the link |
+| **Celery worker** | `backend/` | the only thing that sends a queued email — without it the outbox row just sits `PENDING` |
+| **Celery beat** | `backend/` | re-queues rows whose dispatch was lost; a safety net, not the delivery path |
+
+Registering writes a row in the outbox and queues `dispatch_email`. No email is
+sent until a Celery worker is up. Beat
+runs `sweep_pending_emails`, which re-dispatches rows untouched for
+`EMAIL_SWEEP_STALE_AFTER_SECONDS` — so mail still sends without beat, it just
+stops recovering from a lost enqueue. See
+[the outbox decision](../architecture/decisions/0003-durable-email-outbox-before-dispatch.md).
+
+
+### Configure
+
+The three settings classes each read `backend/.env` at import, so the file has
+to exist before anything starts:
 
 ```bash
-cd backend
+cp .env.example .env
 uv sync
-uv run uvicorn backend.main:app --reload
 ```
 
-<!-- TODO: confirm the exact commands to start the Celery worker/beat and Postgres/Redis once there's a settled way to run them (no docker-compose or Procfile yet). -->
+`.env.example` matches every default on this page. Five settings have no
+fallback and must be present or the process fails to import:
+
+| Setting | Why |
+| --- | --- |
+| `DATABASE_URL` | the async Postgres DSN (`postgresql+asyncpg://…`) |
+| `JWT_SECRET` | signs access tokens; any random string locally |
+| `CELERY_BROKER_URL` | where `dispatch_email` is queued |
+| `CELERY_RESULT_BACKEND` | where Celery stores task results |
+| `FROM_EMAIL` | sender address on outgoing mail |
+
+Two more have defaults that are wrong for a local run, and `.env.example`
+already overrides both:
+
+- `COOKIE_SECURE` defaults to `true`, which makes a browser discard the auth
+  cookies over plain `http`. Locally it has to be `false`.
+- `REDIS_URL` is read by the rate-limiting library's own settings, not by
+  `backend.config.Settings` — it is absent from the backend's config classes
+  by design, so don't go looking for it there.
+
+### Create the database and migrate
+
+Alembic connects to `DATABASE_URL` but will not create the database itself:
+
+```bash
+createdb todoapp
+uv run alembic upgrade head
+```
+
+### Start the processes
+
+Three terminals, all in `backend/`:
+
+```bash
+uv run uvicorn backend.main:app --reload                        # the API, on :8000
+uv run celery -A backend.mail.celery_app worker --loglevel INFO # sends queued email
+uv run celery -A backend.mail.celery_app beat                   # re-queues email stuck PENDING
+```
+
+Confirm the API is up before going on:
+
+```bash
+curl http://localhost:8000/health   # {"status":"ok"}
+```
+
+### Running with less
+
+Only Postgres is truly required. Two things are safe to drop while you're
+finding your feet:
+
+- **No Redis.** Set `RATE_LIMIT_ENABLED=false`, which removes the limiter's
+  dependency rather than skipping it, so no request path resolves a Redis
+  client. Queuing an email is already best-effort — a failed `.delay` is logged
+  and swallowed, the outbox row having been committed first.
+- **No worker, no beat, no SMTP catcher.** Nothing sends the email, but the row
+  is still written, and it holds the token in the clear (the token tables store
+  only its hash). Read it straight out of Postgres instead of an inbox:
+
+  ```bash
+  psql todoapp -c "SELECT token FROM email_outbox \
+    WHERE email = 'you@example.com' AND kind = 'verification' \
+    ORDER BY created_at DESC LIMIT 1;"
+  ```
+
+One default reaches the network: `PASSWORD_CHECK_PWNED=true` calls
+`api.pwnedpasswords.com` on every register and password reset. It fails open,
+so being offline costs you the breach check but nothing else. Set it to `false`
+to skip the call.
 
 ## 1. Register
 
