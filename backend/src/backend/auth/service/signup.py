@@ -28,8 +28,9 @@ async def register_user(user_repo: UserRepository, *, email: str, password: str)
 
     Returns the new `User`, or `None` when the normalized email already belongs
     to an account — including when a concurrent signup wins the insert race. The
-    caller must not disclose which case occurred (enumeration safety, FR-036):
-    a `None` return means "queue no verification email", nothing more.
+    caller must not disclose which case occurred, or the endpoint becomes an
+    account-enumeration oracle: a `None` return means "queue no verification
+    email", nothing more.
     """
     normalized_email = email.strip().lower()
     if await user_repo.get_by_email(normalized_email) is not None:

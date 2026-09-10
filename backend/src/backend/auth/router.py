@@ -138,7 +138,7 @@ async def register(
 ) -> None:
     """Register an account and queue its verification email.
 
-    Enumeration-safe (FR-036, SC-013): an already-registered address is a silent
+    Enumeration-safe: an already-registered address is a silent
     no-op with a byte-identical `204` and the same response-floor timing, so the
     endpoint can't be used to discover which addresses have accounts. The
     password policy still runs first and can `422` — that check never consults

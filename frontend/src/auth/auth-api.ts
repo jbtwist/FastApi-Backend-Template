@@ -1,7 +1,8 @@
 /**
  * One typed function per `/auth` endpoint the frontend calls, each a thin
- * delegate to `api-client`'s `request()`. Source of truth for method / path /
- * body / status: `specs/002-auth-frontend-flows/contracts/auth-api.md`.
+ * delegate to `api-client`'s `request()`. The API's own OpenAPI spec, at `/docs`
+ * on the running backend, is the source of truth for method, path, body and
+ * status.
  *
  * Error handling, transport and refresh-on-401 all live in `api-client`; this
  * module only names the calls and types their payloads.
@@ -25,7 +26,7 @@ export interface TokenPairOut {
 /** `LoginOut` — identity plus the token pair, returned by `POST /auth/login`. */
 export type LoginOut = UserOut & TokenPairOut;
 
-/** `POST /auth/register` → `204`. Enumeration-safe (contracts/backend-changes.md Δ1). */
+/** `POST /auth/register` → `204`, identical whether or not the email is taken. */
 export function register(body: { email: string; password: string }): Promise<void> {
   return request<void>('/auth/register', {
     method: 'POST',

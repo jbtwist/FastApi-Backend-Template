@@ -1,8 +1,7 @@
 /**
  * The transport layer for every `/auth` call.
  *
- * Responsibilities (contracts/auth-api.md — "Transport per platform" +
- * "Refresh-on-401 protocol"):
+ * Responsibilities:
  *  - attach the session: `Authorization: Bearer` on native, `credentials: 'include'`
  *    on web
  *  - map any failure to a typed `AuthUiError` via `errors.ts`
