@@ -4,7 +4,7 @@ import {
   toAuthUiError,
 } from '../errors';
 
-describe('toAuthUiError — mapping table (contracts/auth-api.md)', () => {
+describe('toAuthUiError — mapping table', () => {
   it('400 on confirm-email → invalid-token', () => {
     expect(
       toAuthUiError(400, 'Invalid or expired verification token', 'confirm-email'),

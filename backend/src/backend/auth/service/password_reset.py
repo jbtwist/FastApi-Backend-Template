@@ -27,8 +27,7 @@ async def request_password_reset(
     """Mint a password-reset token for a verified user and durably queue the reset email.
 
     Returns `None` without raising or revealing anything if the email is
-    unregistered or not yet verified — callers must treat both the same as the
-    success case (a bare "check your inbox" response) so the endpoint can't be
+    unregistered or not yet verified so the endpoint can't be
     used to enumerate registered addresses. An unverified address also hasn't
     been proven to belong to the account, so it can't be used to take it over.
 
@@ -62,11 +61,11 @@ async def assert_reset_token_valid(
     *,
     now: datetime,
 ) -> None:
-    """Check that a reset token exists, is unused and unexpired — without consuming it.
+    """Check that a reset token exists, is unused and unexpired without consuming it.
 
-    Lets the router reject a bad token (cheap: one hash + one indexed lookup)
-    before running the password policy, which may make an outbound breach-check
-    call. `reset_password` re-runs these checks and additionally guards the
+    Lets the router reject a bad token before running the password policy,
+    which may make an outbound breach-check call.
+    `reset_password` re-runs these checks and additionally guards the
     consume race, so this is an optimisation, not the security boundary.
 
     Raises:

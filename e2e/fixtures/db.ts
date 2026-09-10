@@ -76,6 +76,29 @@ export class Db {
     }
   }
 
+  /**
+   * Remove an account and everything hanging off it.
+   *
+   * The specs mint a unique address per test and never need this. The
+   * documentation capture does: it uses one fixed, readable address so the
+   * screenshots do not show a UUID, which means each run has to start from a
+   * clean slate.
+   */
+  async deleteAccount(email: string): Promise<void> {
+    const { rows } = await this.client.query<{ id: string }>(
+      'SELECT id FROM "user" WHERE email = $1',
+      [email],
+    );
+    await this.client.query('DELETE FROM email_outbox WHERE email = $1', [email]);
+    if (rows.length === 0) return;
+
+    const userId = rows[0].id;
+    await this.client.query('DELETE FROM refresh_token WHERE user_id = $1', [userId]);
+    await this.client.query('DELETE FROM email_verification_token WHERE user_id = $1', [userId]);
+    await this.client.query('DELETE FROM password_reset_token WHERE user_id = $1', [userId]);
+    await this.client.query('DELETE FROM "user" WHERE id = $1', [userId]);
+  }
+
   /** How many emails of one kind have been queued for an address. */
   async countOutboxEntries(email: string, kind: EmailKind): Promise<number> {
     const { rows } = await this.client.query<{ count: string }>(

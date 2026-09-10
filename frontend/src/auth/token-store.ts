@@ -4,9 +4,6 @@
  * Native (iOS / Android): the pair lives in the OS keychain / keystore via
  * `expo-secure-store`. Web: a no-op — the browser holds the session in
  * `httponly`.
- *
- * Source: `specs/002-auth-frontend-flows/research.md` §2–§3,
- * `data-model.md` → AuthSession.tokens.
  */
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';

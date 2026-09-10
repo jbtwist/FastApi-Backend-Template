@@ -1,7 +1,7 @@
 /**
- * T025 — `auth-context` state machine (RED).
+ * `auth-context` state machine.
  *
- * Exercises every transition in `data-model.md` → AuthSession:
+ * Exercises every transition:
  *   loading → signedIn | signedOut         (bootstrap)
  *   signedOut → signedIn                    (signIn)
  *   signedIn → signedOut                    (signOut)
@@ -9,7 +9,7 @@
  *
  * Transport is a queued `fetch` mock (FIFO, url-agnostic) plus the in-memory
  * `expo-secure-store` fake, so the provider is driven purely through
- * `api-client` / `auth-api` against the `contracts/auth-api.md` shapes.
+ * `api-client` / `auth-api` against the API's real response shapes.
  */
 import { Platform } from 'react-native';
 import { act, renderHook, waitFor } from '@testing-library/react-native';

@@ -39,6 +39,7 @@ Python 3.14, managed by `uv`. Needs Postgres and Redis running (see `backend/.en
 ### Frontend (run from `frontend/`)
 
 ```bash
+npm ci                       # install; .npmrc blocks dep scripts + 3-day release cooldown (ADR 6)
 npm test                     # jest (jest-expo preset)
 npm test -- sign-in          # tests matching a pattern
 npm run typecheck            # tsc for app + test tsconfigs

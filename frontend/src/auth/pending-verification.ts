@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * by the "verify your email" screen to name the account and to throttle
  * "Resend" client-side (the server also enforces its own limit). Not a secret,
  * so it lives in plain device storage, not the secure store. Cleared once the
- * account is verified or on a successful sign-in. See `data-model.md`.
+ * account is verified or on a successful sign-in.
  */
 export interface PendingVerification {
   email: string;

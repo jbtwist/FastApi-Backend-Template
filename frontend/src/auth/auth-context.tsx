@@ -1,5 +1,5 @@
 /**
- * The auth session state machine (`data-model.md` → AuthSession).
+ * The auth session state machine.
  *
  *   loading ──bootstrap ok──▶ signedIn
  *   loading ──no / dead session──▶ signedOut
@@ -8,7 +8,7 @@
  *   signedIn / renewing ──refresh 401──▶ expired ──▶ signedOut  (+ signedOutReason)
  *
  * Transport, error mapping and single-flight refresh-on-401 live in
- * `api-client` (T022); the typed calls in `auth-api` (T023). This provider only
+ * `api-client`; the typed calls in `auth-api`. This provider only
  * owns the machine and the platform split for "do I have a session?":
  *   - native: a token pair in `expo-secure-store` gates the `/me` probe;
  *   - web: no token is touched — `/me` succeeding *is* the session.

@@ -47,8 +47,12 @@ async def get_pwned_password_checker() -> AsyncIterator[PwnedPasswordChecker]:
     """A HIBP breach checker backed by a per-request httpx client.
 
     Register/reset are the only callers, so a fresh connection per call is cheap
-    and it sidesteps the lifecycle problems of a module-level client. HIBP asks
-    callers to send a User-Agent; Add-Padding hides the true bucket size.
+    and it sidesteps the lifecycle problems of a module-level client. HIBP
+    [requires a User-Agent][ua] identifying the caller, and
+    [`Add-Padding`][padding] hides the true bucket size.
+
+    [ua]: https://haveibeenpwned.com/API/v3#UserAgent
+    [padding]: https://haveibeenpwned.com/API/v3#PwnedPasswordsPadding
     """
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(2.0),

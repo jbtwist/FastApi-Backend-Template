@@ -4,7 +4,7 @@
  * visible. Visuals come entirely from theme tokens.
  *
  * `dividerSlot` renders an "or" divider under the card body with the slot
- * content below it — that is where `<ProviderButtons />` (T031) sits.
+ * content below it — that is where `<ProviderButtons />` sits.
  */
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
