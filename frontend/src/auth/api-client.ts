@@ -83,6 +83,7 @@ export interface RequestOptions {
   context: AuthEndpointContext;
   /**
    * Whether this call carries the session and should trigger refresh-on-401.
+   */
   authed?: boolean;
   /** Email typed into the form. */
   submittedEmail?: string;
