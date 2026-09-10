@@ -1,8 +1,20 @@
-"""Password strength policy (OWASP ASVS v4 2.1.x) and pwned-password checking.
+"""Password strength policy and pwned-password checking.
 
 Length-based strength with a generous maximum, no composition or rotation rules,
 plus a k-anonymity breach check against Have I Been Pwned that fails open.
 Enforced wherever a password is set (registration, password reset).
+
+Every rule here comes from [OWASP ASVS v4, chapter V2.1][asvs]:
+
+| Requirement | Where it lives |
+| --- | --- |
+| 2.1.1 — at least 12 characters | `MIN_LENGTH_BY_STRENGTH[MEDIUM]`, the default tier |
+| 2.1.2 — permit 64, deny past 128 | `AuthConfig.PASSWORD_MAX_LENGTH` (`default=128, ge=64`) |
+| 2.1.7 — breach check | `validate_password_strength` via `PwnedPasswordChecker` |
+| 2.1.9 — no composition rules | nothing here inspects character classes |
+| 2.1.10 — no periodic rotation | no password expiry anywhere in the app |
+
+[asvs]: https://github.com/OWASP/ASVS/blob/v4.0.3/4.0/en/0x11-V2-Authentication.md
 """
 
 import hashlib
@@ -56,11 +68,24 @@ async def validate_password_strength(
 
 
 class HIBPPwnedPasswordChecker:
-    """Have I Been Pwned range-API checker using k-anonymity.
+    """Have I Been Pwned [range-API][api] checker using [k-anonymity][kanon].
 
-    Only the first 5 hex chars of the password's SHA-1 digest leave the process
-    (ASVS 2.1.7). Fails open: any transport error or non-200 response is treated
-    as "not pwned", so a HIBP outage never blocks a password change.
+    Only the first 5 hex chars of the password's SHA-1 digest leave the process,
+    which is what makes an online breach check (ASVS 2.1.7) safe to run: the
+    service answers with every hash sharing that prefix — hundreds of them — and
+    never learns which one was asked about. SHA-1 is the API's choice of digest,
+    not this app's choice of password hash; stored passwords are argon2.
+
+    Requests set [`Add-Padding`][padding] (in `auth.dependencies`) so the size of
+    the response no longer leaks how many hashes share the prefix. Entries with a
+    count of `0` are the padding, and are skipped.
+
+    Fails open: any transport error or non-200 response is treated as "not
+    pwned", so a HIBP outage never blocks a password change.
+
+    [api]: https://haveibeenpwned.com/API/v3#SearchingPwnedPasswordsByRange
+    [kanon]: https://blog.cloudflare.com/validating-leaked-passwords-with-k-anonymity/
+    [padding]: https://haveibeenpwned.com/API/v3#PwnedPasswordsPadding
     """
 
     def __init__(self, *, client: httpx.AsyncClient) -> None:

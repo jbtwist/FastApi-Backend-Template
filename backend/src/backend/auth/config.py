@@ -8,9 +8,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class PasswordStrength(StrEnum):
     """Minimum-length tier for accepted passwords.
 
-    Floors live in `backend.auth.password_policy.MIN_LENGTH_BY_STRENGTH`:
-    LOW = 8 (ASVS/NIST absolute minimum), MEDIUM = 12 (ASVS v4 2.1.1 baseline),
-    HIGH = 15 (NIST SP 800-63B recommended).
+    Floors live in `backend.auth.password_policy.MIN_LENGTH_BY_STRENGTH`, each
+    tier tracking a published one:
+
+    - `LOW` = 8 — below every single-factor recommendation, and the shortest
+      [NIST SP 800-63B-4 §3.1.1.2][nist] allows at all, which it permits only
+      for a password used *inside* multi-factor authentication.
+    - `MEDIUM` = 12 — the [ASVS v4 2.1.1][asvs] baseline. The default.
+    - `HIGH` = 15 — the [NIST SP 800-63B-4][nist] minimum for a password used as
+      a single factor, which is what this app does.
+
+    [asvs]: https://github.com/OWASP/ASVS/blob/v4.0.3/4.0/en/0x11-V2-Authentication.md
+    [nist]: https://pages.nist.gov/800-63-4/sp800-63b.html
     """
 
     LOW = "low"

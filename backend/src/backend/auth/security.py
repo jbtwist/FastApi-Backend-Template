@@ -19,7 +19,13 @@ DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
 
 def hash_password(password: str) -> str:
-    """Hash a password with argon2 for storage."""
+    """Hash a password with argon2 for storage.
+
+    argon2id at `argon2-cffi`'s own defaults, which track the
+    [OWASP Password Storage Cheat Sheet][owasp] recommendation.
+
+    [owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+    """
     return _password_hasher.hash(password)
 
 
