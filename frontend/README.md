@@ -7,8 +7,12 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 1. Install dependencies
 
    ```bash
-   npm install
+   npm ci
    ```
+
+   `.npmrc` blocks dependency install scripts and refuses versions published in
+   the last three days (needs npm >= 11.10.0). See
+   [ADR 6](../docs/architecture/decisions/0006-harden-npm-installs-over-pnpm.md).
 
 2. Start the app
 

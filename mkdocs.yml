@@ -69,3 +69,4 @@ nav:
           - 3. Durable email outbox: architecture/decisions/0003-durable-email-outbox-before-dispatch.md
           - 4. Email verification via frontend: architecture/decisions/0004-email-verification-via-frontend.md
           - 5. Frontend owns auth error copy: architecture/decisions/0005-frontend-owns-auth-error-copy.md
+          - 6. Harden npm installs over pnpm: architecture/decisions/0006-harden-npm-installs-over-pnpm.md
