@@ -55,7 +55,9 @@ Two more have defaults that are wrong for a local run, and `.env.example`
 already overrides both:
 
 - `COOKIE_SECURE` defaults to `true`, which makes a browser discard the auth
-  cookies over plain `http`. Locally it has to be `false`.
+  cookies over plain `http`. Locally it has to be `false`. That override is for
+  local `http` only — any deployment served over `https` keeps the `true`
+  default, or the session cookies travel in plaintext.
 - `REDIS_URL` is read by the rate-limiting library's own settings, not by
   `backend.config.Settings` — it is absent from the backend's config classes
   by design, so don't go looking for it there.

@@ -41,10 +41,11 @@ Expo serves the web bundle.
 
 Two backend settings matter more here than they do over `curl`:
 
-- `COOKIE_SECURE` must be `false`, or the browser silently drops the auth
-  cookies the API sets over plain `http`.
+- `COOKIE_SECURE` must be `false` for local development, or the browser silently
+  drops the auth cookies the API sets over plain `http`. It defaults to `true`
+  and has to stay that way once the app is served over `https`.
 - `EXPO_PUBLIC_PASSWORD_MIN_LENGTH` has to agree with the backend's
-  `PASSWORD_STRENGTH` — see [step 1](#1-register).
+  `PASSWORD_STRENGTH`.
 
 You also need somewhere for the verification email to land. Either run an SMTP
 catcher such as [Mailpit](https://mailpit.axllent.org/) on `localhost:1025`
@@ -58,10 +59,15 @@ select **Create account**.
 
 ![The register screen, with an email and password filled in](../assets/screenshots/register.png)
 
-The password must be at least 12 characters by default. The floor comes from
-`PASSWORD_STRENGTH` on the backend, and the client mirrors it through
-`EXPO_PUBLIC_PASSWORD_MIN_LENGTH` — set the two to different values and a
-length rejection arrives as an error the screen cannot explain properly.
+The password length is defined by `PASSWORD_STRENGTH` (`low` 8, `medium` 12, `high` 15) and
+the client repeats the same number through `EXPO_PUBLIC_PASSWORD_MIN_LENGTH` so
+the form rejects a short password itself, before it reaches the API.
+
+Set both to the same length. The screen relies on the agreement: having already
+checked the length, it reads a rejection from the API as the one rule it cannot
+check locally, and tells you the password has appeared in a data breach. Give
+the client the lower number and a password that is merely too short comes back
+described as a leaked one.
 
 Registration always reports success, whether or not the address already had an
 account, so the response cannot be used to discover who is registered.
