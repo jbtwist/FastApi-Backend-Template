@@ -20,7 +20,7 @@ Refresh tokens are single-use and rotate on every `/auth/refresh` call. All
 tokens produced by rotating from one login share that login's `family_id`
 (`backend.auth.service.issue_token_pair` starts a new family; `rotate_refresh_token`
 carries it forward). If a token that was already used gets presented again,
-the entire family is revoked (`backend.auth.exceptions.RefreshTokenReuseDetected`).
+the entire family is revoked.
 
 Because each login gets its own family, revoking one compromised session's
 family doesn't touch the user's other sessions.
