@@ -17,9 +17,22 @@ web client:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run web
 ```
+
+`npm ci` installs exactly what `package-lock.json` pins and nothing else. The
+checked-in `frontend/.npmrc` hardens that install against a supply-chain attack,
+so you do not need `pnpm` or `yarn` to be safe here:
+
+- **No install scripts run.** `ignore-scripts=true` blocks every dependency's
+  `preinstall`/`install`/`postinstall`/`prepare` hook — the code path a
+  compromised package uses to run on your machine during `npm install`.
+- **New releases wait three days.** `min-release-age=3` makes npm refuse any
+  dependency version published in the last 72 hours, so a malicious release
+  pulled before it is caught and removed never lands in the lockfile. It applies
+  when you add or update a dependency (`npm install <pkg>`, `npm update`), not
+  to `npm ci`, and needs npm 11.10.0 or newer.
 
 The client reads `EXPO_PUBLIC_API_URL` at build time and falls back to
 `http://localhost:8000`. The backend has to list the client's origin in

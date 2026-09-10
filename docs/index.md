@@ -82,9 +82,12 @@ uv run uvicorn backend.main:app --reload
 Frontend, from `frontend/`:
 
 ```bash
-npm install
+npm ci
 npm run web
 ```
+
+`npm ci` here runs no dependency install scripts and honours a three-day release
+cooldown, both set in `frontend/.npmrc`.
 
 To actually receive the verification and reset emails, run an SMTP catcher such
 as [Mailpit](https://mailpit.axllent.org/) on `localhost:1025` plus the Celery
