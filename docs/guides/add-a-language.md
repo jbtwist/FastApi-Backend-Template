@@ -82,7 +82,19 @@ import { t } from '@/i18n';         // non-component code, one-off lookups
 `TranslationKey` is derived from the English tree, so keys autocomplete and a
 typo fails the build.
 
-Anything stored in state — a field error, a banner — must hold a `Message` (a
-key, or a key plus its options) rather than the output of `t()`. Resolving early
-freezes the string in the language that was active at the time. See
-[Show an auth error message](auth-error-messages.md).
+Anything that outlives the render that created it — a field error, a banner —
+must hold a `Message` (a key, or a key plus its options) rather than the output
+of `t()`. Resolving early freezes the string in the language that was active at
+the time, so it sits there untranslated after a switch while the rest of the
+screen updates:
+
+```tsx
+form.setError('password', 'errors.passwordRejected');                     // right
+form.setError('password', t('errors.passwordRejected'));                  // wrong
+setMessage({ kind: 'error', message: { key: 'x.y', options: { n: 3 } } }); // with values
+```
+
+`useForm` translates its `errors` on the way out and `FormMessage` translates
+its own banner, so screens read `errors.password` as a plain string and pass
+`formMessage` straight through. Validators in `forms/validators.ts` return keys
+for the same reason, which also keeps them pure — they never import `t`.

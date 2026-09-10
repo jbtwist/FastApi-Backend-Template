@@ -8,6 +8,7 @@ Auto-generated from docstrings — do not edit by hand.
 
 Backend only: mkdocstrings is configured with the Python handler, so there is no
 generated reference for the Expo app. Frontend modules document themselves in
-TSDoc, which editors surface at the call site, and the guides cover the parts
-worth explaining in prose — [auth error messages](../guides/auth-error-messages.md),
-[adding a language](../guides/add-a-language.md), and [theming](../guides/theming.md).
+TSDoc, which editors surface at the call site — `src/auth/errors.ts` carries the
+auth-failure classification — and the guides cover the parts worth explaining in
+prose: [adding a language](../guides/add-a-language.md) and
+[theming](../guides/theming.md).

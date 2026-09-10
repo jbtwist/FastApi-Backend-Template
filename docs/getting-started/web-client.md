@@ -112,8 +112,8 @@ than a failure.
 A wrong password and an address with no account produce the identical message,
 **Email or password is incorrect** — again so the screen cannot be used to
 enumerate accounts. That copy comes from the client's own translations, never
-from the API; see [Show an auth error message](../guides/auth-error-messages.md)
-and [the error-copy decision](../architecture/decisions/0005-frontend-owns-auth-error-copy.md).
+from the API — see
+[the error-copy decision](../architecture/decisions/0005-frontend-owns-auth-error-copy.md).
 
 ## 4. You are in
 

@@ -6,6 +6,20 @@
  * identified by its status and the endpoint that produced it, then screens map
  * the resulting kind to a translated message in `i18n/locales`. Nothing the
  * backend writes reaches the user, so every message follows the app's language.
+ *
+ * Adding a kind takes four steps:
+ *
+ * 1. Add the variant to {@link AuthUiError}, with a payload only for a value the
+ *    catalogue cannot supply — an address to echo, a retry countdown. Never a
+ *    message.
+ * 2. Return it from {@link toAuthUiError} for the right status *and* context;
+ *    the same status means different things per endpoint.
+ * 3. Add the key to both `i18n/locales/en/errors.json` and `es/errors.json`.
+ *    Spanish is type-checked against English, so a missing one fails
+ *    `npm run typecheck`.
+ * 4. Map the kind to that key in each screen that can produce it. Screens keep
+ *    their own `messageKeyFor`, so two can word one failure differently — on the
+ *    field when the failure names one, in the `FormMessage` banner otherwise.
  */
 
 export type AuthEndpointContext =
