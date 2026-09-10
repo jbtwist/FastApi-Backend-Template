@@ -6,3 +6,4 @@
 - [Add a language](add-a-language.md)
 - [Switch and extend the theme](theming.md)
 - [Native deep-linking](native-deep-linking.md)
+- [Harden npm installs](npm-hardening.md)
