@@ -11,6 +11,7 @@ from backend.auth.models import (
     RefreshToken,
     User,
 )
+from backend.log import log_event
 
 
 class UserRepository(Protocol):
@@ -46,6 +47,8 @@ class SqlUserRepository:
         user = User(email=email, password_hash=password_hash)
         async with self._db.begin_nested():
             self._db.add(user)
+            await self._db.flush()
+        log_event("db_write", table=User.__tablename__, operation="insert", user_id=user.id)
         return user
 
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool:
@@ -53,6 +56,14 @@ class SqlUserRepository:
             update(User)
             .where(User.id == user_id, User.email_verified_at.is_(None))
             .values(email_verified_at=verified_at)
+        )
+        log_event(
+            "db_write",
+            table=User.__tablename__,
+            operation="update",
+            column="email_verified_at",
+            user_id=user_id,
+            rowcount=result.rowcount,
         )
         return result.rowcount == 1
 
@@ -63,6 +74,14 @@ class SqlUserRepository:
             update(User)
             .where(User.id == user_id)
             .values(password_hash=password_hash, updated_at=updated_at)
+        )
+        log_event(
+            "db_write",
+            table=User.__tablename__,
+            operation="update",
+            column="password_hash",
+            user_id=user_id,
+            rowcount=result.rowcount,
         )
         return result.rowcount == 1
 
@@ -112,6 +131,13 @@ class _SqlSingleUseTokenRepository[TokenT]:
         token = self.model(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
         self._db.add(token)
         await self._db.flush()
+        log_event(
+            "db_write",
+            table=self.model.__tablename__,
+            operation="insert",
+            user_id=user_id,
+            token_id=token.id,
+        )
         return token
 
     async def get_by_hash(self, token_hash: str) -> TokenT | None:
@@ -126,6 +152,14 @@ class _SqlSingleUseTokenRepository[TokenT]:
             .where(self.model.id == token_id, self.model.used_at.is_(None))
             .values(used_at=used_at)
         )
+        log_event(
+            "db_write",
+            table=self.model.__tablename__,
+            operation="update",
+            column="used_at",
+            token_id=token_id,
+            rowcount=result.rowcount,
+        )
         return result.rowcount == 1
 
 
@@ -139,10 +173,18 @@ class SqlPasswordResetTokenRepository(_SqlSingleUseTokenRepository[PasswordReset
     async def invalidate_all_for_user(
         self, user_id: uuid.UUID, *, invalidated_at: datetime
     ) -> None:
-        await self._db.execute(
+        result = await self._db.execute(
             update(PasswordResetToken)
             .where(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
             .values(used_at=invalidated_at)
+        )
+        log_event(
+            "db_write",
+            table=PasswordResetToken.__tablename__,
+            operation="update",
+            column="used_at",
+            user_id=user_id,
+            rowcount=result.rowcount,
         )
 
 
@@ -165,6 +207,14 @@ class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
         )
         self._db.add(token)
         await self._db.flush()
+        log_event(
+            "db_write",
+            table=RefreshToken.__tablename__,
+            operation="insert",
+            user_id=user_id,
+            family_id=family_id,
+            token_id=token.id,
+        )
         return token
 
     async def revoke_family(self, family_id: uuid.UUID, *, revoked_at: datetime) -> None:
@@ -173,12 +223,30 @@ class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
                 RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None)
             )
         )
+        revoked = 0
         for token in result.scalars():
             token.revoked_at = revoked_at
+            revoked += 1
+        log_event(
+            "db_write",
+            table=RefreshToken.__tablename__,
+            operation="update",
+            column="revoked_at",
+            family_id=family_id,
+            rowcount=revoked,
+        )
 
     async def revoke_all_for_user(self, user_id: uuid.UUID, *, revoked_at: datetime) -> None:
-        await self._db.execute(
+        result = await self._db.execute(
             update(RefreshToken)
             .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=revoked_at)
+        )
+        log_event(
+            "db_write",
+            table=RefreshToken.__tablename__,
+            operation="update",
+            column="revoked_at",
+            user_id=user_id,
+            rowcount=result.rowcount,
         )

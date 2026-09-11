@@ -1,0 +1,233 @@
+"""Structured application logging: configuration, formatters, and the audit event API.
+
+Every record goes to stdout as a single line. The app is stateless and scales
+horizontally, so log files, rotation and shipping belong to whatever runs the
+process, not to the process itself.
+
+Two kinds of record travel through here. An `audit_event` is a deliberate record
+of something the app did — a user registered, a refresh token was reused, a row
+was written — emitted through `log_event` and carrying its data as fields rather
+than as prose. Everything else is an ordinary `logging` call from any module, and
+formats as a plain message.
+
+Nothing that reaches a log may carry a credential or an address. `log_event`
+scrubs a fixed set of field names before the record exists, so a caller that
+passes `token_hash=` or `email=` cannot leak one by accident. The denylist matches
+on the *name* of a field, never on the shape of its value: a secret passed under
+some other name is not detected.
+"""
+
+import json
+import logging
+import re
+import sys
+import uuid
+from contextvars import ContextVar
+from datetime import UTC, datetime
+from typing import Any
+
+AUDIT_LOGGER_NAME = "backend.audit"
+CORRELATION_ID_HEADER = b"x-request-id"
+MAX_CORRELATION_ID_LENGTH = 64
+SCRUBBED = "***"
+
+SENSITIVE_FIELDS = frozenset(
+    {
+        "access_token",
+        "authorization",
+        "email",
+        "jwt",
+        "password",
+        "password_hash",
+        "raw_token",
+        "refresh_token",
+        "secret",
+        "token",
+        "token_hash",
+    }
+)
+
+_UNSAFE_CORRELATION_ID = re.compile(r"[^A-Za-z0-9_-]")
+
+correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+
+_audit_logger = logging.getLogger(AUDIT_LOGGER_NAME)
+
+
+def new_correlation_id() -> str:
+    """Mint an id for a request or task that arrived without one."""
+    return uuid.uuid4().hex
+
+
+def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: (SCRUBBED if key.lower() in SENSITIVE_FIELDS else value)
+        for key, value in fields.items()
+    }
+
+
+def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
+    """Record one `audit_event` with its data as structured fields.
+
+    Fields land in a single `audit_fields` dict on the record rather than as
+    separate attributes, which is what lets a caller pass keys like `message` or
+    `name` without colliding with `logging`'s own record attributes. Values under
+    a name in `SENSITIVE_FIELDS` are replaced before the record is built.
+
+    Args:
+        event: Dotted event name, e.g. `user.registered`. Becomes the record's
+            message, so it reads correctly in console format too.
+        level: Severity; defaults to `INFO`. Anything a human should chase —
+            reuse detection, a lost race — belongs at `WARNING`.
+        **fields: Structured data for the event. Ids, counts, reasons. Never a
+            credential, and never an email address.
+    """
+    _audit_logger.log(level, event, extra={"event": event, "audit_fields": _scrub(fields)})
+
+
+class CorrelationIdFilter(logging.Filter):
+    """Stamps the active `correlation_id` onto every record reaching the handler.
+
+    A filter rather than a formatter lookup, so the value is read while the
+    emitting context is still current.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.correlation_id = correlation_id.get()
+        return True
+
+
+class JsonLogFormatter(logging.Formatter):
+    """One JSON object per line.
+
+    Caller fields nest under `fields` rather than flattening into the envelope,
+    so an audit field named `level` or `timestamp` cannot shadow the real one.
+    Values `json` cannot serialise — a `UUID`, a `datetime` — fall back to `str`.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "correlation_id": getattr(record, "correlation_id", None),
+        }
+
+        event = getattr(record, "event", None)
+        if event is None:
+            payload["message"] = record.getMessage()
+        else:
+            payload["event"] = event
+
+        fields = getattr(record, "audit_fields", None)
+        if fields:
+            payload["fields"] = fields
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, default=str)
+
+
+class ConsoleLogFormatter(logging.Formatter):
+    """A readable line for local development: `HH:MM:SS LEVEL event key=value`."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        stamp = datetime.fromtimestamp(record.created, UTC).strftime("%H:%M:%S")
+        head = getattr(record, "event", None) or record.getMessage()
+        parts = [f"{stamp} {record.levelname:<8} {head}"]
+
+        fields = getattr(record, "audit_fields", None)
+        if fields:
+            parts.append(" ".join(f"{key}={value}" for key, value in fields.items()))
+
+        active_correlation_id = getattr(record, "correlation_id", None)
+        if active_correlation_id:
+            parts.append(f"[{active_correlation_id}]")
+
+        line = " ".join(parts)
+        if record.exc_info:
+            line = f"{line}\n{self.formatException(record.exc_info)}"
+        return line
+
+
+_FORMATTERS: dict[str, type[logging.Formatter]] = {
+    "json": JsonLogFormatter,
+    "console": ConsoleLogFormatter,
+}
+
+_LIBRARY_LOGGERS = ("uvicorn", "uvicorn.access", "uvicorn.error", "celery")
+
+
+def configure_logging(*, level: str, log_format: str) -> None:
+    """Point the root logger at stdout with one handler in the requested format.
+
+    Replaces any handler already installed, so calling it twice leaves exactly
+    one — and so it can take the root logger back from a library that configured
+    it first, which is what the Celery worker needs.
+
+    Libraries that install their own handler and stop propagating are pointed
+    back at the root, so one process writes one format. Without that, uvicorn's
+    access lines land on stdout as plain text beside the JSON.
+
+    Raises:
+        ValueError: `log_format` is neither `json` nor `console`.
+    """
+    formatter = _FORMATTERS.get(log_format)
+    if formatter is None:
+        raise ValueError(
+            f"unknown log_format {log_format!r}; expected one of {sorted(_FORMATTERS)}"
+        )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter())
+    handler.addFilter(CorrelationIdFilter())
+
+    root = logging.getLogger()
+    for installed in root.handlers[:]:
+        root.removeHandler(installed)
+    root.addHandler(handler)
+    root.setLevel(level.upper())
+
+    for name in _LIBRARY_LOGGERS:
+        library_logger = logging.getLogger(name)
+        library_logger.handlers.clear()
+        library_logger.propagate = True
+
+
+def sanitize_correlation_id(raw: str) -> str:
+    """Reduce a caller-supplied id to safe characters, capped in length.
+
+    An inbound `X-Request-ID` is attacker-controlled and ends up in a log line;
+    unrestricted, a newline in it would forge a second record.
+    """
+    cleaned = _UNSAFE_CORRELATION_ID.sub("", raw)[:MAX_CORRELATION_ID_LENGTH]
+    return cleaned or new_correlation_id()
+
+
+class CorrelationIdMiddleware:
+    """Gives every request a `correlation_id`, so its log lines can be joined.
+
+    Pure ASGI rather than `BaseHTTPMiddleware`: the context variable is set in
+    the same task that runs the endpoint, with no task hop in between. Logs
+    nothing itself.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        inbound = dict(scope["headers"]).get(CORRELATION_ID_HEADER)
+        value = (
+            sanitize_correlation_id(inbound.decode("latin-1")) if inbound else new_correlation_id()
+        )
+
+        token = correlation_id.set(value)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            correlation_id.reset(token)

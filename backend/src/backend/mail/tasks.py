@@ -3,7 +3,10 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from celery import current_task
+
 from backend.database import WorkerSessionFactory
+from backend.log import correlation_id, new_correlation_id
 from backend.mail import service as mail_service
 from backend.mail.celery_app import celery_app
 from backend.mail.config import mail_settings
@@ -13,6 +16,16 @@ from backend.mail.repository import SqlEmailOutboxRepository
 logger = logging.getLogger(__name__)
 
 _email_sender = get_email_sender()
+
+
+def _seed_correlation_id() -> None:
+    """Tie a task's log lines together under its Celery task id.
+
+    Set before `asyncio.run`, so the coroutine's context copy carries it. Falls
+    back to a fresh id when the task function is called outside a worker.
+    """
+    task_id = getattr(getattr(current_task, "request", None), "id", None)
+    correlation_id.set(task_id or new_correlation_id())
 
 
 async def _dispatch_email(entry_id: str) -> None:
@@ -42,6 +55,7 @@ def dispatch_email(entry_id: str) -> None:
     for a transient failure, while the service counts `attempts` on the row
     itself and marks it `DEAD` at `EMAIL_MAX_DISPATCH_ATTEMPTS`.
     """
+    _seed_correlation_id()
     asyncio.run(_dispatch_email(entry_id))
 
 
@@ -63,6 +77,7 @@ def sweep_pending_emails() -> None:
     A safety net, not the delivery path: the endpoints that enqueue email already
     queue dispatch directly.
     """
+    _seed_correlation_id()
     for entry_id in asyncio.run(_sweep_pending_emails()):
         dispatch_email.delay(entry_id)
 

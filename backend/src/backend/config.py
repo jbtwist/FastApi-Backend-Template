@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:8081"]
     RATE_LIMIT_ENABLED: bool = True
     REDIS_URL: str = "redis://localhost:6379"
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: Literal["json", "console"] = "console"
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
     @classmethod

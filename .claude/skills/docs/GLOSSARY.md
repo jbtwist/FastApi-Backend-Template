@@ -125,5 +125,12 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | An `AuthUiError` kind: this email's account is already linked to another provider, optionally naming it as `linkedProvider` | `oauth-email-linked-elsewhere` | `oauth-conflict`, `already-linked` |
 | Whether a `/native` result is the link-pending `202` rather than a session | `isLinkPending` | `isLinkRequired`, `needsLink` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
+| A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by `log_event`) | `audit_log`, `activity`, `trace`, `analytics_event` |
+| The id shared by every log line from one request or task, used to join them | `correlation_id` | `request_id`, `trace_id`, `req_id` |
+| An `audit_event` for a refresh that lost a legitimate race, distinct from `token.reuse_detected` which means theft | `token.refresh_concurrent` | `refresh_race`, `token.race_lost` |
+| An `audit_event` recording one row write — table, operation, rowcount, ids, never column values | `db_write` | `db_audit`, `query_log`, `sql_event` |
+| Field names never written to a log, replaced with `SCRUBBED` before the record exists | `SENSITIVE_FIELDS` | `redacted_fields`, `denylist`, `pii_fields` |
+| The minimum severity the app emits | `LOG_LEVEL` | `log_verbosity`, `verbosity` |
+| The shape records are written in, `json` or `console` | `LOG_FORMAT` | `log_style`, `log_output`, `formatter` |
 
 
