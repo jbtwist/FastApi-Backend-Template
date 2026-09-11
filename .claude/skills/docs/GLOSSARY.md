@@ -79,5 +79,27 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Whether two email addresses name the same account, ignoring case and surrounding whitespace as the backend does | `isSameEmail` | `emailsMatch`, `compareEmails` |
 | Middleware that answers an unhandled exception with a 500 from inside CORS, so the error still carries CORS headers | `ServerErrorAsResponse` | `ErrorMiddleware`, `CatchAllMiddleware` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
+| The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome; one setting per endpoint | `REGISTER_RESPONSE_FLOOR`, `FORGOT_PASSWORD_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
+| Padding a block of work so it takes at least a given time, whatever its outcome — how an endpoint enforces its response floor | `minimum_duration` | `response_floor`, `add_response_floor`, `minimum_time` |
+| A link between a `user` and one account at a third-party sign-in provider — a credential of the `user`, never a second kind of user | `oauth_identity` (table `oauth_identity`) | `social_account`, `federated_identity`, `oauth_user` |
+| A provider's stable identifier for a person — never an email address | `provider_subject` | `sub`, `provider_id`, `external_id`, `oauth_sub` |
+| Which third-party sign-in provider issued an identity; also the name of its adapter module under `auth/oauth/providers/` | `provider` (`google`, `apple`) | `issuer`, `idp`, `source` |
+| The email address a provider supplied when a link was made; contact data only, never used to find a `user` | `email_at_link` | `provider_email`, `external_email` |
+| Whether the provider supplied a relay address in place of the person's own | `is_private_relay` | `is_proxy_email`, `hidden_email`, `is_private_email` |
+| The moment a provider link was last used to sign in | `last_authenticated_at` | `last_login_at`, `last_used_at` |
+| A signed statement from a provider about who the user is, accepted only once, at the sign-in exchange | `provider_assertion` | `id_token`, `provider_jwt`, `credential` |
+| The normalised result of verifying a `provider_assertion` | `ProviderIdentity` | `OAuthUserInfo`, `Claims`, `Profile` |
+| The per-provider adapter implementing the sign-in contract | `OAuthProvider` (Protocol) | `OAuthStrategy`, `Backend`, `Handler`, `Client` |
+| The single-use anti-forgery value binding one sign-in attempt's browser round-trip | `state` | `csrf_token`; never `nonce`, a different value |
+| The single-use replay guard the provider echoes inside a `provider_assertion` | `nonce` | `challenge`; never `state`, a different value |
+| Attaching a provider identity to an existing `user` | `link_identity` | `connect`, `merge`, `associate` |
+| Which OAuth providers a deployment offers: comma-separated adapter names; empty means password sign-in only | `OAUTH_ENABLED_PROVIDERS` | `OAUTH_PROVIDERS`, `ENABLED_PROVIDERS` |
+| How long a sign-in attempt's `state` and `nonce` stay valid | `OAUTH_STATE_TTL` | `STATE_TTL`, `OAUTH_STATE_EXPIRY` |
+| Google OAuth client IDs, one per platform; each is an accepted audience | `GOOGLE_CLIENT_ID_WEB`, `GOOGLE_CLIENT_ID_IOS`, `GOOGLE_CLIENT_ID_ANDROID` | `GOOGLE_CLIENT_ID`, `GOOGLE_WEB_CLIENT_ID` |
+| Google's static client secret, used by the web redirect flow only | `GOOGLE_CLIENT_SECRET` | `GOOGLE_SECRET` |
+| Apple developer identifiers: the team (issuer of the generated client secret), the Services ID (web audience), the bundle ID (native audience) and the `.p8` key's ID | `APPLE_TEAM_ID`, `APPLE_SERVICES_ID`, `APPLE_BUNDLE_ID`, `APPLE_KEY_ID` | `APPLE_CLIENT_ID`, `APPLE_APP_ID` |
+| The contents of Apple's `.p8` signing key; never logged or echoed | `APPLE_PRIVATE_KEY` | `APPLE_KEY`, `APPLE_P8` |
+| The cookie binding a browser to its sign-in attempt, separate from the session cookies | `oauth_state` | `state_cookie`, `oauth_csrf` |
+| The Redis key holding one sign-in attempt until it is consumed | `oauth:state:{state}` | `oauth_state:{state}`, `oauth:{state}` |
 
 

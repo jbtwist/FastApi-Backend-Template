@@ -1,11 +1,7 @@
 """`/auth` endpoints: registration, login, refresh, logout, email verification, password reset."""
 
-import asyncio
-import contextlib
 import logging
-import time
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -36,6 +32,7 @@ from backend.auth.exceptions import (
     PasswordTooShort,
     RefreshTokenExpired,
 )
+from backend.auth.oauth.router import router as oauth_router
 from backend.auth.password_policy import (
     MIN_LENGTH_BY_STRENGTH,
     PwnedPasswordChecker,
@@ -54,6 +51,7 @@ from backend.auth.schemas import (
     TokenPairOut,
     UserOut,
 )
+from backend.auth.security import minimum_duration
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import dispatch_email
 from backend.rate_limit import rate_limit
@@ -61,6 +59,7 @@ from backend.rate_limit import rate_limit
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+router.include_router(oauth_router)
 
 
 async def _queue_dispatch(entry_id: str) -> None:
@@ -101,22 +100,6 @@ async def _enforce_password_policy(
         ) from exc
 
 
-@contextlib.asynccontextmanager
-async def _response_floor(minimum: timedelta) -> AsyncGenerator:
-    """Pad the enclosed work to at least `minimum` wall-clock time.
-
-    Best-effort defence against a timing oracle — not a hard guarantee against
-    scheduler jitter. A no-op when `minimum` is zero.
-    """
-    start = time.perf_counter()
-    try:
-        yield
-    finally:
-        remaining = minimum.total_seconds() - (time.perf_counter() - start)
-        if remaining > 0:
-            await asyncio.sleep(remaining)
-
-
 def _set_token_cookies(
     response: Response, pair: service.TokenPair, *, config: AuthConfigDep
 ) -> None:
@@ -147,7 +130,7 @@ async def register(
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
-    async with _response_floor(config.REGISTER_RESPONSE_FLOOR):
+    async with minimum_duration(config.REGISTER_RESPONSE_FLOOR):
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
         )
@@ -330,7 +313,7 @@ async def forgot_password(
     `FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
     which addresses have accounts.
     """
-    async with _response_floor(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
+    async with minimum_duration(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
         entry = await service.request_password_reset(
             reset_token_repo,
             user_repo,

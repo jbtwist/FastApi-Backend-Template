@@ -1,6 +1,10 @@
+import asyncio
+import contextlib
 import secrets
+import time
 import uuid
-from datetime import datetime
+from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta
 from hashlib import sha256
 
 import jwt
@@ -40,6 +44,25 @@ def verify_password(password: str, password_hash: str) -> bool:
         return _password_hasher.verify(password_hash, password)
     except VerifyMismatchError, InvalidHashError:
         return False
+
+
+@contextlib.asynccontextmanager
+async def minimum_duration(minimum: timedelta) -> AsyncGenerator:
+    """Pad the enclosed work to at least `minimum` wall-clock time, whatever its outcome.
+
+    How an enumeration-safe endpoint enforces its response floor (e.g.
+    `REGISTER_RESPONSE_FLOOR`), so how long a request took can't reveal which
+    path it took. Pads when the work raises, too. Best-effort defence against a
+    timing oracle — not a hard guarantee against scheduler jitter. A no-op when
+    `minimum` is zero.
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        remaining = minimum.total_seconds() - (time.perf_counter() - start)
+        if remaining > 0:
+            await asyncio.sleep(remaining)
 
 
 def create_access_token(sub: str, *, config: AuthConfig, now: datetime) -> str:

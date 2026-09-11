@@ -93,7 +93,7 @@ uv run --project backend --group docs mkdocs build --strict # must pass clean
 
 ### Backend — TDD (`tdd` skill)
 
-Write the tests first, run them, confirm they fail (red), then **stop and wait for the go-ahead** before implementing. Prefer fixtures / fakes / stubs over mocks; mock only at the edges (I/O, time, randomness). Do **not** test endpoint functions directly — test the service/helper functions they call; keep endpoints thin. Do **not** write "429 after N requests" threshold tests — the mechanism is covered in `tests/test_rate_limit.py` and the threshold is a tuning knob; just add the decorator. If a change touches an untested module, add coverage for it in the same change.
+Write the tests first, then scaffold the skeleton they import — real modules in their architectural home, full signatures and type hints, docstrings, `raise NotImplementedError` bodies, complete schemas/models/exceptions, no logic. Run them, confirm they fail on an assertion or `NotImplementedError` (never an import or collection error), then **stop and wait for the go-ahead** before implementing. Prefer fixtures / fakes / stubs over mocks; mock only at the edges (I/O, time, randomness). Do **not** test endpoint functions directly — test the service/helper functions they call; keep endpoints thin. Do **not** write "429 after N requests" threshold tests — the mechanism is covered in `tests/test_rate_limit.py` and the threshold is a tuning knob; just add the decorator. If a change touches an untested module, add coverage for it in the same change.
 
 ### Frontend — BDD
 

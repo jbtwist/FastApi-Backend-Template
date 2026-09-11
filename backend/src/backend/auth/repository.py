@@ -16,7 +16,7 @@ from backend.auth.models import (
 class UserRepository(Protocol):
     async def get_by_email(self, email: str) -> User | None: ...
     async def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
-    async def create(self, *, email: str, password_hash: str) -> User: ...
+    async def create(self, *, email: str, password_hash: str | None) -> User: ...
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool: ...
     async def set_password_hash(
         self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
@@ -34,7 +34,7 @@ class SqlUserRepository:
     async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return await self._db.get(User, user_id)
 
-    async def create(self, *, email: str, password_hash: str) -> User:
+    async def create(self, *, email: str, password_hash: str | None) -> User:
         user = User(email=email, password_hash=password_hash)
         self._db.add(user)
         await self._db.flush()

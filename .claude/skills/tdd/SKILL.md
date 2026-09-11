@@ -17,6 +17,28 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 3. Identify and note the external resources required for those tests: fixtures, mocks, fakes, stubs, dummies and spies.
 4. For each external resource needed, identify if there is already a fixture, fake or stub that accomplishes the goal. If there is not, create one. Avoid using mocks, dummies or spies.
 5. Identify the best place for placing the tests according to the current software architecture and write them in that place.
+6. Scaffold the skeleton the tests import — see [Skeleton before red](#skeleton-before-red).
+7. Run the suite and confirm it is red *for the right reason*: a failed assertion or `NotImplementedError`, never `ImportError` / `AttributeError` / a collection error.
+8. Stop. Report what is covered and the red output. Wait for an explicit go-ahead before implementing.
+
+## Skeleton before red
+
+A suite that dies on `ImportError` shows nothing about the design. Before running red, create every module, class, function and Protocol the tests reference, so the architecture is readable from the test suite alone and the red run exercises the real import graph.
+
+Write:
+
+- The real file in its architectural home (domain package, `service/`, `repository.py`, `schemas.py`, `exceptions.py`).
+- The full signature: parameter names, type hints, return type.
+- A Google-style docstring stating what the callable will do and what it raises.
+- `raise NotImplementedError` as the entire body. Protocol methods keep their usual `...` body.
+- Pydantic schemas, SQLAlchemy models and exception classes in full — field and class definitions are structure, not logic.
+- Repository Protocols alongside their `Sql*` implementation stub, so the seam the service depends on is visible.
+
+Do not write:
+
+- Business logic, branching, or a working return value — not even a trivially correct one.
+- Alembic migrations. They ship with the implementation.
+- Anything the tests do not reference, beyond what those modules need to import cleanly.
 
 # Writing tests
 
@@ -98,7 +120,9 @@ python -m pytest -x
 - [ ] New/changed behavior has at least one happy-path and one edge/error test
 - [ ] Tests are deterministic (no time/random without fixing seeds or mocking)
 - [ ] No test depends on execution order
-- [ ] `python -m pytest` passes
+- [ ] Every symbol the tests import exists as a skeleton; the suite collects with no import or attribute errors
+- [ ] Skeleton bodies are `raise NotImplementedError` only — no logic slipped in
+- [ ] Red run reported, implementation not started
 
 ## Additional resources
 
