@@ -77,6 +77,52 @@ def test_save_writes_json(tmp_path: Path):
     assert target.read_text().startswith("[")
 ```
 
+## Skeleton for the red run
+
+The test names the seam; the skeleton makes it real. Signatures, types and docstrings are final — only the bodies are missing.
+
+```python
+# src/todoapp/todos/repository.py
+from typing import Protocol
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from todoapp.todos.models import Todo
+
+
+class TodoRepository(Protocol):
+    """Persistence seam for todos."""
+
+    async def get_by_id(self, todo_id: int) -> Todo | None: ...
+
+
+class SqlTodoRepository:
+    """`TodoRepository` backed by the `todos` table."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        raise NotImplementedError
+
+    async def get_by_id(self, todo_id: int) -> Todo | None:
+        raise NotImplementedError
+```
+
+```python
+# src/todoapp/todos/service/complete.py
+from todoapp.todos.models import Todo
+from todoapp.todos.repository import TodoRepository
+
+
+async def complete_todo(todo_id: int, todos: TodoRepository) -> Todo:
+    """Mark a todo as done.
+
+    Raises:
+        TodoNotFoundError: if no todo has that id.
+    """
+    raise NotImplementedError
+```
+
+Red now reads `NotImplementedError`, not `ModuleNotFoundError` — the test suite and the skeleton together describe the whole design.
+
 ## Anti-patterns to avoid
 
 | Avoid | Prefer |
@@ -88,3 +134,5 @@ def test_save_writes_json(tmp_path: Path):
 | Sleep/retry for async or time-based logic | Fake clock (e.g. `freezegun`) or `pytest-asyncio` |
 | Asserting full object dumps | Assert only relevant fields |
 | Copy-paste setup in every test | Fixtures in `conftest.py` |
+| Leaving red as `ImportError` / `ModuleNotFoundError` | Scaffold the skeleton so red is an assertion or `NotImplementedError` |
+| A "harmless" stub that already returns the right value | `raise NotImplementedError` until the go-ahead |
