@@ -22,7 +22,7 @@ class FakeUserRepository:
                 return user
         return None
 
-    async def create(self, *, email: str, password_hash: str) -> User:
+    async def create(self, *, email: str, password_hash: str | None) -> User:
         user = User(id=uuid.uuid4(), email=email, password_hash=password_hash)
         self._users_by_email[email] = user
         return user

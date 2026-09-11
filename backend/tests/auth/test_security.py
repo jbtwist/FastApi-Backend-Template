@@ -1,3 +1,4 @@
+import time
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -247,3 +248,32 @@ class TestOpaqueToken:
         raw = "some-raw-token-value"
 
         assert security.hash_opaque_token(raw) != raw
+
+
+class TestMinimumDuration:
+    """The response floor every enumeration-safe endpoint relies on."""
+
+    async def test_pads_fast_work_up_to_the_minimum(self):
+        start = time.perf_counter()
+
+        async with security.minimum_duration(timedelta(milliseconds=50)):
+            pass
+
+        assert time.perf_counter() - start >= 0.05
+
+    async def test_pads_even_when_the_work_raises(self):
+        start = time.perf_counter()
+
+        with pytest.raises(RuntimeError):
+            async with security.minimum_duration(timedelta(milliseconds=50)):
+                raise RuntimeError
+
+        assert time.perf_counter() - start >= 0.05
+
+    async def test_adds_no_delay_when_the_minimum_is_zero(self):
+        start = time.perf_counter()
+
+        async with security.minimum_duration(timedelta(0)):
+            pass
+
+        assert time.perf_counter() - start < 0.05

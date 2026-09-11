@@ -121,6 +121,16 @@ class TestAuthenticateUser:
                 user_repo, email="unverified@example.com", password="wrong-pw"
             )
 
+    async def test_raises_for_an_account_without_a_password(self, user_repo):
+        """A provider-created account: password login refuses it like an unknown email."""
+        user = await user_repo.create(email="provider-only@example.com", password_hash=None)
+        await user_repo.mark_email_verified(user.id, verified_at=NOW)
+
+        with pytest.raises(InvalidCredentials):
+            await service.authenticate_user(
+                user_repo, email="provider-only@example.com", password="anything"
+            )
+
 
 class TestIssueTokenPair:
     async def test_stores_hashed_refresh_token_not_raw_value(

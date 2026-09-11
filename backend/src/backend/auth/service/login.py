@@ -45,19 +45,21 @@ class ReuseDetected:
 async def authenticate_user(user_repo: UserRepository, *, email: str, password: str) -> User:
     """Verify credentials and return the matching user.
 
-    Always runs a password hash comparison, even for an unknown email (against
-    `DUMMY_PASSWORD_HASH`), so an unregistered email and a wrong password take
-    the same time and can't be told apart by a timing attack.
+    Always runs a password hash comparison, against `DUMMY_PASSWORD_HASH` for an
+    unknown email or an account with no password (one created through a sign-in
+    provider), so neither can be told apart from a wrong password by a timing
+    attack.
 
     Raises:
-        InvalidCredentials: the email is unknown or the password doesn't match.
+        InvalidCredentials: the email is unknown, the account has no password,
+            or the password doesn't match.
         EmailNotVerified: the credentials are correct but the account's email
             hasn't been confirmed yet.
     """
     normalized_email = email.strip().lower()
     user = await user_repo.get_by_email(normalized_email)
-    password_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
-    password_valid = verify_password(password, password_hash)
+    password_hash = user.password_hash if user is not None else None
+    password_valid = verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
 
     if user is None or not password_valid:
         raise InvalidCredentials
