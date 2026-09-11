@@ -36,8 +36,9 @@ so you do not need `pnpm` or `yarn` to be safe here:
 
 The client reads `EXPO_PUBLIC_API_URL` at build time and falls back to
 `http://localhost:8000`. The backend has to list the client's origin in
-`CORS_ALLOWED_ORIGINS` — it defaults to `http://localhost:8081`, which is where
-Expo serves the web bundle.
+`CORS_ALLOWED_ORIGINS` — this must match the scheme, host, and port exactly
+(e.g., `http://localhost:8081` and `http://127.0.0.1:8081` are treated as
+distinct origins).
 
 Two backend settings matter more here than they do over `curl`:
 
