@@ -38,13 +38,17 @@ describe('<ProviderButtons />', () => {
   });
 
   it('defaults to the app auth config — providers shown, oauth inert', () => {
+    // `authConfig.providers` defaults to `['google']` only: Apple stays a
+    // valid `OAuthProvider` (label, copy, backend adapter), but the client
+    // flow needs a paid Apple Developer Program membership this project
+    // doesn't have, so no default list should offer a button for it.
     const onSelect = jest.fn();
     renderWithProviders(<ProviderButtons onSelect={onSelect} />);
 
     expect(screen.getByText('Continue with Google')).toBeOnTheScreen();
-    expect(screen.getByText('Continue with Apple')).toBeOnTheScreen();
+    expect(screen.queryByText('Continue with Apple')).toBeNull();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Continue with Apple' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
     expect(onSelect).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Third-party sign-in is coming soon.');
   });

@@ -100,6 +100,7 @@ const PUBLIC_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
   'resend-verification',
   'refresh',
   'logout',
+  'oauth',
 ]);
 
 function isAuthed(options: RequestOptions): boolean {

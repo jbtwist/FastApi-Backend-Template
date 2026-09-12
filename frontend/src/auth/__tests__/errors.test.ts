@@ -1,5 +1,6 @@
 import {
   networkErrorToAuthUiError,
+  oauthErrorCodeToAuthUiError,
   parseRetryAfter,
   toAuthUiError,
 } from '../errors';
@@ -111,6 +112,57 @@ describe('toAuthUiError — mapping table', () => {
 
   it.each([500, 502, 503, 418, 409])('%d → unknown', (status) => {
     expect(toAuthUiError(status, 'nope', 'login')).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('toAuthUiError — oauth context (T093)', () => {
+  it('401 on oauth → oauth-failed (assertion rejected, no session-refresh logic)', () => {
+    expect(toAuthUiError(401, 'Invalid assertion', 'oauth')).toEqual({ kind: 'oauth-failed' });
+  });
+
+  it('403 on oauth → oauth-email-unverified, never login\'s email-not-verified', () => {
+    const oauthResult = toAuthUiError(403, { detail: 'email_not_verified_by_provider' }, 'oauth');
+
+    expect(oauthResult).toEqual({ kind: 'oauth-email-unverified' });
+    expect(oauthResult).not.toEqual(
+      toAuthUiError(403, 'Email not verified', 'login', { submittedEmail: 'user@example.com' }),
+    );
+  });
+
+  it('404 on oauth → oauth-not-enabled (unknown or unconfigured provider)', () => {
+    expect(toAuthUiError(404, undefined, 'oauth')).toEqual({ kind: 'oauth-not-enabled' });
+  });
+
+  it('503 on oauth → oauth-unavailable', () => {
+    expect(toAuthUiError(503, undefined, 'oauth')).toEqual({ kind: 'oauth-unavailable' });
+  });
+
+  it('503 elsewhere is still unknown — the oauth mapping does not leak to other contexts', () => {
+    expect(toAuthUiError(503, undefined, 'login')).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('oauthErrorCodeToAuthUiError — the web return leg\'s oauth_error flag', () => {
+  it('cancelled → oauth-cancelled', () => {
+    expect(oauthErrorCodeToAuthUiError('cancelled')).toEqual({ kind: 'oauth-cancelled' });
+  });
+
+  it('failed → oauth-failed', () => {
+    expect(oauthErrorCodeToAuthUiError('failed')).toEqual({ kind: 'oauth-failed' });
+  });
+
+  it('unavailable → oauth-unavailable', () => {
+    expect(oauthErrorCodeToAuthUiError('unavailable')).toEqual({ kind: 'oauth-unavailable' });
+  });
+
+  it('email_not_verified_by_provider → oauth-email-unverified', () => {
+    expect(oauthErrorCodeToAuthUiError('email_not_verified_by_provider')).toEqual({
+      kind: 'oauth-email-unverified',
+    });
+  });
+
+  it('an unrecognised code → unknown', () => {
+    expect(oauthErrorCodeToAuthUiError('made-up')).toEqual({ kind: 'unknown' });
   });
 });
 

@@ -32,7 +32,11 @@ export type AuthEndpointContext =
   | 'resend-verification'
   | 'forgot-password'
   | 'reset-password'
-  | 'authed';
+  | 'authed'
+  | 'oauth';
+
+/** The `oauth_error` query flag the web return leg appends to the sign-in URL. */
+export type OAuthErrorCode = 'cancelled' | 'failed' | 'unavailable' | 'email_not_verified_by_provider';
 
 /**
  * A rendered auth failure, identified only by what the app can derive itself.
@@ -57,7 +61,12 @@ export type AuthUiError =
   | { kind: 'rate-limited'; retryAfterSeconds?: number }
   | { kind: 'offline' }
   | { kind: 'timeout' }
-  | { kind: 'unknown' };
+  | { kind: 'unknown' }
+  | { kind: 'oauth-cancelled' }
+  | { kind: 'oauth-failed' }
+  | { kind: 'oauth-unavailable' }
+  | { kind: 'oauth-not-enabled' }
+  | { kind: 'oauth-email-unverified' };
 
 export interface ToAuthUiErrorOptions {
   /** Email typed into the form — attached to `email-not-verified` (403 on login). */
@@ -150,6 +159,17 @@ export function toAuthUiError(
     default:
       return { kind: 'unknown' };
   }
+}
+
+/**
+ * Turn the web return leg's `oauth_error` query flag into an {@link AuthUiError}.
+ * `cancelled` is not shown as a banner — the screen checks for that kind and
+ * stays quiet, the same as a dismissed native provider sheet.
+ *
+ * @param code The `oauth_error` value read from the URL.
+ */
+export function oauthErrorCodeToAuthUiError(code: OAuthErrorCode | string): AuthUiError {
+  throw new Error('not implemented');
 }
 
 /**
