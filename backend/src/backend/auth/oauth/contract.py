@@ -44,17 +44,28 @@ class OAuthProvider(Protocol):
         """Build the URL that starts a redirect-route sign-in."""
 
     async def exchange_redirect(
-        self, *, code: str, redirect_uri: str, nonce: str
+        self, *, code: str, redirect_uri: str, nonce: str, user_details: str | None = None
     ) -> ProviderIdentity:
         """Trade an authorization code for a verified identity.
+
+        Args:
+            user_details: unsigned details some providers post back with the code
+                on the first sign-in, passed on untouched. A provider may read a
+                `display_name` from it, and nothing else.
 
         Raises:
             ProviderAssertionInvalid: verification failed for any reason.
             ProviderUnavailable: the provider could not be reached.
         """
 
-    async def exchange_native(self, *, assertion: str, nonce: str) -> ProviderIdentity:
+    async def exchange_native(
+        self, *, assertion: str, nonce: str, display_name: str | None = None
+    ) -> ProviderIdentity:
         """Verify an assertion the platform SDK produced on the device.
+
+        Args:
+            display_name: the name the device sent with the assertion, if any.
+                Unsigned. Providers that never send one ignore it.
 
         Raises:
             ProviderAssertionInvalid: verification failed for any reason.
