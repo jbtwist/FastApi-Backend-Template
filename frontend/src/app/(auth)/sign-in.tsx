@@ -50,11 +50,23 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
   }
 }
 
-/** Banner copy for an oauth failure — `oauth-cancelled` is never shown. */
-function oauthMessageFor(error: AuthUiError, provider: OAuthProvider, t: Translate): Message {
+/**
+ * Banner copy for an oauth failure — `oauth-cancelled` is never shown.
+ *
+ * `provider` is `undefined` for the web return leg: the redirect's
+ * `oauth_error` flag carries no provider identity, so a specific "Google
+ * couldn't confirm…" would be a guess and could name the wrong provider.
+ */
+function oauthMessageFor(
+  error: AuthUiError,
+  provider: OAuthProvider | undefined,
+  t: Translate,
+): Message {
   switch (error.kind) {
     case 'oauth-email-unverified':
-      return { key: 'providers.emailNotConfirmed', options: { provider: t(PROVIDER_LABEL_KEY[provider]) } };
+      return provider
+        ? { key: 'providers.emailNotConfirmed', options: { provider: t(PROVIDER_LABEL_KEY[provider]) } }
+        : 'providers.emailNotConfirmedGeneric';
     case 'oauth-unavailable':
       return 'providers.unavailable';
     case 'oauth-not-enabled':
@@ -82,7 +94,7 @@ export default function SignInScreen() {
     const ui = oauthErrorCodeToAuthUiError(oauthErrorParam);
     return ui.kind === 'oauth-cancelled'
       ? null
-      : { kind: 'error', message: oauthMessageFor(ui, 'google', t) };
+      : { kind: 'error', message: oauthMessageFor(ui, undefined, t) };
   });
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const oauthSubmittingRef = useRef(false);

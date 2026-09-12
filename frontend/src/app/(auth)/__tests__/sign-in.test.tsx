@@ -414,11 +414,16 @@ describe('sign-in screen — oauth web return', () => {
   });
 
   it('email_not_verified_by_provider shows the "couldn\'t confirm your address" state, and clears the flag', async () => {
+    // The redirect's oauth_error flag carries no provider identity, so the
+    // copy stays generic here — never guesses "Google" for what could just
+    // as well have been an Apple attempt.
     const router = mount('/sign-in?oauth_error=email_not_verified_by_provider');
 
     await waitFor(() =>
       expect(
-        screen.getByText("Google couldn't confirm your email. Create an account with it instead."),
+        screen.getByText(
+          "We couldn't confirm your email with that provider. Create an account with it instead.",
+        ),
       ).toBeOnTheScreen(),
     );
     await waitFor(() => expect(router.getSearchParams()).toEqual({}));

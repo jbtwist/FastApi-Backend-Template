@@ -4,6 +4,7 @@
   "google": "Google",
   "apple": "Apple",
   "emailNotConfirmed": "%{provider} no pudo confirmar tu correo electrónico. Crea una cuenta con él en su lugar.",
+  "emailNotConfirmedGeneric": "No pudimos confirmar tu correo electrónico con ese proveedor. Crea una cuenta con él en su lugar.",
   "failed": "No pudimos iniciar tu sesión. Inténtalo de nuevo.",
   "unavailable": "El inicio de sesión no está disponible por ahora. Inténtalo de nuevo en un momento.",
   "notEnabled": "Esta opción de inicio de sesión no está disponible en este momento."
