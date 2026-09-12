@@ -1,8 +1,8 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "GTD application for portfolio project"
-readme = "README.md"
+description = "todoapp backend"
+readme = "../README.md"
 authors = [
     { name = "Juan Villarejo", email = "jbtwist92@gmail.com" }
 ]
@@ -21,7 +21,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "pydantic-settings>=2.4",
     "pydantic[email]>=2.7",
-    "pyjwt>=2.9",
+    "pyjwt[crypto]>=2.9",
     "redis>=8.1",
     "sqlalchemy>=2.0",
     "uvicorn[standard]>=0.52.4",
