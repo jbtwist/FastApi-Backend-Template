@@ -117,14 +117,18 @@ beforeEach(async () => {
 });
 
 describe('register screen — layout', () => {
-  it('renders the fields, the sign-in link and the provider buttons', () => {
+  it('renders the fields, the sign-in link and the provider buttons', async () => {
+    // Provider buttons render only once the launch fetch resolves (FR-040,
+    // T103) — hide-until-known, never a stale static default.
+    const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
     expect(screen.getByLabelText('Password')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeOnTheScreen();
     expect(screen.getByText('Already have an account? Sign in')).toBeOnTheScreen();
-    expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen());
+    fetchMock.restore();
   });
 
   it('states no password rule up front — the rules surface only on a rejection', () => {

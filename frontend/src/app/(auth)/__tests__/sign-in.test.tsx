@@ -10,8 +10,11 @@ import {
   fireEvent,
 } from 'expo-router/testing-library';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { AuthApiError } from '@/auth/api-client';
 import { mockFetch, type MockFetch } from '@/test-utils';
+import { DEFAULT_LOCALE, i18n } from '@/i18n';
 import { LocaleProvider, useLocale } from '@/i18n/provider';
 import { ColorSchemeProvider } from '@/theme/provider';
 
@@ -96,7 +99,9 @@ function submit() {
   fireEvent.press(screen.getByRole('button', { name: 'Sign in' }));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  i18n.locale = DEFAULT_LOCALE;
   mockSignIn.mockReset();
   mockSignIn.mockResolvedValue(undefined);
   mockCompleteOAuthSignIn.mockReset();
@@ -107,6 +112,9 @@ beforeEach(() => {
 
 describe('sign-in screen — layout', () => {
   it('renders the email + password fields, the primary button, the links and the provider buttons', async () => {
+    // Provider buttons render only once the launch fetch resolves (FR-040,
+    // T103) — hide-until-known, never a stale static default.
+    const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
@@ -114,7 +122,8 @@ describe('sign-in screen — layout', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
     expect(screen.getByText('Create an account')).toBeOnTheScreen();
     expect(screen.getByText('Forgot password?')).toBeOnTheScreen();
-    expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen());
+    fetchMock.restore();
   });
 
   it('navigates to register / forgot-password from the links', async () => {

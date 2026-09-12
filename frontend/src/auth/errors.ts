@@ -132,13 +132,18 @@ export function toAuthUiError(
 
     case 401:
       if (context === 'login') return { kind: 'invalid-credentials' };
+      if (context === 'oauth') return { kind: 'oauth-failed' };
       return null;
 
     case 403:
       if (context === 'login') {
         return { kind: 'email-not-verified', email: options.submittedEmail ?? '' };
       }
+      if (context === 'oauth') return { kind: 'oauth-email-unverified' };
       return { kind: 'unknown' };
+
+    case 404:
+      return context === 'oauth' ? { kind: 'oauth-not-enabled' } : { kind: 'unknown' };
 
     case 422: {
       const fields = invalidFields(detail);
@@ -156,6 +161,9 @@ export function toAuthUiError(
         ? { kind: 'rate-limited' }
         : { kind: 'rate-limited', retryAfterSeconds: options.retryAfterSeconds };
 
+    case 503:
+      return context === 'oauth' ? { kind: 'oauth-unavailable' } : { kind: 'unknown' };
+
     default:
       return { kind: 'unknown' };
   }
@@ -169,7 +177,18 @@ export function toAuthUiError(
  * @param code The `oauth_error` value read from the URL.
  */
 export function oauthErrorCodeToAuthUiError(code: OAuthErrorCode | string): AuthUiError {
-  throw new Error('not implemented');
+  switch (code) {
+    case 'cancelled':
+      return { kind: 'oauth-cancelled' };
+    case 'failed':
+      return { kind: 'oauth-failed' };
+    case 'unavailable':
+      return { kind: 'oauth-unavailable' };
+    case 'email_not_verified_by_provider':
+      return { kind: 'oauth-email-unverified' };
+    default:
+      return { kind: 'unknown' };
+  }
 }
 
 /**
