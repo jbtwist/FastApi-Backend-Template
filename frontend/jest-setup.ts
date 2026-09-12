@@ -13,7 +13,7 @@ import { resetSecureStoreMock } from './src/test-utils/expo-secure-store.mock';
 // A fake Google client ID on every platform, so `authConfig.googleClientIds`
 // is populated the same way in every test run. Real values only ever matter
 // against a real Google project; the platform SDK itself is always faked at
-// the module edge in tests (`frontend-contract.md`).
+// the module edge in tests.
 process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB ??= 'test-google-client-id-web';
 process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ??= 'test-google-client-id-ios';
 process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ??= 'test-google-client-id-android';

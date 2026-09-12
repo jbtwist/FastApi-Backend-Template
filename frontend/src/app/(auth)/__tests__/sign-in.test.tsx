@@ -32,8 +32,8 @@ jest.mock('@/auth/auth-context', () => ({
   }),
 }));
 
-// The platform SDK is faked at the module edge (`frontend-contract.md`); the
-// real `oauth-client.ts` runs against it and against `fetchMock` below.
+// The platform SDK is faked at the module edge; the real `oauth-client.ts`
+// runs against it and against `fetchMock` below.
 const mockPromptAsync = jest.fn();
 jest.mock('expo-auth-session', () => ({
   AuthRequest: jest.fn().mockImplementation(() => ({ promptAsync: mockPromptAsync })),
@@ -112,8 +112,8 @@ beforeEach(async () => {
 
 describe('sign-in screen — layout', () => {
   it('renders the email + password fields, the primary button, the links and the provider buttons', async () => {
-    // Provider buttons render only once the launch fetch resolves (FR-040,
-    // T103) — hide-until-known, never a stale static default.
+    // Provider buttons render only once the launch fetch resolves —
+    // hide-until-known, never a stale static default.
     const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
@@ -304,7 +304,7 @@ describe('sign-in screen — oauth (native)', () => {
     fetchMock.restore();
   });
 
-  it('T090: pressing a provider button reaches the authenticated area', async () => {
+  it('pressing a provider button reaches the authenticated area', async () => {
     fetchMock
       .queueJson(200, { providers: ['google'] }) // GET /auth/oauth/providers, on launch
       .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 }) // POST /start
@@ -334,7 +334,7 @@ describe('sign-in screen — oauth (native)', () => {
     await waitFor(() => expect(screen.getByText('app home')).toBeOnTheScreen());
   });
 
-  it('T092: cancelling the provider sheet returns quietly, with no error banner', async () => {
+  it('cancelling the provider sheet returns quietly, with no error banner', async () => {
     fetchMock
       .queueJson(200, { providers: ['google'] })
       .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 });
@@ -352,7 +352,7 @@ describe('sign-in screen — oauth (native)', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('T094: a provider absent from GET /auth/oauth/providers is hidden, not disabled', async () => {
+  it('a provider absent from GET /auth/oauth/providers is hidden, not disabled', async () => {
     // The server, not the static `authConfig.providers` default, decides what
     // renders: an empty list must hide Google too, proving this isn't just
     // today's hardcoded default happening to agree with the assertion.
@@ -363,7 +363,7 @@ describe('sign-in screen — oauth (native)', () => {
     await waitFor(() => expect(screen.queryByTestId('provider-buttons')).toBeNull());
   });
 
-  it('T095: an on-screen provider error follows a language switch', async () => {
+  it('an on-screen provider error follows a language switch', async () => {
     fetchMock
       .queueJson(200, { providers: ['google'] })
       .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 })
@@ -402,7 +402,7 @@ describe('sign-in screen — oauth (native)', () => {
   });
 });
 
-describe('sign-in screen — oauth web return (T124)', () => {
+describe('sign-in screen — oauth web return', () => {
   let fetchMock: MockFetch;
 
   beforeEach(() => {

@@ -53,8 +53,8 @@ export interface AuthContextValue {
   register: (email: string, password: string) => Promise<void>;
   /**
    * Apply a session an OAuth sign-in already obtained — the same
-   * `LoginOut` shape `signIn` gets from `POST /auth/login` (FR-003). No new
-   * session handling: this is `signIn`'s own post-login step, exposed so
+   * `LoginOut` shape `signIn` gets from `POST /auth/login`. No new session
+   * handling: this is `signIn`'s own post-login step, exposed so
    * `oauth-client` never touches tokens or state itself.
    */
   completeOAuthSignIn: (out: authApi.LoginOut) => Promise<void>;

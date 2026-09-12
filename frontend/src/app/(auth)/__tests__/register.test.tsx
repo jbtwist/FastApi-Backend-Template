@@ -32,8 +32,8 @@ jest.mock('@/auth/auth-context', () => ({
   }),
 }));
 
-// The platform SDK is faked at the module edge (`frontend-contract.md`); the
-// real `oauth-client.ts` runs against it and against `fetchMock` below.
+// The platform SDK is faked at the module edge; the real `oauth-client.ts`
+// runs against it and against `fetchMock` below.
 const mockPromptAsync = jest.fn();
 jest.mock('expo-auth-session', () => ({
   AuthRequest: jest.fn().mockImplementation(() => ({ promptAsync: mockPromptAsync })),
@@ -118,8 +118,8 @@ beforeEach(async () => {
 
 describe('register screen — layout', () => {
   it('renders the fields, the sign-in link and the provider buttons', async () => {
-    // Provider buttons render only once the launch fetch resolves (FR-040,
-    // T103) — hide-until-known, never a stale static default.
+    // Provider buttons render only once the launch fetch resolves —
+    // hide-until-known, never a stale static default.
     const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
@@ -343,7 +343,7 @@ describe('register screen — submission', () => {
   });
 });
 
-describe('register screen — oauth (T091)', () => {
+describe('register screen — oauth', () => {
   let fetchMock: MockFetch;
 
   beforeEach(() => {

@@ -5,8 +5,8 @@
  * size) — see https://developers.google.com/identity/branding-guidelines —
  * so its button ignores the app's own palette and picks a light/dark variant
  * off the active colour scheme instead, for contrast. Every other provider
- * (currently just `apple`, unwired — T105, 2026-09-12) keeps the app's
- * generic themed style.
+ * (currently just `apple`, unwired — 2026-09-12) keeps the app's generic
+ * themed style.
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';

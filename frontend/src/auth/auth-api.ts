@@ -120,7 +120,7 @@ export function resetPassword(body: { token: string; new_password: string }): Pr
   });
 }
 
-/** `OAuthProvidersOut` — which providers this deployment offers (FR-040). */
+/** `OAuthProvidersOut` — which providers this deployment offers. */
 export interface OAuthProvidersOut {
   providers: OAuthProvider[];
 }
@@ -156,7 +156,7 @@ export function oauthStart(
 
 /**
  * `POST /auth/oauth/{provider}/native` → `200 LoginOut` (same body as
- * `POST /auth/login`, FR-003) | `401` | `403` | `503`.
+ * `POST /auth/login`) | `401` | `403` | `503`.
  */
 export function oauthNative(
   provider: OAuthProvider,

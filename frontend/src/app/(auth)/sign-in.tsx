@@ -50,7 +50,7 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
   }
 }
 
-/** Banner copy for an oauth failure — `oauth-cancelled` is never shown (T092). */
+/** Banner copy for an oauth failure — `oauth-cancelled` is never shown. */
 function oauthMessageFor(error: AuthUiError, provider: OAuthProvider, t: Translate): Message {
   switch (error.kind) {
     case 'oauth-email-unverified':
@@ -74,9 +74,9 @@ export default function SignInScreen() {
 
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
   // Seeded once from the URL the screen was launched with — the web return
-  // leg's one-shot `oauth_error` flag (T124). A lazy initializer, not an
-  // effect: the value only ever matters on the very first render, before the
-  // effect below clears it from the URL.
+  // leg's one-shot `oauth_error` flag. A lazy initializer, not an effect: the
+  // value only ever matters on the very first render, before the effect
+  // below clears it from the URL.
   const [oauthMessage, setOauthMessage] = useState<FormMessageValue | null>(() => {
     if (!oauthErrorParam) return null;
     const ui = oauthErrorCodeToAuthUiError(oauthErrorParam);
@@ -100,9 +100,8 @@ export default function SignInScreen() {
   }, []);
 
   // Clear the one-shot `oauth_error` flag so it doesn't resurface on a manual
-  // refresh (T124). Deferred a tick: calling a router navigation method
-  // during the very first commit, before the root layout has finished
-  // mounting, throws.
+  // refresh. Deferred a tick: calling a router navigation method during the
+  // very first commit, before the root layout has finished mounting, throws.
   useEffect(() => {
     if (!oauthErrorParam) return;
     const timer = setTimeout(() => router.setParams({ oauth_error: undefined }), 0);

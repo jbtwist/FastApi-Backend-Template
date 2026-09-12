@@ -1,18 +1,18 @@
 /**
  * Orchestrates one third-party sign-in attempt.
  *
- * Two platform paths, one outcome (`frontend-contract.md`):
+ * Two platform paths, one outcome:
  *  - native: `/start` → the platform SDK, with the server's `nonce` → `/native`
  *    → the resulting `LoginOut` is handed to `auth-context`'s existing session
- *    machine. No new session handling (FR-038).
+ *    machine, with no new session handling.
  *  - web: navigate to `GET /auth/oauth/{provider}/authorize`. The browser
  *    returns via the backend's redirect; no token is ever touched by web JS.
  *
  * Screens own fetching the enabled-provider list, the double-submit guard and
  * routing on the outcome; this module only runs the attempt itself.
  *
- * Google only: the native path never runs for Apple (T100, 2026-09-12) — Sign
- * in with Apple needs a paid Apple Developer Program membership this project
+ * Google only: the native path never runs for Apple (2026-09-12) — Sign in
+ * with Apple needs a paid Apple Developer Program membership this project
  * doesn't have. `apple` still resolves through the web path, once a backend
  * lists it.
  */
@@ -39,7 +39,7 @@ export interface StartOAuthSignInOptions {
   onSignedIn: (out: authApi.LoginOut) => Promise<void>;
 }
 
-/** `GET /auth/oauth/providers` — which providers to render buttons for (FR-040). */
+/** `GET /auth/oauth/providers` — which providers to render buttons for. */
 export async function fetchEnabledProviders(): Promise<OAuthProvider[]> {
   const { providers } = await authApi.oauthProviders();
   return providers;
@@ -134,7 +134,7 @@ export async function startOAuthSignIn(
   }
 
   if (provider !== 'google') {
-    // No native path exists for any other provider (T100, 2026-09-12).
+    // No native path exists for any other provider (2026-09-12).
     return { kind: 'error', error: { kind: 'oauth-unavailable' } };
   }
 

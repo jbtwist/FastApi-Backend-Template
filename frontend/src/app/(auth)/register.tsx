@@ -55,7 +55,7 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
   }
 }
 
-/** Banner copy for an oauth failure — `oauth-cancelled` is never shown (T092). */
+/** Banner copy for an oauth failure — `oauth-cancelled` is never shown. */
 function oauthMessageFor(error: AuthUiError, provider: OAuthProvider, t: Translate): Message {
   switch (error.kind) {
     case 'oauth-email-unverified':

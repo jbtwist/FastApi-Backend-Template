@@ -115,7 +115,7 @@ describe('toAuthUiError — mapping table', () => {
   });
 });
 
-describe('toAuthUiError — oauth context (T093)', () => {
+describe('toAuthUiError — oauth context', () => {
   it('401 on oauth → oauth-failed (assertion rejected, no session-refresh logic)', () => {
     expect(toAuthUiError(401, 'Invalid assertion', 'oauth')).toEqual({ kind: 'oauth-failed' });
   });
