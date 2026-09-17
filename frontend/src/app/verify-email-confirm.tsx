@@ -39,7 +39,7 @@ export default function VerifyEmailConfirmScreen() {
     setPhase('verifying');
     try {
       await confirmEmail(token);
-      await pendingVerification.clear().catch(() => undefined);
+      await pendingVerification.clear();
       setPhase('success');
     } catch {
       // 400 invalid-token, or any transport failure — the recovery is the same:

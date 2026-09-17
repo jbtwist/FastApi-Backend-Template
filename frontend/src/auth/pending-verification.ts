@@ -6,6 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * "Resend" client-side (the server also enforces its own limit). Not a secret,
  * so it lives in plain device storage, not the secure store. Cleared once the
  * account is verified or on a successful sign-in.
+ *
+ * Every accessor is best-effort and never throws: the record is a convenience,
+ * and storage that is blocked or full must not turn an account that was
+ * created into a reported failure.
  */
 export interface PendingVerification {
   email: string;
@@ -43,10 +47,12 @@ export async function get(): Promise<PendingVerification | null> {
 
 /** Saves the `PendingVerification` state to local storage. */
 export async function set(value: PendingVerification): Promise<void> {
-  await AsyncStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify(value));
+  await AsyncStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify(value)).catch(
+    () => undefined,
+  );
 }
 
 /** Clears the `PendingVerification` state from local storage. */
 export async function clear(): Promise<void> {
-  await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
+  await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY).catch(() => undefined);
 }

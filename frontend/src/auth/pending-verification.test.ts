@@ -41,3 +41,15 @@ it('returns null when the stored shape is wrong', async () => {
   await AsyncStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify({ email: 'x@y.co' }));
   expect(await get()).toBeNull();
 });
+
+describe('when device storage is unavailable (e.g. blocked site data)', () => {
+  it('set resolves instead of failing the registration that called it', async () => {
+    jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('QuotaExceededError'));
+    await expect(set({ email: 'user@example.com', lastSentAt: 1 })).resolves.toBeUndefined();
+  });
+
+  it('clear resolves too', async () => {
+    jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('SecurityError'));
+    await expect(clear()).resolves.toBeUndefined();
+  });
+});
