@@ -57,7 +57,11 @@ export default function VerifyEmailConfirmScreen() {
 
     void (async () => {
       const pending = await pendingVerification.get();
-      if (status === 'signedIn' && user && pending && pending.email !== user.email) {
+      const otherAccount =
+        pending !== null &&
+        user !== null &&
+        !pendingVerification.isSameEmail(pending.email, user.email);
+      if (status === 'signedIn' && otherAccount) {
         setPhase('conflict');
         return;
       }

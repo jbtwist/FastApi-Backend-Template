@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { PENDING_VERIFICATION_KEY, clear, get, set } from './pending-verification';
+import { PENDING_VERIFICATION_KEY, clear, get, isSameEmail, set } from './pending-verification';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -51,5 +51,15 @@ describe('when device storage is unavailable (e.g. blocked site data)', () => {
   it('clear resolves too', async () => {
     jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('SecurityError'));
     await expect(clear()).resolves.toBeUndefined();
+  });
+});
+
+describe('isSameEmail', () => {
+  it('ignores case and surrounding whitespace, as the backend does', () => {
+    expect(isSameEmail(' Alice@Example.com ', 'alice@example.com')).toBe(true);
+  });
+
+  it('tells different addresses apart', () => {
+    expect(isSameEmail('alice@example.com', 'bob@example.com')).toBe(false);
   });
 });
