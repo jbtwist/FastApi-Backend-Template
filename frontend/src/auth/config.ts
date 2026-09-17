@@ -27,7 +27,7 @@ export type AuthConfig = {
    * Must equal the server's floor, which it derives from
    * `PASSWORD_STRENGTH` (low = 8, medium = 12, high = 15). Set it too low
    * and a length rejection arrives as a `password-policy` error the screen
-   * cannot tell apart from a breached password. See `auth/errors` and ADR 5.
+   * cannot tell apart from a breached password. See `auth/errors`.
    */
   passwordMinLength: number;
   /**
