@@ -223,9 +223,10 @@ async def refresh(
     refresh token from either the request body or the cookie so both
     browser and non-browser clients can call it.
 
-    A request that raced another refresh of the same token gets a `409` with no
-    cookies: the winner's cookies are already in the shared jar, so the client
-    just retries what it was doing.
+    A request that raced another refresh of the same token gets a `409`, and no
+    cookies are set or cleared: a browser already holds the cookies the winning
+    request set, so its other tab can retry the call it was making. A native
+    client, which holds tokens of its own, treats the `409` as a failed refresh.
     """
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is None:

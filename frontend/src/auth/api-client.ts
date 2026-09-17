@@ -182,9 +182,10 @@ let refreshInFlight: Promise<boolean> | null = null;
  * Bounded by `timeoutMs` like every other call, so a stalled refresh can't
  * hold the launch probe (and the blank screen behind it) open forever.
  *
- * On web a `409` also counts as a fresh session: another tab sharing this
- * cookie jar refreshed with the same cookie a moment earlier, and its new
- * cookies are already in place for the retry.
+ * On web a `409` counts as a fresh session: it means another tab refreshed
+ * with the same cookie a moment earlier, and the cookies it was sent are
+ * already in this browser, ready for the retry. On native there are no shared
+ * cookies to inherit, so a `409` is a failed refresh like any other.
  */
 export function ensureFreshSession(): Promise<boolean> {
   if (!refreshInFlight) {

@@ -5,9 +5,10 @@ this API with cookies, so every response — including error responses — needs
 CORS headers. Without them the browser rejects the response before the client
 sees it, and a failed `fetch` is indistinguishable from being offline.
 
-Starlette answers an unhandled exception from `ServerErrorMiddleware`, which
-always sits outside every user middleware, CORS included. `ServerErrorAsResponse`
-therefore answers the 500 from inside CORS instead.
+An unhandled exception is the one response CORS cannot reach on its own:
+Starlette answers it from `ServerErrorMiddleware`, which always sits outside
+every middleware added here, so the 500 would go out with no CORS headers at
+all. `ServerErrorAsResponse` answers it from inside CORS instead.
 """
 
 from collections.abc import Sequence
@@ -26,11 +27,15 @@ PREFLIGHT_MAX_AGE_SECONDS = 600
 
 
 class ServerErrorAsResponse:
-    """Turn an unhandled exception into a plain 500 while CORS can still decorate it.
+    """Answer an unhandled exception with a plain 500, from inside `CORSMiddleware`.
 
-    The exception is re-raised once the response is sent, so the server still
-    logs it; `ServerErrorMiddleware` sees a response already started and leaves
-    it alone. An exception after the response has started is re-raised as is.
+    Install it directly inside CORS, so the headers CORS adds reach this 500
+    too.
+
+    The exception is re-raised after the response is sent, so the server logs
+    it as it always did; `ServerErrorMiddleware` then sees a response already
+    started and adds nothing of its own. An exception raised after the response
+    started is left alone — there is nothing left to answer with.
     """
 
     def __init__(self, app: ASGIApp) -> None:

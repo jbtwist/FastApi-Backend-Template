@@ -48,8 +48,9 @@ export interface AuthContextValue {
   /** Re-run the launch probe. Called once on mount; exposed for a manual retry. */
   bootstrap: () => Promise<void>;
   /** Throws `AuthApiError` for `401` / `403` / `429`; state is untouched on throw.
-   *  On success, drops a pending verification for this account: only a
-   *  verified account can sign in. */
+   *  On success, clears the `PendingVerification` record when it names this
+   *  account — signing in proves it is verified. A record naming a different
+   *  account is kept, because `verify-email-confirm` still needs it. */
   signIn: (email: string, password: string) => Promise<void>;
   /** Enumeration-safe: resolves on `204`, throws `AuthApiError` on `422` / `429`.
    *  Never signs the user in — the caller routes to the verify screen. */

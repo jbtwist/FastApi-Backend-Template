@@ -109,13 +109,15 @@ async def rotate_refresh_token(
     used is presented again, that's treated as a stolen token and the whole family is revoked,
     which signs out every device sharing that login's rotation chain.
 
-    A repeat that is really a race is told apart from theft: a request that
-    loses the atomic `mark_used` update, or that arrives within
+    Two requests rotating the same token at once are a race, not a theft: the
+    one that loses the atomic `mark_used` update, or that arrives within
     `REFRESH_TOKEN_REUSE_GRACE` of the token being spent, raises
     `ConcurrentRefresh` and changes nothing. Revoking there would sign out the
-    request that won, typically a sibling browser tab sharing the same cookie.
-    A thief replaying inside that window gets no tokens either; detection
-    resumes once the window has passed.
+    request that won — usually a second tab of the same browser, since tabs
+    share one cookie.
+
+    The cost of that window: a thief who replays inside it gets no tokens, but
+    is not detected either. Detection resumes once it has passed.
 
     Returns:
         The new `TokenPair`, or `ReuseDetected` if `raw_refresh_token` had
