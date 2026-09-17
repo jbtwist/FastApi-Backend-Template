@@ -43,6 +43,7 @@ class AuthConfig(BaseSettings):
     JWT_ALG: str = "HS256"
     ACCESS_TOKEN_EXP: timedelta = timedelta(minutes=15)
     REFRESH_TOKEN_EXP: timedelta = timedelta(days=30)
+    REFRESH_TOKEN_REUSE_GRACE: timedelta = timedelta(seconds=10)
     EMAIL_VERIFICATION_TOKEN_EXP: timedelta = timedelta(hours=24)
     PASSWORD_RESET_TOKEN_EXP: timedelta = timedelta(hours=1)
     FORGOT_PASSWORD_RESPONSE_FLOOR: timedelta = timedelta(milliseconds=500)

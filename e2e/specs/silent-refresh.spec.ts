@@ -8,13 +8,22 @@
  * not client-code behaviours.
  *
  * `ACCESS_TOKEN_EXP` is 10 seconds in `.env.e2e` so these run in real time.
+ * `REFRESH_TOKEN_REUSE_GRACE` is 1 second, so a replay can wait out the window
+ * in which the backend treats a repeat as a racing tab rather than a theft.
  */
-import { accessTokenExpSeconds, backendUrl } from '../config/env';
+import {
+  accessTokenExpSeconds,
+  backendUrl,
+  refreshTokenReuseGraceSeconds,
+} from '../config/env';
 import { expectOnSignIn, expectSignedIn, refreshCookie, signUpAndSignIn } from '../fixtures/auth';
 import { expect, test } from '../fixtures/test';
 
 /** Long enough that the access token is certainly stale. */
 const PAST_EXPIRY_MS = (accessTokenExpSeconds + 2) * 1000;
+
+/** Long enough that presenting a spent token again counts as reuse. */
+const PAST_REUSE_GRACE_MS = (refreshTokenReuseGraceSeconds + 1) * 1000;
 
 test('an expired access token is renewed without signing the user out', async ({
   page,
@@ -39,7 +48,7 @@ test('an expired access token is renewed without signing the user out', async ({
 
 /**
  * Signs in, rotates once, and hands back the now-spent token together with its
- * live successor.
+ * live successor, once the spent token is past the reuse grace.
  */
 async function rotateOnce(
   page: import('@playwright/test').Page,
@@ -58,6 +67,8 @@ async function rotateOnce(
   const live = await refreshCookie(page);
   expect(live).toBeTruthy();
   expect(live).not.toBe(spent);
+
+  await page.waitForTimeout(PAST_REUSE_GRACE_MS);
   return { spent: spent as string, live: live as string };
 }
 

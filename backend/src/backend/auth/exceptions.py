@@ -22,6 +22,14 @@ class RefreshTokenExpired(AuthError):
     pass
 
 
+class ConcurrentRefresh(AuthError):
+    """The refresh token was just spent by a request racing this one.
+
+    Not treated as theft: two browser tabs sharing a cookie jar refresh at the
+    same moment all the time. The caller answers without touching the session.
+    """
+
+
 class EmailNotVerified(AuthError):
     pass
 

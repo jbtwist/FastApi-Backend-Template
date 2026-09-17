@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.auth import service
 from backend.auth.exceptions import (
+    ConcurrentRefresh,
     EmailNotVerified,
     InvalidCredentials,
     InvalidPasswordResetToken,
@@ -19,6 +20,7 @@ from backend.auth.security import hash_opaque_token as _hash
 from backend.mail.models import EmailKind
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
+AFTER_GRACE = NOW + timedelta(minutes=5)
 
 
 @pytest.fixture
@@ -217,13 +219,13 @@ class TestRotateRefreshToken:
         )
 
         replayed = await service.rotate_refresh_token(
-            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+            refresh_token_repo, original.refresh_token, config=auth_config, now=AFTER_GRACE
         )
         assert isinstance(replayed, service.ReuseDetected)
 
         with pytest.raises(InvalidRefreshToken):
             await service.rotate_refresh_token(
-                refresh_token_repo, rotated.refresh_token, config=auth_config, now=NOW
+                refresh_token_repo, rotated.refresh_token, config=auth_config, now=AFTER_GRACE
             )
 
     async def test_reuse_detection_only_burns_that_family_not_other_sessions(
@@ -240,17 +242,17 @@ class TestRotateRefreshToken:
         )
 
         replayed = await service.rotate_refresh_token(
-            refresh_token_repo, session_a.refresh_token, config=auth_config, now=NOW
+            refresh_token_repo, session_a.refresh_token, config=auth_config, now=AFTER_GRACE
         )
         assert isinstance(replayed, service.ReuseDetected)
 
         rotated_b = await service.rotate_refresh_token(
-            refresh_token_repo, session_b.refresh_token, config=auth_config, now=NOW
+            refresh_token_repo, session_b.refresh_token, config=auth_config, now=AFTER_GRACE
         )
         assert rotated_b.refresh_token != session_b.refresh_token
         with pytest.raises(InvalidRefreshToken):
             await service.rotate_refresh_token(
-                refresh_token_repo, rotated_a.refresh_token, config=auth_config, now=NOW
+                refresh_token_repo, rotated_a.refresh_token, config=auth_config, now=AFTER_GRACE
             )
 
     async def test_rotating_exactly_at_expiry_instant_raises_expired(
@@ -301,24 +303,65 @@ class TestRotateRefreshToken:
                 refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
             )
 
-    async def test_losing_the_mark_used_race_is_treated_as_reuse_and_revokes_family(
+    async def test_losing_the_mark_used_race_is_a_concurrent_refresh_not_reuse(
         self, refresh_token_repo, registered_user, auth_config, monkeypatch
     ):
-        """Simulates two concurrent /auth/refresh calls with the same token: both
-        pass the initial used_at/revoked/expired checks, but only one can win
-        the atomic mark_used update. The loser must be treated as reuse."""
+        """Two concurrent /auth/refresh calls with the same token (two browser
+        tabs sharing a cookie jar) both pass the initial checks, but only one
+        wins the atomic mark_used update. The loser must not revoke the family
+        the winner has just extended."""
         original = await service.issue_token_pair(
             refresh_token_repo, registered_user, config=auth_config, now=NOW
         )
         monkeypatch.setattr(refresh_token_repo, "mark_used", AsyncMock(return_value=False))
 
-        loser = await service.rotate_refresh_token(
-            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
-        )
-        assert isinstance(loser, service.ReuseDetected)
+        with pytest.raises(ConcurrentRefresh):
+            await service.rotate_refresh_token(
+                refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+            )
 
         record = await refresh_token_repo.get_by_hash(_hash(original.refresh_token))
-        assert record.revoked_at == NOW
+        assert record.revoked_at is None
+
+    async def test_reusing_a_token_within_the_grace_is_a_concurrent_refresh(
+        self, refresh_token_repo, registered_user, auth_config
+    ):
+        """A sibling request that arrives just after the winner committed sees
+        `used_at` already set; that is a race, not a theft."""
+        original = await service.issue_token_pair(
+            refresh_token_repo, registered_user, config=auth_config, now=NOW
+        )
+        rotated = await service.rotate_refresh_token(
+            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+        )
+        within_grace = NOW + auth_config.REFRESH_TOKEN_REUSE_GRACE - timedelta(milliseconds=1)
+
+        with pytest.raises(ConcurrentRefresh):
+            await service.rotate_refresh_token(
+                refresh_token_repo, original.refresh_token, config=auth_config, now=within_grace
+            )
+
+        still_live = await service.rotate_refresh_token(
+            refresh_token_repo, rotated.refresh_token, config=auth_config, now=within_grace
+        )
+        assert still_live.refresh_token != rotated.refresh_token
+
+    async def test_reusing_a_token_once_the_grace_has_passed_is_reuse(
+        self, refresh_token_repo, registered_user, auth_config
+    ):
+        original = await service.issue_token_pair(
+            refresh_token_repo, registered_user, config=auth_config, now=NOW
+        )
+        await service.rotate_refresh_token(
+            refresh_token_repo, original.refresh_token, config=auth_config, now=NOW
+        )
+        grace_over = NOW + auth_config.REFRESH_TOKEN_REUSE_GRACE
+
+        replayed = await service.rotate_refresh_token(
+            refresh_token_repo, original.refresh_token, config=auth_config, now=grace_over
+        )
+
+        assert isinstance(replayed, service.ReuseDetected)
 
 
 class TestLogout:

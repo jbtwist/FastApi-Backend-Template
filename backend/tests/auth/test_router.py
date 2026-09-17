@@ -30,6 +30,7 @@ from backend.auth.dependencies import (
 )
 from backend.auth.error_handlers import add_auth_error_handlers
 from backend.auth.exceptions import InvalidCredentials, InvalidRefreshToken
+from backend.auth.security import hash_opaque_token
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.fakes import (
     FakeEmailVerificationTokenRepository,
@@ -552,12 +553,34 @@ class TestRefresh:
         )
         spent = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
         assert spent.status_code == 200
+        record = await refresh_token_repo.get_by_hash(hash_opaque_token(session.refresh_token))
+        record.used_at -= app_config.REFRESH_TOKEN_REUSE_GRACE
 
         res = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
 
         assert res.status_code == 401
         assert res.json()["detail"] == "Not authenticated"
         assert _cleared_cookie_names(res) == {"access_token", "refresh_token"}
+
+    async def test_a_concurrent_refresh_is_409_and_leaves_the_cookies_alone(
+        self, client, refresh_token_repo, app_config, verified_user
+    ):
+        """The winner's cookies are already in the shared jar; clearing them here
+        would sign out the tab that won the race."""
+        session = await service.issue_token_pair(
+            refresh_token_repo, verified_user, config=app_config, now=datetime.now(UTC)
+        )
+        winner = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
+        assert winner.status_code == 200
+
+        res = await client.post("/auth/refresh", json={"refresh_token": session.refresh_token})
+
+        assert res.status_code == 409
+        assert "set-cookie" not in res.headers
+        still_live = await client.post(
+            "/auth/refresh", json={"refresh_token": winner.json()["refresh_token"]}
+        )
+        assert still_live.status_code == 200
 
     async def test_an_unknown_token_is_401_and_clears_both_cookies(self, client):
         res = await client.post("/auth/refresh", json={"refresh_token": "never-issued"})

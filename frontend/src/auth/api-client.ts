@@ -177,6 +177,10 @@ let refreshInFlight: Promise<boolean> | null = null;
  * Run a refresh, coalescing concurrent callers onto one in-flight `POST
  * /auth/refresh`. Resolves `true` when a fresh session is in place, `false`
  * when the refresh failed (local tokens are then cleared on native).
+ *
+ * On web a `409` also counts as a fresh session: another tab sharing this
+ * cookie jar refreshed with the same cookie a moment earlier, and its new
+ * cookies are already in place for the retry.
  */
 export function ensureFreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
@@ -208,6 +212,8 @@ async function doRefresh(): Promise<boolean> {
   } catch {
     return false;
   }
+
+  if (response.status === 409 && config.platform === 'web') return true;
 
   if (!response.ok) {
     if (config.platform !== 'web') await clearTokens().catch(() => undefined);

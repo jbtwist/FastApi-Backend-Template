@@ -29,6 +29,7 @@ from backend.auth.dependencies import (
     UserRepoDep,
 )
 from backend.auth.exceptions import (
+    ConcurrentRefresh,
     InvalidRefreshToken,
     PasswordCompromised,
     PasswordTooLong,
@@ -221,6 +222,10 @@ async def refresh(
     Reuse of an already-used token revokes its whole family. Accepts the
     refresh token from either the request body or the cookie so both
     browser and non-browser clients can call it.
+
+    A request that raced another refresh of the same token gets a `409` with no
+    cookies: the winner's cookies are already in the shared jar, so the client
+    just retries what it was doing.
     """
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is None:
@@ -232,6 +237,10 @@ async def refresh(
         )
     except InvalidRefreshToken, RefreshTokenExpired:
         return _signed_out_response(config=config)
+    except ConcurrentRefresh:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT, content={"detail": "Refresh already in progress"}
+        )
 
     if isinstance(result, service.ReuseDetected):
         return _signed_out_response(config=config)

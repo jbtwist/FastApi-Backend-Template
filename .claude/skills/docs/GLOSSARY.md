@@ -36,6 +36,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A user's hashed password | `password_hash` | `password`, `hashed_password` |
 | Group of refresh tokens from one login, used for rotation + reuse detection | `family_id` | `session_id`, `chain_id` |
 | The moment a refresh token was consumed by rotation | `used_at` | `consumed_at`, `rotated_at` |
+| How long after a refresh token's `used_at` a repeat presentation still counts as a concurrent refresh rather than reuse | `REFRESH_TOKEN_REUSE_GRACE` | `refresh_leeway`, `reuse_window` |
+| A spent refresh token presented again by a request racing the one that spent it — answered `409`, never revokes the family | `ConcurrentRefresh` | `RefreshRace`, `DuplicateRefresh` |
 | The moment a refresh token (or its family) was invalidated early | `revoked_at` | `invalidated_at`, `disabled_at` |
 | The moment a token stops being valid | `expires_at` | `expiry`, `exp_date`, `valid_until` |
 | An access_token + refresh_token issued together | `token_pair` | `tokens`, `pair` |
