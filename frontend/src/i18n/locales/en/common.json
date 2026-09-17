@@ -7,6 +7,7 @@
   "back": "Back",
   "close": "Close",
   "backToSignIn": "Back to sign in",
+  "loading": "Loading",
   "retry": "Try again",
   "emailLabel": "Email",
   "emailPlaceholder": "you@example.com",

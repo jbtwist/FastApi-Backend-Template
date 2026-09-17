@@ -179,6 +179,9 @@ let refreshInFlight: Promise<boolean> | null = null;
  * /auth/refresh`. Resolves `true` when a fresh session is in place, `false`
  * when the refresh failed (local tokens are then cleared on native).
  *
+ * Bounded by `timeoutMs` like every other call, so a stalled refresh can't
+ * hold the launch probe (and the blank screen behind it) open forever.
+ *
  * On web a `409` also counts as a fresh session: another tab sharing this
  * cookie jar refreshed with the same cookie a moment earlier, and its new
  * cookies are already in place for the retry.
@@ -207,11 +210,17 @@ async function doRefresh(): Promise<boolean> {
   }
   init.body = body;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  init.signal = controller.signal;
+
   let response: Response;
   try {
     response = await fetch(`${config.baseUrl}/auth/refresh`, init);
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 
   if (response.status === 409 && config.platform === 'web') return true;

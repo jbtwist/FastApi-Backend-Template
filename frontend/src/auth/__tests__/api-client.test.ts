@@ -226,6 +226,13 @@ describe('request — offline / timeout', () => {
     });
   });
 
+  it('a hung refresh aborts too, so the caller is never left waiting', async () => {
+    configureApiClient({ timeoutMs: 10 });
+    fetchMock.queueTimeout();
+    await expect(ensureFreshSession()).resolves.toBe(false);
+    expect(fetchMock.requests[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('a hung request aborts and maps to timeout', async () => {
     configureApiClient({ timeoutMs: 10 });
     fetchMock.queueTimeout();

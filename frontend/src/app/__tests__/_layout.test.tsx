@@ -63,14 +63,16 @@ describe('root splash gate', () => {
 
     renderRouter(routes(), { initialUrl: '/' });
 
-    // status === 'loading' — no route content on screen yet.
+    // status === 'loading' — no route content on screen yet, but not a blank one.
     expect(screen.queryByText('app home')).toBeNull();
+    expect(screen.getByLabelText('Loading')).toBeVisible();
 
     await act(async () => {
       probe.resolveJson(200, USER);
     });
 
     await waitFor(() => expect(screen.getByText('app home')).toBeVisible());
+    expect(screen.queryByLabelText('Loading')).toBeNull();
   });
 });
 
