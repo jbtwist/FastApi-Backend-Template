@@ -76,6 +76,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The state machine managing auth session status (signedOut, signedIn, etc.) | `auth-context` | `auth_context` |
 | Store for email/timestamp of the last verification email, used to throttle resends | `PendingVerification` | `pending_verification` |
 | Whether two email addresses name the same account, ignoring case and surrounding whitespace as the backend does | `isSameEmail` | `emailsMatch`, `compareEmails` |
+| Middleware that answers an unhandled exception with a 500 from inside CORS, so the error still carries CORS headers | `ServerErrorAsResponse` | `ErrorMiddleware`, `CatchAllMiddleware` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 
 

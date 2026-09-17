@@ -60,9 +60,13 @@ async def client(monkeypatch: pytest.MonkeyPatch):
     async def limited() -> dict[str, bool]:
         return {"ok": True}
 
+    @app.get("/boom")
+    async def boom() -> None:
+        raise RuntimeError("unhandled")
+
     add_cors(app, allowed_origins=[ALLOWED_ORIGIN])
 
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with app.router.lifespan_context(app):
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
@@ -105,3 +109,25 @@ class TestCorsMiddleware:
 
         assert blocked.status_code == 429
         assert blocked.headers["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
+
+    async def test_unhandled_error_still_carries_the_headers(self, client: AsyncClient):
+        """Without them the browser hides the 500 and the client reports "offline"."""
+        response = await client.get("/boom", headers={"Origin": ALLOWED_ORIGIN})
+
+        assert response.status_code == 500
+        assert response.headers["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
+        assert response.headers["Access-Control-Allow-Credentials"] == "true"
+
+    async def test_unhandled_error_still_reaches_the_server_log(self):
+        """The error is answered inside CORS, then re-raised for the server to log."""
+        app = FastAPI()
+
+        @app.get("/boom")
+        async def boom() -> None:
+            raise RuntimeError("unhandled")
+
+        add_cors(app, allowed_origins=[ALLOWED_ORIGIN])
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            with pytest.raises(RuntimeError, match="unhandled"):
+                await ac.get("/boom", headers={"Origin": ALLOWED_ORIGIN})
