@@ -6,6 +6,7 @@
   "include": [
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
+    "css-modules.d.ts",
     "jest-setup.ts",
     "src/test-utils/**/*.ts",
     "src/test-utils/**/*.tsx",

@@ -145,7 +145,7 @@ it('resets submitting when onSubmit rejects, and surfaces the rejection', async 
 it('reset() returns to the initial state', () => {
   const { result } = setup(jest.fn());
   act(() => result.current.setValue('email', 'x@y.co'));
-  act(() => result.current.setFormMessage({ kind: 'info', text: 'hi' }));
+  act(() => result.current.setFormMessage({ kind: 'info', message: 'errors.unknown' }));
   act(() => result.current.reset());
 
   expect(result.current.values).toEqual({ email: '', password: '' });
