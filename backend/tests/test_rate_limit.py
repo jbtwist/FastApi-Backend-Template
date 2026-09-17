@@ -7,8 +7,10 @@ from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 from redis_fastapi import FastAPIRedis, rate_limit
 from redis_fastapi import deps as redis_fastapi_deps
+from redis_fastapi.ratelimit import RateLimitMiddleware
 
-from backend.auth.config import AuthConfig, auth_settings
+from backend.config import Settings, settings
+from backend.rate_limit import enable_rate_limiting
 from backend.rate_limit import rate_limit as switchable_rate_limit
 
 
@@ -72,7 +74,7 @@ def build_client(monkeypatch: pytest.MonkeyPatch):
 
     @contextlib.asynccontextmanager
     async def _build(*, enabled: bool):
-        monkeypatch.setattr(auth_settings, "RATE_LIMIT_ENABLED", enabled)
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", enabled)
 
         app = FastAPI()
         FastAPIRedis(app).lifespan().rate_limiting()
@@ -91,7 +93,7 @@ def build_client(monkeypatch: pytest.MonkeyPatch):
 
 class TestRateLimitSwitch:
     async def test_enabled_by_default(self):
-        assert AuthConfig.model_fields["RATE_LIMIT_ENABLED"].default is True
+        assert Settings.model_fields["RATE_LIMIT_ENABLED"].default is True
 
     async def test_enforces_the_limit_while_enabled(self, build_client):
         async with build_client(enabled=True) as client:
@@ -117,7 +119,7 @@ class TestRateLimitSwitch:
             assert (await client.get("/switched")).status_code == 200
 
     async def test_warns_once_when_the_route_is_built(self, caplog, monkeypatch):
-        monkeypatch.setattr(auth_settings, "RATE_LIMIT_ENABLED", False)
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
 
         with caplog.at_level(logging.WARNING, logger="backend.rate_limit"):
             switchable_rate_limit("2/minute")
@@ -135,6 +137,43 @@ class TestRateLimitSwitch:
 
         assert caplog.text == ""
 
-    async def test_rejects_a_caller_supplied_skip_when(self):
-        with pytest.raises(TypeError, match="skip_when is reserved"):
-            switchable_rate_limit("2/minute", skip_when=lambda _request: True)
+    async def test_passes_skip_when_through_to_the_library(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
+        app = FastAPI()
+        FastAPIRedis(app).lifespan().rate_limiting()
+
+        @app.get(
+            "/skipped",
+            dependencies=[
+                Depends(switchable_rate_limit("1/minute", skip_when=lambda _request: True))
+            ],
+        )
+        async def skipped() -> dict[str, bool]:
+            return {"ok": True}
+
+        transport = ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                for _ in range(3):
+                    assert (await client.get("/skipped")).status_code == 200
+
+
+class TestEnableRateLimiting:
+    """The app-wide half of the switch: the library's middleware and handler."""
+
+    def test_installs_the_library_middleware_while_enabled(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
+        app = FastAPI()
+
+        enable_rate_limiting(FastAPIRedis(app))
+
+        assert any(m.cls is RateLimitMiddleware for m in app.user_middleware)
+
+    def test_installs_nothing_while_disabled(self, monkeypatch):
+        """So an app-wide REDIS_RATE_LIMIT_DEFAULT_LIMIT can't reach Redis either."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+        app = FastAPI()
+
+        enable_rate_limiting(FastAPIRedis(app))
+
+        assert not any(m.cls is RateLimitMiddleware for m in app.user_middleware)

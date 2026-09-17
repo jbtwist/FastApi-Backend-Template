@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: PostgresDsn
     CORS_ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:8081"]
+    RATE_LIMIT_ENABLED: bool = True
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
     @classmethod

@@ -59,7 +59,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A short-lived token used to initiate a password reset, sent as a link | `password_reset_token` | `reset_token` |
 | The minimum length tier for a password | `PasswordStrength` | `strength`, `level`, `tier` |
 | The breach-check status of a password | `PASSWORD_CHECK_PWNED` | `check_breaches`, `pwned_check` |
-| Whether per-route rate limiting is enforced; off only for load testing | `RATE_LIMIT_ENABLED` | `disable_rate_limit`, `throttling_off`, `stress_mode` |
+| Whether rate limiting is enforced, per route and app-wide; off only for load testing | `RATE_LIMIT_ENABLED` | `disable_rate_limit`, `throttling_off`, `stress_mode` |
+| Installing the rate-limit library on the app, honouring `RATE_LIMIT_ENABLED` | `enable_rate_limiting` | `setup_rate_limit`, `add_rate_limiting` |
 | The maximum length allowed for a password | `PASSWORD_MAX_LENGTH` | `max_length` |
 | A language code + optional country code | `Locale` | `lang_code`, `language`, `l` |
 | The frontend subsystem managing translations | `i18n` | `internationalization`, `localization`, `l10n` |
