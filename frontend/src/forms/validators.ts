@@ -38,6 +38,12 @@ export const email: Validator = (value) =>
   EMAIL_RE.test(value.trim()) ? undefined : 'validation.email';
 
 /**
+ * Length in Unicode code points, which is how the backend's `len()` counts.
+ * `String.length` counts UTF-16 code units, so an emoji would count twice.
+ */
+const codePointLength = (value: string): number => Array.from(value).length;
+
+/**
  * Creates a validator that checks if a string meets a minimum length requirement.
  * @param n The minimum length required.
  * @returns A Validator function.
@@ -45,7 +51,7 @@ export const email: Validator = (value) =>
 export const minLength =
   (n: number): Validator =>
   (value) =>
-    value.length >= n ? undefined : { key: 'validation.minLength', options: { min: n } };
+    codePointLength(value) >= n ? undefined : { key: 'validation.minLength', options: { min: n } };
 
 /**
  * Creates a validator that checks if a string stays within a maximum length.
@@ -55,4 +61,4 @@ export const minLength =
 export const maxLength =
   (n: number): Validator =>
   (value) =>
-    value.length <= n ? undefined : { key: 'validation.maxLength', options: { max: n } };
+    codePointLength(value) <= n ? undefined : { key: 'validation.maxLength', options: { max: n } };

@@ -38,6 +38,12 @@ describe('minLength', () => {
     expect(min12('            ')).toBeUndefined();
   });
 
+  it('counts characters the way the server does, not UTF-16 code units', () => {
+    const min12 = minLength(12);
+    expect(min12('🔑'.repeat(6))).toBeDefined();
+    expect(min12('🔑'.repeat(12))).toBeUndefined();
+  });
+
   it('carries the required length as an option, not baked into text', () => {
     expect(minLength(12)('short')).toEqual({
       key: 'validation.minLength',
@@ -51,6 +57,12 @@ describe('maxLength', () => {
     const max128 = maxLength(128);
     expect(max128('a'.repeat(128))).toBeUndefined();
     expect(max128('a'.repeat(129))).toBeDefined();
+  });
+
+  it('counts characters the way the server does, not UTF-16 code units', () => {
+    const max128 = maxLength(128);
+    expect(max128('🔑'.repeat(70))).toBeUndefined();
+    expect(max128('🔑'.repeat(129))).toBeDefined();
   });
 
   it('carries the allowed length as an option, not baked into text', () => {
