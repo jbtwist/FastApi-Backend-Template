@@ -35,9 +35,10 @@ class TestCorsSettings:
 
         assert settings.CORS_ALLOWED_ORIGINS == [ALLOWED_ORIGIN]
 
-    def test_rejects_the_wildcard_origin(self):
+    @pytest.mark.parametrize("value", ["*", "*/", "*//", f"{ALLOWED_ORIGIN}, */"])
+    def test_rejects_the_wildcard_origin(self, value):
         with pytest.raises(ValidationError, match="cannot be"):
-            make_settings(CORS_ALLOWED_ORIGINS="*")
+            make_settings(CORS_ALLOWED_ORIGINS=value)
 
     def test_defaults_to_the_local_web_dev_server(self):
         assert make_settings().CORS_ALLOWED_ORIGINS == ["http://localhost:8081"]
