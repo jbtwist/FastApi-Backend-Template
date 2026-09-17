@@ -88,9 +88,11 @@ export function useForm<T extends Record<string, string>>(
     (field: keyof T) => {
       setTouched((prev) => ({ ...prev, [field]: true }));
       setValues((current) => {
+        // A value that passes the client validators keeps the error it has: that
+        // can only be a server rejection, since editing the value clears it.
         setErrors((prev) => ({
           ...prev,
-          [field]: firstError(validate, field, current[field]),
+          [field]: firstError(validate, field, current[field]) ?? prev[field],
         }));
         return current;
       });

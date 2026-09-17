@@ -49,6 +49,16 @@ it('setError forces a field error and marks it touched; setValue clears it', () 
   expect(result.current.errors.password).toBeUndefined();
 });
 
+it('handleBlur keeps a server error on a value the client validators accept', () => {
+  const { result } = setup(jest.fn());
+  act(() => result.current.setValue('password', 'a-breached-password'));
+  act(() => result.current.setError('password', 'errors.passwordRejected'));
+
+  act(() => result.current.handleBlur('password'));
+
+  expect(result.current.errors.password).toBe(en.errors.passwordRejected);
+});
+
 it('handleBlur marks the field touched and validates just that field', () => {
   const { result } = setup(jest.fn());
   act(() => result.current.handleBlur('password'));
