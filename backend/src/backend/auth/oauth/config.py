@@ -20,6 +20,7 @@ class OAuthConfig(BaseSettings):
 
     OAUTH_ENABLED_PROVIDERS: Annotated[list[str], NoDecode] = []
     OAUTH_STATE_TTL: timedelta = timedelta(minutes=10)
+    OAUTH_LINK_TOKEN_EXP: timedelta = timedelta(hours=1)
 
     @field_validator("OAUTH_ENABLED_PROVIDERS", mode="before")
     @classmethod

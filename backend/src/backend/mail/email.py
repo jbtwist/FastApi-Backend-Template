@@ -45,6 +45,9 @@ class EmailSenderMixin:
         )
         await self._send(email=email, rendered=rendered)
 
+    async def send_oauth_link_email(self, *, email: str, token: str) -> None:
+        raise NotImplementedError
+
     async def _send(self, *, email: str, rendered: RenderedEmail) -> None:
         raise NotImplementedError
 

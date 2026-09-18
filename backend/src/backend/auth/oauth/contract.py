@@ -17,8 +17,10 @@ class ProviderIdentity:
     """What one verified provider assertion says about a person.
 
     Produced only after signature, issuer, audience, expiry and nonce have all
-    been checked. Every field is provider-supplied data: none of it is rendered
-    to a user, and only `subject` is ever used to resolve an account.
+    been checked. Every field is provider-supplied data and none of it is
+    rendered to a user. `subject` is what finds a returning person; a verified
+    `email` only ever finds an account to create or to offer a link to, never
+    one to sign in to (see `backend.auth.oauth.service.sign_in_with_provider`).
     """
 
     provider: str

@@ -25,6 +25,7 @@ class EmailKind(StrEnum):
 
     VERIFICATION = "verification"
     PASSWORD_RESET = "password_reset"
+    OAUTH_LINK = "oauth_link"
 
 
 class EmailOutboxEntry(Base):

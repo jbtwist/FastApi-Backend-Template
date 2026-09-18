@@ -19,7 +19,7 @@ class UserRepository(Protocol):
     async def create(self, *, email: str, password_hash: str | None) -> User: ...
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool: ...
     async def set_password_hash(
-        self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
+        self, user_id: uuid.UUID, *, password_hash: str | None, updated_at: datetime
     ) -> bool: ...
 
 
@@ -49,7 +49,7 @@ class SqlUserRepository:
         return result.rowcount == 1
 
     async def set_password_hash(
-        self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
+        self, user_id: uuid.UUID, *, password_hash: str | None, updated_at: datetime
     ) -> bool:
         result = await self._db.execute(
             update(User)

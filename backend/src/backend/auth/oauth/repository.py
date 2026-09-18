@@ -5,13 +5,19 @@ from typing import Protocol
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth.oauth.models import OAuthIdentity
+from backend.auth.oauth.contract import ProviderIdentity
+from backend.auth.oauth.models import OAuthIdentity, OAuthLinkToken
+from backend.auth.repository import SingleUseTokenRepository, _SqlSingleUseTokenRepository
 
 
 class OAuthIdentityRepository(Protocol):
     async def get_by_provider_subject(
         self, provider: str, provider_subject: str
     ) -> OAuthIdentity | None: ...
+
+    async def get_by_user_id(self, user_id: uuid.UUID) -> OAuthIdentity | None:
+        """The one provider identity linked to `user_id`, if any."""
+        ...
 
     async def create(
         self,
@@ -26,9 +32,10 @@ class OAuthIdentityRepository(Protocol):
         """Store a new link.
 
         Raises:
-            IntegrityError: `(provider, provider_subject)` is already linked. The
-                database enforces this rather than a prior lookup, so two
-                concurrent first sign-ins for one identity can't both succeed.
+            IntegrityError: `(provider, provider_subject)` is already linked, or
+                `user_id` already has an identity. The database enforces both
+                rather than a prior lookup, so two concurrent first sign-ins or
+                link confirmations can't both succeed.
         """
         ...
 
@@ -51,6 +58,9 @@ class SqlOAuthIdentityRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_by_user_id(self, user_id: uuid.UUID) -> OAuthIdentity | None:
+        raise NotImplementedError
 
     async def create(
         self,
@@ -82,3 +92,43 @@ class SqlOAuthIdentityRepository:
             .where(OAuthIdentity.id == identity_id)
             .values(last_authenticated_at=authenticated_at)
         )
+
+
+class OAuthLinkTokenRepository(SingleUseTokenRepository, Protocol):
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        expires_at: datetime,
+        identity: ProviderIdentity,
+    ) -> OAuthLinkToken:
+        """Store a pending link, freezing `identity`'s provider, subject and contact data."""
+        ...
+
+    async def get_by_hash(self, token_hash: str) -> OAuthLinkToken | None: ...
+
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None:
+        """Mark every unused link token of `user_id` used, so only the newest can be redeemed."""
+        ...
+
+
+class SqlOAuthLinkTokenRepository(_SqlSingleUseTokenRepository[OAuthLinkToken]):
+    model = OAuthLinkToken
+
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        expires_at: datetime,
+        identity: ProviderIdentity,
+    ) -> OAuthLinkToken:
+        raise NotImplementedError
+
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None:
+        raise NotImplementedError

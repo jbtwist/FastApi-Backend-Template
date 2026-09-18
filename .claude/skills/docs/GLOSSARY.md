@@ -46,7 +46,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Writing an outbox row without contacting the provider (generic mail-layer primitive) | `enqueue_email` | `queue_email`, `add_to_outbox` |
 | Auth-domain action: mint a verification token and put its email on the outbox | `queue_verification_email` | `send_verification_email` (misleading — doesn't send) |
 | The step that actually calls the email provider for one outbox entry, selecting template + sender by the row's `kind` | `dispatch_email` | `dispatch_verification_email`, `send_email`, `deliver_email` |
-| Which transactional email an outbox row carries | `EmailKind`: `verification`, `password_reset` | `email_type`, `template_name` |
+| Which transactional email an outbox row carries | `EmailKind`: `verification`, `password_reset`, `oauth_link` | `email_type`, `template_name` |
 | The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sent`, `dead` | `queued`, `failed`, `completed` |
 | Count of failed dispatch attempts on an outbox entry | `attempts` | `retry_count`, `tries` |
 | The periodic job that re-dispatches outbox entries stuck in `pending` | `sweep` (e.g. `sweep_pending_emails`) | `relay`, `reaper`, `poller` |
@@ -84,7 +84,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A link between a `user` and one account at a third-party sign-in provider — a credential of the `user`, never a second kind of user | `oauth_identity` (table `oauth_identity`) | `social_account`, `federated_identity`, `oauth_user` |
 | A provider's stable identifier for a person — never an email address | `provider_subject` | `sub`, `provider_id`, `external_id`, `oauth_sub` |
 | Which third-party sign-in provider issued an identity; also the name of its adapter module under `auth/oauth/providers/` | `provider` (`google`, `apple`) | `issuer`, `idp`, `source` |
-| The email address a provider supplied when a link was made; contact data only, never used to find a `user` | `email_at_link` | `provider_email`, `external_email` |
+| The email address a provider supplied when a link was made; contact data only, never used to sign in to an existing `user` | `email_at_link` | `provider_email`, `external_email` |
 | Whether the provider supplied a relay address in place of the person's own | `is_private_relay` | `is_proxy_email`, `hidden_email`, `is_private_email` |
 | The moment a provider link was last used to sign in | `last_authenticated_at` | `last_login_at`, `last_used_at` |
 | A signed statement from a provider about who the user is, accepted only once, at the sign-in exchange | `provider_assertion` | `id_token`, `provider_jwt`, `credential` |
@@ -101,5 +101,21 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The contents of Apple's `.p8` signing key; never logged or echoed | `APPLE_PRIVATE_KEY` | `APPLE_KEY`, `APPLE_P8` |
 | The cookie binding a browser to its sign-in attempt, separate from the session cookies | `oauth_state` | `state_cookie`, `oauth_csrf` |
 | The Redis key holding one sign-in attempt until it is consumed | `oauth:state:{state}` | `oauth_state:{state}`, `oauth:{state}` |
+| Where the shared Redis instance lives; read by the rate limiter and the sign-in state store | `REDIS_URL` | `REDIS_DSN`, `CACHE_URL` |
+| One pending sign-in attempt as the state store holds it: its `provider`, `nonce` and `redirect_target` | `SignInAttempt` | `OAuthState`, `PendingLogin` |
+| Where sign-in attempts wait between `start` and the exchange, each consumed at most once | `SignInStateStore` (Protocol), `RedisSignInStateStore` | `StateCache`, `OAuthSessionStore` |
+| Opening a sign-in attempt: mint its `state` and `nonce` and store it | `start_sign_in` | `begin_oauth`, `create_state` |
+| Taking a sign-in attempt out of the store by its `state`, for the provider it was started for | `consume_sign_in_attempt` | `pop_state`, `verify_state` |
+| A `state` that is unknown, spent, expired or was started for another provider | `InvalidOAuthState` | `StateMismatch`, `BadState` |
+| The app-relative path a sign-in lands on afterwards; only a path starting with a single `/` is accepted | `redirect_target` (`safe_redirect_target`) | `next`, `return_to`, `redirect_url` |
+| Turning a verified `ProviderIdentity` into a session, a new `user`, or a pending link | `sign_in_with_provider` | `oauth_login`, `authenticate_provider` |
+| The outcomes of `sign_in_with_provider`: a session was issued, or a link confirmation email was queued | `SignedIn`, `LinkPending` | `LoginResult`, `OAuthResult` |
+| A single-use token, emailed to an account's address, that confirms linking one frozen provider identity to that account | `oauth_link_token` (table `oauth_link_token`, model `OAuthLinkToken`) | `link_token`, `connect_token`, `merge_token` |
+| How long an `oauth_link_token` stays valid | `OAUTH_LINK_TOKEN_EXP` | `LINK_TOKEN_TTL`, `OAUTH_LINK_EXPIRY` |
+| Redeeming an `oauth_link_token`: attach its identity to its `user` | `confirm_identity_link` | `confirm_link`, `accept_link` |
+| An `oauth_link_token` that is unknown or already used / past its `expires_at` | `InvalidOAuthLinkToken`, `OAuthLinkTokenExpired` | `InvalidLinkToken`, `LinkExpired` |
+| Refusal: the account with this email already has a provider identity (an account holds at most one) | `EmailLinkedToOtherProvider` | `AlreadyLinked`, `ProviderConflict` |
+| Which provider an account is already linked to, returned with `EmailLinkedToOtherProvider` so the client can name it | `linked_provider` | `existing_provider`, `other_provider` |
+| The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
 
 
