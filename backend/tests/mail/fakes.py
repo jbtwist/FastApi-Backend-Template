@@ -17,10 +17,17 @@ class SentPasswordResetEmail:
     token: str
 
 
+@dataclass
+class SentOAuthLinkEmail:
+    email: str
+    token: str
+
+
 class FakeEmailSender:
     def __init__(self) -> None:
         self.sent: list[SentVerificationEmail] = []
         self.sent_password_reset: list[SentPasswordResetEmail] = []
+        self.sent_oauth_link: list[SentOAuthLinkEmail] = []
         self.fail_with: Exception | None = None
 
     async def send_verification_email(self, *, email: str, token: str) -> None:
@@ -32,6 +39,11 @@ class FakeEmailSender:
         if self.fail_with is not None:
             raise self.fail_with
         self.sent_password_reset.append(SentPasswordResetEmail(email=email, token=token))
+
+    async def send_oauth_link_email(self, *, email: str, token: str) -> None:
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.sent_oauth_link.append(SentOAuthLinkEmail(email=email, token=token))
 
 
 class FakeEmailOutboxRepository:

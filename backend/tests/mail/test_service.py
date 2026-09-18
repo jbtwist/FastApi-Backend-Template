@@ -5,7 +5,11 @@ import pytest
 from backend.mail import service
 from backend.mail.exceptions import EmailOutboxEntryNotFound
 from backend.mail.models import EmailKind, EmailOutboxStatus
-from tests.mail.fakes import SentPasswordResetEmail, SentVerificationEmail
+from tests.mail.fakes import (
+    SentOAuthLinkEmail,
+    SentPasswordResetEmail,
+    SentVerificationEmail,
+)
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -159,6 +163,28 @@ class TestEnqueueAndDispatchByKind:
         assert email_sender.sent == [
             SentVerificationEmail(email="ada@example.com", token="verify-token")
         ]
+        assert email_sender.sent_password_reset == []
+
+
+class TestOAuthLinkDispatch:
+    async def test_oauth_link_entry_is_dispatched_via_the_oauth_link_sender(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await service.enqueue_email(
+            email_outbox_repo,
+            user_id="user-1",
+            email="ada@example.com",
+            token="link-token",
+            created_at=NOW,
+            kind=EmailKind.OAUTH_LINK,
+        )
+
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
+
+        assert email_sender.sent_oauth_link == [
+            SentOAuthLinkEmail(email="ada@example.com", token="link-token")
+        ]
+        assert email_sender.sent == []
         assert email_sender.sent_password_reset == []
 
 

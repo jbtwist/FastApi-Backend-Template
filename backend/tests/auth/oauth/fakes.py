@@ -1,12 +1,14 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from sqlalchemy.exc import IntegrityError
 
 from backend.auth.oauth.contract import ProviderIdentity
 from backend.auth.oauth.exceptions import ProviderAssertionInvalid
-from backend.auth.oauth.models import OAuthIdentity
+from backend.auth.oauth.models import OAuthIdentity, OAuthLinkToken
+from backend.auth.oauth.state import SignInAttempt
+from tests.auth.fakes import _FakeSingleUseTokenRepository
 
 
 class FakeOAuthProvider:
@@ -58,7 +60,8 @@ class SecondFakeOAuthProvider(FakeOAuthProvider):
 
 
 class FakeOAuthIdentityRepository:
-    """Mirrors `oauth_identity_provider_subject_key`: a duplicate link raises `IntegrityError`."""
+    """Mirrors both unique constraints: a duplicate `(provider, provider_subject)`, or a
+    second identity for one `user_id`, raises `IntegrityError`."""
 
     def __init__(self) -> None:
         self._identities_by_id: dict[uuid.UUID, OAuthIdentity] = {}
@@ -68,6 +71,12 @@ class FakeOAuthIdentityRepository:
     ) -> OAuthIdentity | None:
         for identity in self._identities_by_id.values():
             if identity.provider == provider and identity.provider_subject == provider_subject:
+                return identity
+        return None
+
+    async def get_by_user_id(self, user_id: uuid.UUID) -> OAuthIdentity | None:
+        for identity in self._identities_by_id.values():
+            if identity.user_id == user_id:
                 return identity
         return None
 
@@ -87,6 +96,12 @@ class FakeOAuthIdentityRepository:
                 {},
                 Exception("duplicate key: oauth_identity_provider_subject_key"),
             )
+        if await self.get_by_user_id(user_id) is not None:
+            raise IntegrityError(
+                "INSERT INTO oauth_identity",
+                {},
+                Exception("duplicate key: oauth_identity_user_id_key"),
+            )
         identity = OAuthIdentity(
             id=uuid.uuid4(),
             user_id=user_id,
@@ -104,3 +119,58 @@ class FakeOAuthIdentityRepository:
         self, identity_id: uuid.UUID, *, authenticated_at: datetime
     ) -> None:
         self._identities_by_id[identity_id].last_authenticated_at = authenticated_at
+
+
+class FakeOAuthLinkTokenRepository(_FakeSingleUseTokenRepository[OAuthLinkToken]):
+    model = OAuthLinkToken
+
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        expires_at: datetime,
+        identity: ProviderIdentity,
+    ) -> OAuthLinkToken:
+        token = OAuthLinkToken(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            used_at=None,
+            provider=identity.provider,
+            provider_subject=identity.subject,
+            email_at_link=identity.email,
+            is_private_relay=identity.is_private_relay,
+            display_name=identity.display_name,
+        )
+        self._tokens_by_id[token.id] = token
+        return token
+
+    async def invalidate_all_for_user(
+        self, user_id: uuid.UUID, *, invalidated_at: datetime
+    ) -> None:
+        for token in self._tokens_by_id.values():
+            if token.user_id == user_id and token.used_at is None:
+                token.used_at = invalidated_at
+
+    def all(self) -> list[OAuthLinkToken]:
+        return list(self._tokens_by_id.values())
+
+
+class FakeSignInStateStore:
+    """An in-memory `SignInStateStore`; expiry is modelled by `expire`, not by a clock."""
+
+    def __init__(self) -> None:
+        self.attempts: dict[str, SignInAttempt] = {}
+        self.ttls: dict[str, timedelta] = {}
+
+    async def save(self, state: str, attempt: SignInAttempt, *, ttl: timedelta) -> None:
+        self.attempts[state] = attempt
+        self.ttls[state] = ttl
+
+    async def consume(self, state: str) -> SignInAttempt | None:
+        return self.attempts.pop(state, None)
+
+    def expire(self, state: str) -> None:
+        self.attempts.pop(state, None)

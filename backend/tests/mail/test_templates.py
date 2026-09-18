@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from backend.mail.templates import (
     humanize_duration,
+    render_oauth_link_email,
     render_password_reset_email,
     render_verification_email,
 )
@@ -61,6 +62,42 @@ class TestRenderPasswordResetEmail:
     def test_html_escapes_special_characters_in_the_url(self):
         rendered = render_password_reset_email(
             reset_password_url="https://example.com?a=1&b=2", expires_in="1 hour"
+        )
+
+        assert "https://example.com?a=1&amp;b=2" in rendered.html
+        assert "https://example.com?a=1&b=2" in rendered.text
+
+
+class TestRenderOAuthLinkEmail:
+    URL = "https://app.todoapp.local/link-provider-confirm?token=raw-token"
+
+    def test_includes_the_confirm_url_in_html_and_text(self):
+        rendered = render_oauth_link_email(link_provider_confirm_url=self.URL, expires_in="1 hour")
+
+        assert self.URL in rendered.html
+        assert self.URL in rendered.text
+
+    def test_states_the_expiry_window(self):
+        rendered = render_oauth_link_email(
+            link_provider_confirm_url=self.URL, expires_in="15 minutes"
+        )
+
+        assert "15 minutes" in rendered.html
+        assert "15 minutes" in rendered.text
+
+    def test_has_the_oauth_link_subject(self):
+        rendered = render_oauth_link_email(link_provider_confirm_url=self.URL, expires_in="1 hour")
+
+        assert rendered.subject == "Confirm signing in to Todoapp with another provider"
+
+    def test_tells_the_reader_to_ignore_it_if_they_did_not_ask(self):
+        rendered = render_oauth_link_email(link_provider_confirm_url=self.URL, expires_in="1 hour")
+
+        assert "ignore" in rendered.text.lower()
+
+    def test_html_escapes_special_characters_in_the_url(self):
+        rendered = render_oauth_link_email(
+            link_provider_confirm_url="https://example.com?a=1&b=2", expires_in="1 hour"
         )
 
         assert "https://example.com?a=1&amp;b=2" in rendered.html
