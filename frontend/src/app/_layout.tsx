@@ -1,22 +1,38 @@
 import { DarkTheme, DefaultTheme, Slot, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider, useAuth } from '@/auth/auth-context';
-import { LocaleProvider } from '@/i18n/provider';
+import { useTheme } from '@/hooks/use-theme';
+import { LocaleProvider, useTranslation } from '@/i18n/provider';
 import { ColorSchemeProvider, useActiveColorScheme } from '@/theme/provider';
 
 SplashScreen.preventAutoHideAsync();
 
-/** Withholds the navigator until the launch probe settles; the overlay keeps
- *  the splash on screen meanwhile. */
+/** Withholds the navigator until the launch probe settles. The splash overlay
+ *  fades on its own schedule, so a slow probe shows a spinner, not a blank screen. */
 function RootNavigator() {
   const { status } = useAuth();
   return (
     <>
       <AnimatedSplashOverlay />
-      {status === 'loading' ? null : <Slot />}
+      {status === 'loading' ? <LaunchProbePending /> : <Slot />}
     </>
+  );
+}
+
+function LaunchProbePending() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  return (
+    <View style={[styles.pending, { backgroundColor: theme.background }]}>
+      <ActivityIndicator
+        size="large"
+        color={theme.tint}
+        accessibilityLabel={t('common.loading')}
+      />
+    </View>
   );
 }
 
@@ -41,3 +57,7 @@ export default function RootLayout() {
     </LocaleProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  pending: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+});

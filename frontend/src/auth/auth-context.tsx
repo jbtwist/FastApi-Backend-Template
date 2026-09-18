@@ -26,6 +26,7 @@ import { Platform } from 'react-native';
 
 import * as authApi from './auth-api';
 import { configureApiClient, ensureFreshSession } from './api-client';
+import * as pendingVerification from './pending-verification';
 import { clearTokens, getTokens, setTokens } from './token-store';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn' | 'renewing' | 'expired';
@@ -46,7 +47,10 @@ export interface AuthContextValue {
   signedOutReason: SignedOutReason;
   /** Re-run the launch probe. Called once on mount; exposed for a manual retry. */
   bootstrap: () => Promise<void>;
-  /** Throws `AuthApiError` for `401` / `403` / `429`; state is untouched on throw. */
+  /** Throws `AuthApiError` for `401` / `403` / `429`; state is untouched on throw.
+   *  On success, clears the `PendingVerification` record when it names this
+   *  account — signing in proves it is verified. A record naming a different
+   *  account is kept, because `verify-email-confirm` still needs it. */
   signIn: (email: string, password: string) => Promise<void>;
   /** Enumeration-safe: resolves on `204`, throws `AuthApiError` on `422` / `429`.
    *  Never signs the user in — the caller routes to the verify screen. */
@@ -107,6 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const out = await authApi.login({ email: email.trim(), password });
       if (isNative()) {
         await setTokens({ accessToken: out.access_token, refreshToken: out.refresh_token });
+      }
+      const pending = await pendingVerification.get();
+      if (pending && pendingVerification.isSameEmail(pending.email, out.email)) {
+        await pendingVerification.clear();
       }
       goSignedIn(out);
     },

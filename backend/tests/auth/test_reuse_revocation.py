@@ -8,10 +8,12 @@ endpoint *returns* its 401 instead of raising one.
 
 The fakes in `tests/auth/fakes.py` cannot express any of this: they hold state
 in a dict, with no transaction to roll back, so reuse detection looks like it
-works there whatever the real code does. Hence a real session here, opened and
-closed the same way `get_db` opens and closes one.
+works there whatever the real code does. Nor can they block on a row lock, which
+is how two racing refreshes of the same token meet in Postgres. Hence a real
+session here, opened and closed the same way `get_db` opens and closes one.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -22,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from backend.auth import service
 from backend.auth.config import AuthConfig
-from backend.auth.exceptions import InvalidRefreshToken
+from backend.auth.exceptions import ConcurrentRefresh, InvalidRefreshToken
 from backend.auth.models import RefreshToken, User
 from backend.auth.repository import SqlRefreshTokenRepository
 from backend.auth.security import generate_opaque_token, hash_opaque_token
@@ -30,6 +32,7 @@ from backend.auth.security import generate_opaque_token, hash_opaque_token
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
+AFTER_GRACE = NOW + timedelta(minutes=5)
 
 
 @pytest.fixture
@@ -94,7 +97,7 @@ async def _replay(
     """
     async with session_factory() as session, session.begin():
         result = await service.rotate_refresh_token(
-            SqlRefreshTokenRepository(session), raw_token, config=auth_config, now=NOW
+            SqlRefreshTokenRepository(session), raw_token, config=auth_config, now=AFTER_GRACE
         )
     assert isinstance(result, service.ReuseDetected)
 
@@ -132,5 +135,48 @@ async def test_the_stolen_chain_cannot_be_rotated_after_the_replay(
                 SqlRefreshTokenRepository(session),
                 raw_successor,
                 config=auth_config,
-                now=NOW + timedelta(seconds=1),
+                now=AFTER_GRACE + timedelta(seconds=1),
             )
+
+
+async def test_a_refresh_that_loses_the_row_lock_leaves_the_winners_session_alone(
+    session_factory: async_sessionmaker, user: User, auth_config: AuthConfig
+) -> None:
+    """Two tabs refresh with the same cookie at once.
+
+    The loser reads the token before the winner commits, then blocks on the
+    winner's row lock in `mark_used`. Once unblocked it must neither revoke the
+    family nor touch the successor the winner just issued.
+    """
+    raw_token = generate_opaque_token()
+    async with session_factory() as session, session.begin():
+        await SqlRefreshTokenRepository(session).create(
+            user_id=user.id,
+            family_id=uuid.uuid4(),
+            token_hash=hash_opaque_token(raw_token),
+            expires_at=NOW + auth_config.REFRESH_TOKEN_EXP,
+        )
+
+    async def rotate_in_own_transaction():
+        async with session_factory() as session, session.begin():
+            return await service.rotate_refresh_token(
+                SqlRefreshTokenRepository(session), raw_token, config=auth_config, now=NOW
+            )
+
+    async with session_factory() as session, session.begin():
+        winner = await service.rotate_refresh_token(
+            SqlRefreshTokenRepository(session), raw_token, config=auth_config, now=NOW
+        )
+        loser = asyncio.create_task(rotate_in_own_transaction())
+        await asyncio.sleep(0.2)
+        assert not loser.done(), "the loser should be waiting on the winner's row lock"
+
+    with pytest.raises(ConcurrentRefresh):
+        await loser
+
+    async with session_factory() as session, session.begin():
+        successor = await SqlRefreshTokenRepository(session).get_by_hash(
+            hash_opaque_token(winner.refresh_token)
+        )
+    assert successor is not None
+    assert successor.revoked_at is None

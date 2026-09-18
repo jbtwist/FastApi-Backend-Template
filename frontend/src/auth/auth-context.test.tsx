@@ -16,6 +16,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { configureApiClient, resetApiClient } from './api-client';
 import { AuthProvider, useAuth } from './auth-context';
+import * as pendingVerification from './pending-verification';
 import { mockFetch, secureStoreSnapshot, seedSecureStore, type MockFetch } from '@/test-utils';
 
 const BASE = 'https://api.test';
@@ -186,6 +187,30 @@ describe('signIn — native', () => {
     ).rejects.toMatchObject({ uiError: { kind: 'email-not-verified', email: 'a@b.c' } });
 
     expect(result.current.status).toBe('signedOut');
+  });
+
+  it('clears the pending verification once that account signs in', async () => {
+    await pendingVerification.set({ email: ' A@B.c', lastSentAt: 1 });
+    const { result } = await mountSignedOut();
+    fetchMock.queueJson(200, LOGIN_OK);
+
+    await act(async () => {
+      await result.current.signIn('A@B.c', 'pw-123456789012');
+    });
+
+    expect(await pendingVerification.get()).toBeNull();
+  });
+
+  it('keeps the pending verification when a different account signs in', async () => {
+    await pendingVerification.set({ email: 'other@b.c', lastSentAt: 1 });
+    const { result } = await mountSignedOut();
+    fetchMock.queueJson(200, LOGIN_OK);
+
+    await act(async () => {
+      await result.current.signIn('a@b.c', 'pw-123456789012');
+    });
+
+    expect(await pendingVerification.get()).toEqual({ email: 'other@b.c', lastSentAt: 1 });
   });
 
   it('clears a prior signedOutReason on a fresh successful sign-in', async () => {

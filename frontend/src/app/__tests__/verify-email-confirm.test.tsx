@@ -31,6 +31,7 @@ jest.mock('@/auth/auth-context', () => ({
 }));
 
 jest.mock('@/auth/pending-verification', () => ({
+  isSameEmail: jest.requireActual('@/auth/pending-verification').isSameEmail,
   get: () => mockGetPending(),
   clear: () => mockClearPending(),
   set: jest.fn().mockResolvedValue(undefined),
@@ -124,6 +125,17 @@ describe('verify-email-confirm screen', () => {
       await screen.findByText('This verification link is missing its token.'),
     ).toBeOnTheScreen();
     expect(mockConfirm).not.toHaveBeenCalled();
+  });
+
+  it('confirms without a conflict when the pending email differs only in case', async () => {
+    mockStatus = 'signedIn';
+    mockUser = { id: 'u1', email: 'alice@example.com', emailVerified: true };
+    mockGetPending.mockResolvedValue({ email: 'Alice@Example.com', lastSentAt: Date.now() });
+
+    mount('/verify-email-confirm?token=tok-123');
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith('tok-123'));
+    expect(screen.queryByText('A different account is signed in')).toBeNull();
   });
 
   it('prompts to resolve the conflict when a different user is signed in', async () => {

@@ -83,6 +83,7 @@ export interface RequestOptions {
   context: AuthEndpointContext;
   /**
    * Whether this call carries the session and should trigger refresh-on-401.
+   */
   authed?: boolean;
   /** Email typed into the form. */
   submittedEmail?: string;
@@ -177,6 +178,14 @@ let refreshInFlight: Promise<boolean> | null = null;
  * Run a refresh, coalescing concurrent callers onto one in-flight `POST
  * /auth/refresh`. Resolves `true` when a fresh session is in place, `false`
  * when the refresh failed (local tokens are then cleared on native).
+ *
+ * Bounded by `timeoutMs` like every other call, so a stalled refresh can't
+ * hold the launch probe (and the blank screen behind it) open forever.
+ *
+ * On web a `409` counts as a fresh session: it means another tab refreshed
+ * with the same cookie a moment earlier, and the cookies it was sent are
+ * already in this browser, ready for the retry. On native there are no shared
+ * cookies to inherit, so a `409` is a failed refresh like any other.
  */
 export function ensureFreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
@@ -202,12 +211,20 @@ async function doRefresh(): Promise<boolean> {
   }
   init.body = body;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  init.signal = controller.signal;
+
   let response: Response;
   try {
     response = await fetch(`${config.baseUrl}/auth/refresh`, init);
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
+
+  if (response.status === 409 && config.platform === 'web') return true;
 
   if (!response.ok) {
     if (config.platform !== 'web') await clearTokens().catch(() => undefined);

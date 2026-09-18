@@ -49,6 +49,16 @@ it('setError forces a field error and marks it touched; setValue clears it', () 
   expect(result.current.errors.password).toBeUndefined();
 });
 
+it('handleBlur keeps a server error on a value the client validators accept', () => {
+  const { result } = setup(jest.fn());
+  act(() => result.current.setValue('password', 'a-breached-password'));
+  act(() => result.current.setError('password', 'errors.passwordRejected'));
+
+  act(() => result.current.handleBlur('password'));
+
+  expect(result.current.errors.password).toBe(en.errors.passwordRejected);
+});
+
 it('handleBlur marks the field touched and validates just that field', () => {
   const { result } = setup(jest.fn());
   act(() => result.current.handleBlur('password'));
@@ -145,7 +155,7 @@ it('resets submitting when onSubmit rejects, and surfaces the rejection', async 
 it('reset() returns to the initial state', () => {
   const { result } = setup(jest.fn());
   act(() => result.current.setValue('email', 'x@y.co'));
-  act(() => result.current.setFormMessage({ kind: 'info', text: 'hi' }));
+  act(() => result.current.setFormMessage({ kind: 'info', message: 'errors.unknown' }));
   act(() => result.current.reset());
 
   expect(result.current.values).toEqual({ email: '', password: '' });

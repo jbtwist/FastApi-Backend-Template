@@ -25,16 +25,16 @@ export type AuthConfig = {
    * `EXPO_PUBLIC_PASSWORD_MIN_LENGTH`, defaulting to 12.
    *
    * Must equal the server's floor, which it derives from
-   * `AUTH_PASSWORD_STRENGTH` (low = 8, medium = 12, high = 15). Set it too low
+   * `PASSWORD_STRENGTH` (low = 8, medium = 12, high = 15). Set it too low
    * and a length rejection arrives as a `password-policy` error the screen
-   * cannot tell apart from a breached password. See `auth/errors` and ADR 5.
+   * cannot tell apart from a breached password. See `auth/errors`.
    */
   passwordMinLength: number;
   /**
    * Longest password the register form will submit.
    * `EXPO_PUBLIC_PASSWORD_MAX_LENGTH`, defaulting to 128.
    *
-   * Must equal the server's `AUTH_PASSWORD_MAX_LENGTH`, for the same reason as
+   * Must equal the server's `PASSWORD_MAX_LENGTH`, for the same reason as
    * `passwordMinLength` above.
    */
   passwordMaxLength: number;

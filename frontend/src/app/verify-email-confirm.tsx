@@ -39,7 +39,7 @@ export default function VerifyEmailConfirmScreen() {
     setPhase('verifying');
     try {
       await confirmEmail(token);
-      await pendingVerification.clear().catch(() => undefined);
+      await pendingVerification.clear();
       setPhase('success');
     } catch {
       // 400 invalid-token, or any transport failure — the recovery is the same:
@@ -57,7 +57,11 @@ export default function VerifyEmailConfirmScreen() {
 
     void (async () => {
       const pending = await pendingVerification.get();
-      if (status === 'signedIn' && user && pending && pending.email !== user.email) {
+      const otherAccount =
+        pending !== null &&
+        user !== null &&
+        !pendingVerification.isSameEmail(pending.email, user.email);
+      if (status === 'signedIn' && otherAccount) {
         setPhase('conflict');
         return;
       }

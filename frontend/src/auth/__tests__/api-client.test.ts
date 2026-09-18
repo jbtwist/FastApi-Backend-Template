@@ -140,6 +140,21 @@ describe('request — concurrent 401s coalesce onto one refresh', () => {
   });
 });
 
+describe('request — refresh lost a race with another tab', () => {
+  it('on web, a 409 from refresh retries the original request with the shared cookies', async () => {
+    const onSessionExpired = jest.fn();
+    configureApiClient({ platform: 'web', onSessionExpired });
+
+    fetchMock
+      .queueJson(401, { detail: 'Not authenticated' })
+      .queueJson(409, { detail: 'Refresh already in progress' })
+      .queueJson(200, { id: 'u1' });
+
+    await expect(request('/auth/me', { context: 'me' })).resolves.toEqual({ id: 'u1' });
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+});
+
 describe('request — refresh 401 → reject + signal', () => {
   it('clears tokens, fires onSessionExpired once, rejects with SessionExpiredError', async () => {
     const onSessionExpired = jest.fn();
@@ -209,6 +224,13 @@ describe('request — offline / timeout', () => {
     await expect(request('/auth/me', { context: 'me' })).rejects.toMatchObject({
       uiError: { kind: 'offline' },
     });
+  });
+
+  it('a hung refresh aborts too, so the caller is never left waiting', async () => {
+    configureApiClient({ timeoutMs: 10 });
+    fetchMock.queueTimeout();
+    await expect(ensureFreshSession()).resolves.toBe(false);
+    expect(fetchMock.requests[0].init?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('a hung request aborts and maps to timeout', async () => {

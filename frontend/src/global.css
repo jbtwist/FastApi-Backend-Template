@@ -17,12 +17,15 @@
 /* React Native Web renders `TextInput` as an `<input>`, which the browser gives
    its own focus ring — a second box around the one the field already draws.
    `TextField` renders focus itself (a thicker, tinted border), so removing the
-   UA ring costs no visibility for keyboard users. */
+   UA ring costs no visibility for keyboard users. Scoped to text inputs only:
+   buttons, links and the switchers draw no focus state of their own, so the
+   browser's ring is the only one they have. */
 input:focus,
 input:focus-visible,
+input[data-focusvisible-polyfill],
 textarea:focus,
 textarea:focus-visible,
-[data-focusvisible-polyfill] {
+textarea[data-focusvisible-polyfill] {
   outline: none;
 }
 

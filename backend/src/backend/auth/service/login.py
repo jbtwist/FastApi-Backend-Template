@@ -6,6 +6,7 @@ from datetime import datetime
 
 from backend.auth.config import AuthConfig
 from backend.auth.exceptions import (
+    ConcurrentRefresh,
     EmailNotVerified,
     InvalidCredentials,
     InvalidRefreshToken,
@@ -108,6 +109,16 @@ async def rotate_refresh_token(
     used is presented again, that's treated as a stolen token and the whole family is revoked,
     which signs out every device sharing that login's rotation chain.
 
+    Two requests rotating the same token at once are a race, not a theft: the
+    one that loses the atomic `mark_used` update, or that arrives within
+    `REFRESH_TOKEN_REUSE_GRACE` of the token being spent, raises
+    `ConcurrentRefresh` and changes nothing. Revoking there would sign out the
+    request that won — usually a second tab of the same browser, since tabs
+    share one cookie.
+
+    The cost of that window: a thief who replays inside it gets no tokens, but
+    is not detected either. Detection resumes once it has passed.
+
     Returns:
         The new `TokenPair`, or `ReuseDetected` if `raw_refresh_token` had
         already been spent. Reuse is a return value, not an exception, because
@@ -117,12 +128,15 @@ async def rotate_refresh_token(
     Raises:
         InvalidRefreshToken: the token doesn't exist or its family was already revoked.
         RefreshTokenExpired: the token exists but is past `expires_at`.
+        ConcurrentRefresh: another request spent the token a moment ago.
     """
     record = await refresh_token_repo.get_by_hash(hash_opaque_token(raw_refresh_token))
     if record is None or record.revoked_at is not None:
         raise InvalidRefreshToken
 
     if record.used_at is not None:
+        if now - record.used_at < config.REFRESH_TOKEN_REUSE_GRACE:
+            raise ConcurrentRefresh
         await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
         return ReuseDetected(family_id=record.family_id)
 
@@ -131,8 +145,7 @@ async def rotate_refresh_token(
 
     won_race = await refresh_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
-        await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
-        return ReuseDetected(family_id=record.family_id)
+        raise ConcurrentRefresh
 
     new_raw_refresh_token = generate_opaque_token()
     await refresh_token_repo.create(

@@ -13,7 +13,7 @@
  * never reaches the user. That is affordable because the form already rejects
  * both password lengths itself, leaving the breach check as the only rule the
  * server can still fail — so a `password-policy` 422 can be named precisely
- * without reading what the server wrote. See ADR 5.
+ * without reading what the server wrote.
  */
 import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';

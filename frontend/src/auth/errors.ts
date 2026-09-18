@@ -46,7 +46,7 @@ export type AuthEndpointContext =
  * in English prose. Screens that pre-validate both lengths against
  * `authConfig.passwordMinLength` and `authConfig.passwordMaxLength` are
  * therefore left with one possible cause — the breach check — and can name it
- * in the user's language. See ADR 5.
+ * in the user's language.
  */
 export type AuthUiError =
   | { kind: 'invalid-credentials' }

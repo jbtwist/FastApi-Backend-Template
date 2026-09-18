@@ -72,19 +72,25 @@ export const pgConnectionString = required('DATABASE_URL').replace('+asyncpg', '
 export const databaseName = new URL(pgConnectionString).pathname.replace(/^\//, '');
 
 /**
- * `ACCESS_TOKEN_EXP` in seconds, so a spec can wait a session out.
+ * A `timedelta` key from `.env.e2e`, in seconds.
  *
- * Understands the two forms the backend's `timedelta` fields accept in
- * `.env.e2e`: a bare number of seconds, or an ISO-8601 `PT#H#M#S` duration.
+ * Understands the two forms the backend's `timedelta` fields accept: a bare
+ * number of seconds, or an ISO-8601 `PT#H#M#S` duration.
  */
-export const accessTokenExpSeconds = (() => {
-  const raw = required('ACCESS_TOKEN_EXP');
+function durationSeconds(key: string): number {
+  const raw = required(key);
   if (/^\d+$/.test(raw)) return Number(raw);
   const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(raw);
-  if (!match) throw new Error(`Cannot read ACCESS_TOKEN_EXP=${raw} as a duration`);
+  if (!match) throw new Error(`Cannot read ${key}=${raw} as a duration`);
   const [, h = '0', m = '0', s = '0'] = match;
   return Number(h) * 3600 + Number(m) * 60 + Number(s);
-})();
+}
+
+/** `ACCESS_TOKEN_EXP` in seconds, so a spec can wait a session out. */
+export const accessTokenExpSeconds = durationSeconds('ACCESS_TOKEN_EXP');
+
+/** `REFRESH_TOKEN_REUSE_GRACE` in seconds, so a replay is not mistaken for a race. */
+export const refreshTokenReuseGraceSeconds = durationSeconds('REFRESH_TOKEN_REUSE_GRACE');
 
 /**
  * The same server with the database swapped for `postgres`, so a client can

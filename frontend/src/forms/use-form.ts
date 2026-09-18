@@ -34,7 +34,8 @@ export interface UseFormResult<T extends Record<string, string>> {
   submitting: boolean;
   /** Sets a field's value and clears associated errors. */
   setValue: (field: keyof T, value: string) => void;
-  /** Marks a field as touched and validates it. */
+  /** Marks a field as touched and validates it. An error set by `setError`
+   *  survives a value the validators accept, since only editing clears it. */
   handleBlur: (field: keyof T) => void;
   /** Force a field error (e.g. a server rejection); also marks it touched so it shows. */
   setError: (field: keyof T, message: Message | undefined) => void;
@@ -90,7 +91,7 @@ export function useForm<T extends Record<string, string>>(
       setValues((current) => {
         setErrors((prev) => ({
           ...prev,
-          [field]: firstError(validate, field, current[field]),
+          [field]: firstError(validate, field, current[field]) ?? prev[field],
         }));
         return current;
       });

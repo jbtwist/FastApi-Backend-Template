@@ -36,6 +36,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A user's hashed password | `password_hash` | `password`, `hashed_password` |
 | Group of refresh tokens from one login, used for rotation + reuse detection | `family_id` | `session_id`, `chain_id` |
 | The moment a refresh token was consumed by rotation | `used_at` | `consumed_at`, `rotated_at` |
+| How long after a refresh token's `used_at` a repeat presentation still counts as a concurrent refresh rather than reuse | `REFRESH_TOKEN_REUSE_GRACE` | `refresh_leeway`, `reuse_window` |
+| A spent refresh token presented again by a request racing the one that spent it — answered `409`, never revokes the family | `ConcurrentRefresh` | `RefreshRace`, `DuplicateRefresh` |
 | The moment a refresh token (or its family) was invalidated early | `revoked_at` | `invalidated_at`, `disabled_at` |
 | The moment a token stops being valid | `expires_at` | `expiry`, `exp_date`, `valid_until` |
 | An access_token + refresh_token issued together | `token_pair` | `tokens`, `pair` |
@@ -57,7 +59,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | A short-lived token used to initiate a password reset, sent as a link | `password_reset_token` | `reset_token` |
 | The minimum length tier for a password | `PasswordStrength` | `strength`, `level`, `tier` |
 | The breach-check status of a password | `PASSWORD_CHECK_PWNED` | `check_breaches`, `pwned_check` |
-| Whether per-route rate limiting is enforced; off only for load testing | `RATE_LIMIT_ENABLED` | `disable_rate_limit`, `throttling_off`, `stress_mode` |
+| Whether rate limiting is enforced, per route and app-wide; off only for load testing | `RATE_LIMIT_ENABLED` | `disable_rate_limit`, `throttling_off`, `stress_mode` |
+| Installing the rate-limit library on the app, honouring `RATE_LIMIT_ENABLED` | `enable_rate_limiting` | `setup_rate_limit`, `add_rate_limiting` |
 | The maximum length allowed for a password | `PASSWORD_MAX_LENGTH` | `max_length` |
 | A language code + optional country code | `Locale` | `lang_code`, `language`, `l` |
 | The frontend subsystem managing translations | `i18n` | `internationalization`, `localization`, `l10n` |
@@ -73,6 +76,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The frontend layer responsible for transport, error mapping, and automatic token refresh/retry logic | `ApiClient` | `api_client`, `authClient`, `auth-client`, `transport`, `network` |
 | The state machine managing auth session status (signedOut, signedIn, etc.) | `auth-context` | `auth_context` |
 | Store for email/timestamp of the last verification email, used to throttle resends | `PendingVerification` | `pending_verification` |
+| Whether two email addresses name the same account, ignoring case and surrounding whitespace as the backend does | `isSameEmail` | `emailsMatch`, `compareEmails` |
+| Middleware that answers an unhandled exception with a 500 from inside CORS, so the error still carries CORS headers | `ServerErrorAsResponse` | `ErrorMiddleware`, `CatchAllMiddleware` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 
 

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { PENDING_VERIFICATION_KEY, clear, get, set } from './pending-verification';
+import { PENDING_VERIFICATION_KEY, clear, get, isSameEmail, set } from './pending-verification';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -40,4 +40,26 @@ it('returns null for corrupt JSON', async () => {
 it('returns null when the stored shape is wrong', async () => {
   await AsyncStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify({ email: 'x@y.co' }));
   expect(await get()).toBeNull();
+});
+
+describe('when device storage is unavailable (e.g. blocked site data)', () => {
+  it('set resolves instead of failing the registration that called it', async () => {
+    jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('QuotaExceededError'));
+    await expect(set({ email: 'user@example.com', lastSentAt: 1 })).resolves.toBeUndefined();
+  });
+
+  it('clear resolves too', async () => {
+    jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('SecurityError'));
+    await expect(clear()).resolves.toBeUndefined();
+  });
+});
+
+describe('isSameEmail', () => {
+  it('ignores case and surrounding whitespace, as the backend does', () => {
+    expect(isSameEmail(' Alice@Example.com ', 'alice@example.com')).toBe(true);
+  });
+
+  it('tells different addresses apart', () => {
+    expect(isSameEmail('alice@example.com', 'bob@example.com')).toBe(false);
+  });
 });
