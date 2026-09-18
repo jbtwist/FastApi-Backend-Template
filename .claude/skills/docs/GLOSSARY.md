@@ -116,6 +116,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | An `oauth_link_token` that is unknown or already used / past its `expires_at` | `InvalidOAuthLinkToken`, `OAuthLinkTokenExpired` | `InvalidLinkToken`, `LinkExpired` |
 | Refusal: the account with this email already has a provider identity (an account holds at most one) | `EmailLinkedToOtherProvider` | `AlreadyLinked`, `ProviderConflict` |
 | Which provider an account is already linked to, returned with `EmailLinkedToOtherProvider` so the client can name it | `linked_provider` | `existing_provider`, `other_provider` |
+| Firing the Celery dispatch for a freshly written outbox row, tolerating a broker outage | `queue_dispatch_email` | `_queue_dispatch`, `send_async` |
+| Setting both session cookies on a response, as every sign-in path does | `set_token_cookies` | `_set_token_cookies`, `add_session_cookies` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
 
 

@@ -8,7 +8,10 @@ request.
 
 from typing import TypedDict
 
+from fastapi import Response
+
 from backend.auth.config import AuthConfig
+from backend.auth.service.login import TokenPair
 
 
 class CookieParams(TypedDict):
@@ -55,3 +58,9 @@ def clear_refresh_token_cookie(*, config: AuthConfig) -> CookieParams:
     cookie = refresh_token_cookie("", config=config)
     cookie["max_age"] = 0
     return cookie
+
+
+def set_token_cookies(response: Response, pair: TokenPair, *, config: AuthConfig) -> None:
+    """Set both session cookies on `response`, as every sign-in path does."""
+    response.set_cookie(**access_token_cookie(pair.access_token, config=config))
+    response.set_cookie(**refresh_token_cookie(pair.refresh_token, config=config))

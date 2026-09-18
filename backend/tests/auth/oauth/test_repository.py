@@ -163,11 +163,12 @@ async def test_a_link_token_freezes_the_identity(db, link_token_repo, user):
     await link_token_repo.create(
         user_id=user.id, token_hash="hash-1", expires_at=NOW, identity=IDENTITY
     )
+    user_id = user.id
     db.expire_all()
 
     found = await link_token_repo.get_by_hash("hash-1")
 
-    assert found.user_id == user.id
+    assert found.user_id == user_id
     assert found.provider == "apple"
     assert found.provider_subject == "001234.abcd"
     assert found.email_at_link == "x7@privaterelay.appleid.com"

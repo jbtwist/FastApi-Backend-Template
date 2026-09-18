@@ -60,7 +60,10 @@ class SqlOAuthIdentityRepository:
         return result.scalar_one_or_none()
 
     async def get_by_user_id(self, user_id: uuid.UUID) -> OAuthIdentity | None:
-        raise NotImplementedError
+        result = await self._db.execute(
+            select(OAuthIdentity).where(OAuthIdentity.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
 
     async def create(
         self,
@@ -80,8 +83,8 @@ class SqlOAuthIdentityRepository:
             is_private_relay=is_private_relay,
             display_name=display_name,
         )
-        self._db.add(identity)
-        await self._db.flush()
+        async with self._db.begin_nested():
+            self._db.add(identity)
         return identity
 
     async def mark_authenticated(
@@ -126,9 +129,25 @@ class SqlOAuthLinkTokenRepository(_SqlSingleUseTokenRepository[OAuthLinkToken]):
         expires_at: datetime,
         identity: ProviderIdentity,
     ) -> OAuthLinkToken:
-        raise NotImplementedError
+        token = OAuthLinkToken(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            provider=identity.provider,
+            provider_subject=identity.subject,
+            email_at_link=identity.email,
+            is_private_relay=identity.is_private_relay,
+            display_name=identity.display_name,
+        )
+        self._db.add(token)
+        await self._db.flush()
+        return token
 
     async def invalidate_all_for_user(
         self, user_id: uuid.UUID, *, invalidated_at: datetime
     ) -> None:
-        raise NotImplementedError
+        await self._db.execute(
+            update(OAuthLinkToken)
+            .where(OAuthLinkToken.user_id == user_id, OAuthLinkToken.used_at.is_(None))
+            .values(used_at=invalidated_at)
+        )

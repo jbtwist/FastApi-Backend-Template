@@ -4,7 +4,8 @@ Kept in Redis, not in process memory, so any API instance can finish an attempt
 another one started.
 """
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from datetime import timedelta
 from typing import Protocol
 
@@ -44,7 +45,14 @@ class RedisSignInStateStore:
         self._redis = redis
 
     async def save(self, state: str, attempt: SignInAttempt, *, ttl: timedelta) -> None:
-        raise NotImplementedError
+        await self._redis.set(_key(state), json.dumps(asdict(attempt)), ex=ttl)
 
     async def consume(self, state: str) -> SignInAttempt | None:
-        raise NotImplementedError
+        raw = await self._redis.getdel(_key(state))
+        if raw is None:
+            return None
+        return SignInAttempt(**json.loads(raw))
+
+
+def _key(state: str) -> str:
+    return f"oauth:state:{state}"

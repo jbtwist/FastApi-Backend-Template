@@ -16,7 +16,15 @@ from backend.auth.models import (
 class UserRepository(Protocol):
     async def get_by_email(self, email: str) -> User | None: ...
     async def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
-    async def create(self, *, email: str, password_hash: str | None) -> User: ...
+    async def create(self, *, email: str, password_hash: str | None) -> User:
+        """Store a new user.
+
+        Raises:
+            IntegrityError: the email is already registered. The insert runs in
+                a savepoint, so the caller's transaction survives the conflict.
+        """
+        ...
+
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool: ...
     async def set_password_hash(
         self, user_id: uuid.UUID, *, password_hash: str | None, updated_at: datetime
@@ -36,8 +44,8 @@ class SqlUserRepository:
 
     async def create(self, *, email: str, password_hash: str | None) -> User:
         user = User(email=email, password_hash=password_hash)
-        self._db.add(user)
-        await self._db.flush()
+        async with self._db.begin_nested():
+            self._db.add(user)
         return user
 
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool:

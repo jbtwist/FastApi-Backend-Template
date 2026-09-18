@@ -55,4 +55,7 @@ def render_oauth_link_email(*, link_provider_confirm_url: str, expires_in: str) 
     Names no provider: the mail domain only holds the token, and the copy tells
     the reader to ignore it if they didn't just try to sign in.
     """
-    raise NotImplementedError
+    context = {"link_provider_confirm_url": link_provider_confirm_url, "expires_in": expires_in}
+    html = _env.get_template("oauth_link_email.html.jinja").render(**context)
+    text = _env.get_template("oauth_link_email.txt.jinja").render(**context)
+    return RenderedEmail(subject=OAUTH_LINK_EMAIL_SUBJECT, html=html, text=text)

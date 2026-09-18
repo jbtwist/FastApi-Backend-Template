@@ -6,11 +6,13 @@ import aiosmtplib
 import boto3
 
 from backend.auth.config import auth_settings
+from backend.auth.oauth.config import oauth_settings
 from backend.mail.config import mail_settings
 from backend.mail.service import EmailSender
 from backend.mail.templates import (
     RenderedEmail,
     humanize_duration,
+    render_oauth_link_email,
     render_password_reset_email,
     render_verification_email,
 )
@@ -24,6 +26,11 @@ def _confirm_email_url(token: str) -> str:
 def _reset_password_url(token: str) -> str:
     query = urlencode({"token": token})
     return f"{mail_settings.FRONTEND_BASE_URL}/reset-password?{query}"
+
+
+def _link_provider_confirm_url(token: str) -> str:
+    query = urlencode({"token": token})
+    return f"{mail_settings.FRONTEND_BASE_URL}/link-provider-confirm?{query}"
 
 
 class EmailSenderMixin:
@@ -46,7 +53,11 @@ class EmailSenderMixin:
         await self._send(email=email, rendered=rendered)
 
     async def send_oauth_link_email(self, *, email: str, token: str) -> None:
-        raise NotImplementedError
+        rendered = render_oauth_link_email(
+            link_provider_confirm_url=_link_provider_confirm_url(token),
+            expires_in=humanize_duration(oauth_settings.OAUTH_LINK_TOKEN_EXP),
+        )
+        await self._send(email=email, rendered=rendered)
 
     async def _send(self, *, email: str, rendered: RenderedEmail) -> None:
         raise NotImplementedError

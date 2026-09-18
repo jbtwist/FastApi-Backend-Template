@@ -66,6 +66,8 @@ async def _send_for_kind(email_sender: EmailSender, entry: EmailOutboxEntry) -> 
     """
     if entry.kind == EmailKind.PASSWORD_RESET:
         await email_sender.send_password_reset_email(email=entry.email, token=entry.token)
+    elif entry.kind == EmailKind.OAUTH_LINK:
+        await email_sender.send_oauth_link_email(email=entry.email, token=entry.token)
     else:
         await email_sender.send_verification_email(email=entry.email, token=entry.token)
 
