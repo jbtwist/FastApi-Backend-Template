@@ -6,5 +6,12 @@ module.exports = defineConfig([
   expoConfig,
   {
     ignores: ["dist/*"],
-  }
+  },
+  {
+    // Route tests load screens with `require()` inside `renderRouter`'s route map.
+    files: ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
