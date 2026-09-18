@@ -402,6 +402,79 @@ describe('sign-in screen — oauth (native)', () => {
   });
 });
 
+describe('sign-in screen — oauth account linking (native)', () => {
+  let fetchMock: MockFetch;
+
+  const googleSuccess = {
+    type: 'success',
+    params: { id_token: 'id-token-1' },
+    authentication: { idToken: 'id-token-1' },
+    url: 'com.example.app://redirect',
+  };
+
+  beforeEach(() => {
+    fetchMock = mockFetch()
+      .queueJson(200, { providers: ['google'] })
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 });
+    mockPromptAsync.mockResolvedValue(googleSuccess);
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
+  async function continueWithGoogle() {
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+  }
+
+  it('an existing account gets a link email: says so and stays signed out', async () => {
+    fetchMock.queueJson(202, { status: 'link_email_sent' });
+
+    await continueWithGoogle();
+
+    expect(
+      await screen.findByText(
+        'You already have an account with this email. We sent you an email: open the link in it to sign in with Google from now on.',
+      ),
+    ).toBeOnTheScreen();
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+    expect(screen.queryByText('app home')).toBeNull();
+  });
+
+  it('an email linked to another provider names that provider', async () => {
+    fetchMock.queueJson(409, {
+      detail: 'Email linked to another provider',
+      linked_provider: 'apple',
+    });
+
+    await continueWithGoogle();
+
+    expect(
+      await screen.findByText('This email is already linked to Apple. Sign in with Apple instead.'),
+    ).toBeOnTheScreen();
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+  });
+
+  it('the "already linked" banner follows a language switch', async () => {
+    fetchMock.queueJson(409, { detail: 'x', linked_provider: 'apple' });
+
+    await continueWithGoogle();
+    await screen.findByText('This email is already linked to Apple. Sign in with Apple instead.');
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('switch-to-es'));
+    });
+
+    expect(
+      await screen.findByText('Este correo ya está vinculado a Apple. Inicia sesión con Apple.'),
+    ).toBeOnTheScreen();
+  });
+});
+
 describe('sign-in screen — oauth web return', () => {
   let fetchMock: MockFetch;
 
@@ -433,6 +506,38 @@ describe('sign-in screen — oauth web return', () => {
     const router = mount('/sign-in?oauth_error=cancelled');
 
     expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
+  });
+
+  it('email_linked_to_other_provider names the flagged provider, and clears both flags', async () => {
+    const router = mount(
+      '/sign-in?oauth_error=email_linked_to_other_provider&linked_provider=google',
+    );
+
+    expect(
+      await screen.findByText(
+        'This email is already linked to Google. Sign in with Google instead.',
+      ),
+    ).toBeOnTheScreen();
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
+  });
+
+  it('email_linked_to_other_provider without a known provider stays generic', async () => {
+    mount('/sign-in?oauth_error=email_linked_to_other_provider&linked_provider=nope');
+
+    expect(
+      await screen.findByText('This email is already linked to another sign-in method.'),
+    ).toBeOnTheScreen();
+  });
+
+  it('oauth_notice=link_email_sent explains the emailed link, and clears the flag', async () => {
+    const router = mount('/sign-in?oauth_notice=link_email_sent');
+
+    expect(
+      await screen.findByText(
+        'You already have an account with this email. We sent you an email: open the link in it to sign in with that provider from now on.',
+      ),
+    ).toBeOnTheScreen();
     await waitFor(() => expect(router.getSearchParams()).toEqual({}));
   });
 });

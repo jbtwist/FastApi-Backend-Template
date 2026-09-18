@@ -384,4 +384,32 @@ describe('register screen — oauth', () => {
     await waitFor(() => expect(screen.getByText('app home')).toBeOnTheScreen());
     expect(mockRegister).not.toHaveBeenCalled();
   });
+
+  it('an email that already has an account gets a link email, not a new account', async () => {
+    fetchMock
+      .queueJson(200, { providers: ['google'] })
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 })
+      .queueJson(202, { status: 'link_email_sent' });
+    mockPromptAsync.mockResolvedValue({
+      type: 'success',
+      params: { id_token: 'id-token-1' },
+      authentication: { idToken: 'id-token-1' },
+      url: 'com.example.app://redirect',
+    });
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+
+    expect(
+      await screen.findByText(
+        'You already have an account with this email. We sent you an email: open the link in it to sign in with Google from now on.',
+      ),
+    ).toBeOnTheScreen();
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
 });

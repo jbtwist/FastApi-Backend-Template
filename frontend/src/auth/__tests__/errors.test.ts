@@ -142,6 +142,30 @@ describe('toAuthUiError — oauth context', () => {
   });
 });
 
+describe('toAuthUiError — an email already linked to another provider', () => {
+  it('409 on oauth → oauth-email-linked-elsewhere, naming the provider the body carries', () => {
+    expect(
+      toAuthUiError(409, 'Email linked to another provider', 'oauth', { linkedProvider: 'apple' }),
+    ).toEqual({ kind: 'oauth-email-linked-elsewhere', linkedProvider: 'apple' });
+  });
+
+  it('a provider name the app does not know is dropped, not rendered', () => {
+    expect(toAuthUiError(409, undefined, 'oauth', { linkedProvider: '<b>evil</b>' })).toEqual({
+      kind: 'oauth-email-linked-elsewhere',
+    });
+  });
+
+  it('409 on oauth-link-confirm maps the same way', () => {
+    expect(toAuthUiError(409, undefined, 'oauth-link-confirm', { linkedProvider: 'google' })).toEqual(
+      { kind: 'oauth-email-linked-elsewhere', linkedProvider: 'google' },
+    );
+  });
+
+  it('400 on oauth-link-confirm → invalid-token', () => {
+    expect(toAuthUiError(400, undefined, 'oauth-link-confirm')).toEqual({ kind: 'invalid-token' });
+  });
+});
+
 describe('oauthErrorCodeToAuthUiError — the web return leg\'s oauth_error flag', () => {
   it('cancelled → oauth-cancelled', () => {
     expect(oauthErrorCodeToAuthUiError('cancelled')).toEqual({ kind: 'oauth-cancelled' });
@@ -158,6 +182,19 @@ describe('oauthErrorCodeToAuthUiError — the web return leg\'s oauth_error flag
   it('email_not_verified_by_provider → oauth-email-unverified', () => {
     expect(oauthErrorCodeToAuthUiError('email_not_verified_by_provider')).toEqual({
       kind: 'oauth-email-unverified',
+    });
+  });
+
+  it('email_linked_to_other_provider → oauth-email-linked-elsewhere with the flagged provider', () => {
+    expect(oauthErrorCodeToAuthUiError('email_linked_to_other_provider', 'google')).toEqual({
+      kind: 'oauth-email-linked-elsewhere',
+      linkedProvider: 'google',
+    });
+  });
+
+  it('email_linked_to_other_provider with an unknown provider flag → no provider named', () => {
+    expect(oauthErrorCodeToAuthUiError('email_linked_to_other_provider', 'myspace')).toEqual({
+      kind: 'oauth-email-linked-elsewhere',
     });
   });
 
