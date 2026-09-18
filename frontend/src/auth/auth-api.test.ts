@@ -115,9 +115,48 @@ describe('auth-api — each call delegates to request() with the contract shape'
       authed: false,
     });
   });
+
+  it('oauthProviders → GET /auth/oauth/providers, unauthenticated', async () => {
+    await authApi.oauthProviders();
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/providers', {
+      method: 'GET',
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthStart(provider, redirectTarget) → POST /auth/oauth/{provider}/start { redirect_target }', async () => {
+    await authApi.oauthStart('google', '/tasks');
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/start', {
+      method: 'POST',
+      body: { redirect_target: '/tasks' },
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthStart(provider) → no body when redirectTarget is omitted', async () => {
+    await authApi.oauthStart('google');
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/start', {
+      method: 'POST',
+      body: undefined,
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthNative(provider, body) → POST /auth/oauth/{provider}/native, unauthenticated', async () => {
+    await authApi.oauthNative('google', { state: 's1', assertion: 'id-token-1' });
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/native', {
+      method: 'POST',
+      body: { state: 's1', assertion: 'id-token-1' },
+      context: 'oauth',
+      authed: false,
+    });
+  });
 });
 
-it('authApi bundles all nine calls', () => {
+it('authApi bundles all twelve calls', () => {
   expect(Object.keys(authApi.authApi).sort()).toEqual(
     [
       'confirmEmail',
@@ -125,6 +164,9 @@ it('authApi bundles all nine calls', () => {
       'login',
       'logout',
       'me',
+      'oauthNative',
+      'oauthProviders',
+      'oauthStart',
       'refresh',
       'register',
       'resendVerification',

@@ -7,6 +7,7 @@
  * Error handling, transport and refresh-on-401 all live in `api-client`; this
  * module only names the calls and types their payloads.
  */
+import type { OAuthProvider } from './config';
 import { request } from './api-client';
 
 /** `UserOut` from the API. */
@@ -119,6 +120,56 @@ export function resetPassword(body: { token: string; new_password: string }): Pr
   });
 }
 
+/** `OAuthProvidersOut` — which providers this deployment offers. */
+export interface OAuthProvidersOut {
+  providers: OAuthProvider[];
+}
+
+/** `OAuthStartOut` — the `state` + `nonce` a native sign-in attempt runs on. */
+export interface OAuthStartOut {
+  state: string;
+  nonce: string;
+  expires_in: number;
+}
+
+/** `GET /auth/oauth/providers` → `200 OAuthProvidersOut`. Never an error. */
+export function oauthProviders(): Promise<OAuthProvidersOut> {
+  return request<OAuthProvidersOut>('/auth/oauth/providers', {
+    method: 'GET',
+    context: 'oauth',
+    authed: false,
+  });
+}
+
+/** `POST /auth/oauth/{provider}/start` → `200 OAuthStartOut`. `404` if unknown/unconfigured. */
+export function oauthStart(
+  provider: OAuthProvider,
+  redirectTarget?: string,
+): Promise<OAuthStartOut> {
+  return request<OAuthStartOut>(`/auth/oauth/${provider}/start`, {
+    method: 'POST',
+    body: redirectTarget ? { redirect_target: redirectTarget } : undefined,
+    context: 'oauth',
+    authed: false,
+  });
+}
+
+/**
+ * `POST /auth/oauth/{provider}/native` → `200 LoginOut` (same body as
+ * `POST /auth/login`) | `401` | `403` | `503`.
+ */
+export function oauthNative(
+  provider: OAuthProvider,
+  body: { state: string; assertion: string; display_name?: string },
+): Promise<LoginOut> {
+  return request<LoginOut>(`/auth/oauth/${provider}/native`, {
+    method: 'POST',
+    body,
+    context: 'oauth',
+    authed: false,
+  });
+}
+
 export const authApi = {
   register,
   login,
@@ -129,4 +180,7 @@ export const authApi = {
   resendVerification,
   forgotPassword,
   resetPassword,
+  oauthProviders,
+  oauthStart,
+  oauthNative,
 };

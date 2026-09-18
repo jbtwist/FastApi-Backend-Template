@@ -17,13 +17,30 @@ import { DEFAULT_LOCALE, i18n } from '@/i18n';
 import { LOCALE_STORAGE_KEY } from '@/i18n/config';
 import { LocaleProvider, useLocale } from '@/i18n/provider';
 import { ColorSchemeProvider } from '@/theme/provider';
+import { mockFetch, type MockFetch } from '@/test-utils';
 
 const mockRegister = jest.fn<Promise<void>, [string, string]>();
 const mockSetPending = jest.fn<Promise<void>, [unknown]>();
+const mockCompleteOAuthSignIn = jest.fn<Promise<void>, [unknown]>();
 
 jest.mock('@/auth/auth-context', () => ({
-  useAuth: () => ({ status: 'signedOut', user: null, register: mockRegister }),
+  useAuth: () => ({
+    status: 'signedOut',
+    user: null,
+    register: mockRegister,
+    completeOAuthSignIn: mockCompleteOAuthSignIn,
+  }),
 }));
+
+// The platform SDK is faked at the module edge; the real `oauth-client.ts`
+// runs against it and against `fetchMock` below.
+const mockPromptAsync = jest.fn();
+jest.mock('expo-auth-session', () => ({
+  AuthRequest: jest.fn().mockImplementation(() => ({ promptAsync: mockPromptAsync })),
+  ResponseType: { IdToken: 'id_token' },
+  makeRedirectUri: () => 'com.example.app://redirect',
+}));
+jest.mock('expo-auth-session/providers/google', () => ({ discovery: {} }));
 
 jest.mock('@/auth/pending-verification', () => ({
   set: (value: unknown) => mockSetPending(value),
@@ -70,6 +87,7 @@ function routes() {
     '(auth)/register': require('../register').default,
     '(auth)/sign-in': stub('sign-in screen'),
     '(auth)/verify-email': stub('verify-email screen'),
+    '(app)/index': stub('app home'),
   };
 }
 
@@ -93,17 +111,24 @@ beforeEach(async () => {
   mockRegister.mockResolvedValue(undefined);
   mockSetPending.mockReset();
   mockSetPending.mockResolvedValue(undefined);
+  mockCompleteOAuthSignIn.mockReset();
+  mockCompleteOAuthSignIn.mockResolvedValue(undefined);
+  mockPromptAsync.mockReset();
 });
 
 describe('register screen — layout', () => {
-  it('renders the fields, the sign-in link and the provider buttons', () => {
+  it('renders the fields, the sign-in link and the provider buttons', async () => {
+    // Provider buttons render only once the launch fetch resolves —
+    // hide-until-known, never a stale static default.
+    const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
     expect(screen.getByLabelText('Password')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeOnTheScreen();
     expect(screen.getByText('Already have an account? Sign in')).toBeOnTheScreen();
-    expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen());
+    fetchMock.restore();
   });
 
   it('states no password rule up front — the rules surface only on a rejection', () => {
@@ -315,5 +340,48 @@ describe('register screen — submission', () => {
     await act(async () => {
       release();
     });
+  });
+});
+
+describe('register screen — oauth', () => {
+  let fetchMock: MockFetch;
+
+  beforeEach(() => {
+    fetchMock = mockFetch();
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
+  it('pressing a provider button reaches the authenticated area, same as sign-in', async () => {
+    fetchMock
+      .queueJson(200, { providers: ['google'] }) // GET /auth/oauth/providers, on launch
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 }) // POST /start
+      .queueJson(200, {
+        id: 'u1',
+        email: 'new@example.com',
+        email_verified: true,
+        access_token: 'a',
+        refresh_token: 'r',
+        token_type: 'bearer',
+      }); // POST /native
+    mockPromptAsync.mockResolvedValue({
+      type: 'success',
+      params: { id_token: 'id-token-1' },
+      authentication: { idToken: 'id-token-1' },
+      url: 'com.example.app://redirect',
+    });
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+
+    await waitFor(() => expect(mockCompleteOAuthSignIn).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('app home')).toBeOnTheScreen());
+    expect(mockRegister).not.toHaveBeenCalled();
   });
 });
