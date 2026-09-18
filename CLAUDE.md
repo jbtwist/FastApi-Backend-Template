@@ -34,7 +34,7 @@ uv run celery -A backend.mail.celery_app worker --loglevel INFO # email dispatch
 uv run celery -A backend.mail.celery_app beat                   # periodic outbox sweep
 ```
 
-Python 3.14, managed by `uv`. Needs Postgres and Redis running (see `backend/.env.example`).
+Python 3.14, managed by `uv`. Needs Postgres and Redis running (see `backend/.env.example`). Real-database tests never touch `DATABASE_URL` itself: each run creates `<name>_test`, builds it with `alembic upgrade head`, and drops it afterwards, so the Postgres role needs `CREATEDB`.
 
 ### Frontend (run from `frontend/`)
 
