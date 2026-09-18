@@ -29,13 +29,13 @@ import { AuthScreen } from '@/components/auth/auth-screen';
 import { FormMessage, type FormMessageValue } from '@/components/auth/form-message';
 import { PasswordField } from '@/components/auth/password-field';
 import { PrimaryButton } from '@/components/auth/primary-button';
-import { ProviderButtons, PROVIDER_LABEL_KEY } from '@/components/auth/provider-buttons';
+import { ProviderButtons } from '@/components/auth/provider-buttons';
+import { linkEmailSentMessage, oauthMessageFor } from '@/components/auth/provider-messages';
 import { TextField } from '@/components/auth/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useForm } from '@/forms/use-form';
 import { email as emailRule, maxLength, minLength, required } from '@/forms/validators';
-import type { Message, Translate } from '@/i18n/message';
 import type { TranslationKey } from '@/i18n/types';
 import { useTranslation } from '@/i18n/provider';
 
@@ -50,22 +50,6 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
       return 'errors.offline';
     case 'timeout':
       return 'errors.timeout';
-    default:
-      return 'errors.unknown';
-  }
-}
-
-/** Banner copy for an oauth failure — `oauth-cancelled` is never shown. */
-function oauthMessageFor(error: AuthUiError, provider: OAuthProvider, t: Translate): Message {
-  switch (error.kind) {
-    case 'oauth-email-unverified':
-      return { key: 'providers.emailNotConfirmed', options: { provider: t(PROVIDER_LABEL_KEY[provider]) } };
-    case 'oauth-unavailable':
-      return 'providers.unavailable';
-    case 'oauth-not-enabled':
-      return 'providers.notEnabled';
-    case 'oauth-failed':
-      return 'providers.failed';
     default:
       return 'errors.unknown';
   }
@@ -103,6 +87,10 @@ export default function RegisterScreen() {
         const outcome = await startOAuthSignIn(provider, { onSignedIn: completeOAuthSignIn });
         if (outcome.kind === 'signed-in') {
           router.replace('/(app)');
+          return;
+        }
+        if (outcome.kind === 'link-email-sent') {
+          setOauthMessage({ kind: 'info', message: linkEmailSentMessage(provider, t) });
           return;
         }
         if (outcome.kind === 'cancelled' || outcome.kind === 'navigating') return;

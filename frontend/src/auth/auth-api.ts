@@ -155,17 +155,43 @@ export function oauthStart(
 }
 
 /**
+ * `OAuthLinkPendingOut` — the provider's email belongs to an existing account,
+ * which was emailed a link to confirm the new sign-in method. No session yet.
+ */
+export interface OAuthLinkPendingOut {
+  status: 'link_email_sent';
+}
+
+/** Whether a `/native` result is the link-pending `202`, not a session. */
+export function isLinkPending(out: LoginOut | OAuthLinkPendingOut): out is OAuthLinkPendingOut {
+  return (out as OAuthLinkPendingOut).status === 'link_email_sent';
+}
+
+/**
  * `POST /auth/oauth/{provider}/native` → `200 LoginOut` (same body as
- * `POST /auth/login`) | `401` | `403` | `503`.
+ * `POST /auth/login`) | `202 OAuthLinkPendingOut` | `401` | `403` | `409` | `503`.
  */
 export function oauthNative(
   provider: OAuthProvider,
   body: { state: string; assertion: string; display_name?: string },
-): Promise<LoginOut> {
-  return request<LoginOut>(`/auth/oauth/${provider}/native`, {
+): Promise<LoginOut | OAuthLinkPendingOut> {
+  return request<LoginOut | OAuthLinkPendingOut>(`/auth/oauth/${provider}/native`, {
     method: 'POST',
     body,
     context: 'oauth',
+    authed: false,
+  });
+}
+
+/**
+ * `POST /auth/oauth/link/confirm` → `204` | `400` (invalid or expired link) |
+ * `409` (the account got a provider meanwhile). Doesn't sign in.
+ */
+export function confirmIdentityLink(token: string): Promise<void> {
+  return request<void>('/auth/oauth/link/confirm', {
+    method: 'POST',
+    body: { token },
+    context: 'oauth-link-confirm',
     authed: false,
   });
 }
@@ -183,4 +209,5 @@ export const authApi = {
   oauthProviders,
   oauthStart,
   oauthNative,
+  confirmIdentityLink,
 };

@@ -1,0 +1,11 @@
+{
+  "linking": "Vinculando tu cuenta…",
+  "success": "Método de inicio de sesión vinculado",
+  "successBody": "Ya puedes iniciar sesión con ese proveedor.",
+  "continue": "Continuar",
+  "invalidTitle": "Este enlace no es válido o ha caducado",
+  "invalidBody": "Vuelve a iniciar sesión con el proveedor para recibir un enlace nuevo.",
+  "missingToken": "A este enlace le falta el token.",
+  "linkedElsewhereTitle": "Ya está vinculado",
+  "backToSignIn": "Volver a iniciar sesión"
+}

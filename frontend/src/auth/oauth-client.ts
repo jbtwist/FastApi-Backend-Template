@@ -4,7 +4,9 @@
  * Two platform paths, one outcome:
  *  - native: `/start` → the platform SDK, with the server's `nonce` → `/native`
  *    → the resulting `LoginOut` is handed to `auth-context`'s existing session
- *    machine, with no new session handling.
+ *    machine, with no new session handling. When the provider's email belongs
+ *    to an existing account, `/native` answers `202` instead: that account was
+ *    emailed a link to confirm, and the attempt ends in `link-email-sent`.
  *  - web: navigate to `GET /auth/oauth/{provider}/authorize`. The browser
  *    returns via the backend's redirect; no token is ever touched by web JS.
  *
@@ -28,6 +30,7 @@ import { AuthApiError } from './api-client';
 /** What a sign-in attempt ended in. */
 export type OAuthOutcome =
   | { kind: 'signed-in' }
+  | { kind: 'link-email-sent' }
   | { kind: 'cancelled' }
   | { kind: 'navigating' }
   | { kind: 'error'; error: AuthUiError };
@@ -61,6 +64,7 @@ function googleClientIdForPlatform(): string | undefined {
 /** Internal result of running the platform SDK + `/native` exchange. */
 type NativeSignInResult =
   | { kind: 'signed-in'; out: authApi.LoginOut }
+  | { kind: 'link-email-sent' }
   | { kind: 'cancelled' }
   | { kind: 'error'; error: AuthUiError };
 
@@ -103,7 +107,7 @@ async function runGoogleNativeSignIn(state: string, nonce: string): Promise<Nati
 
   try {
     const out = await authApi.oauthNative('google', { state, assertion: idToken });
-    return { kind: 'signed-in', out };
+    return authApi.isLinkPending(out) ? { kind: 'link-email-sent' } : { kind: 'signed-in', out };
   } catch (error) {
     if (error instanceof AuthApiError) return { kind: 'error', error: error.uiError };
     return { kind: 'error', error: { kind: 'unknown' } };

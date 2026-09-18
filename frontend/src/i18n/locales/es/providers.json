@@ -7,5 +7,9 @@
   "emailNotConfirmedGeneric": "No pudimos confirmar tu correo electrónico con ese proveedor. Crea una cuenta con él en su lugar.",
   "failed": "No pudimos iniciar tu sesión. Inténtalo de nuevo.",
   "unavailable": "El inicio de sesión no está disponible por ahora. Inténtalo de nuevo en un momento.",
-  "notEnabled": "Esta opción de inicio de sesión no está disponible en este momento."
+  "notEnabled": "Esta opción de inicio de sesión no está disponible en este momento.",
+  "linkEmailSent": "Ya tienes una cuenta con este correo. Te hemos enviado un correo: abre el enlace que contiene para iniciar sesión con %{provider} a partir de ahora.",
+  "linkEmailSentGeneric": "Ya tienes una cuenta con este correo. Te hemos enviado un correo: abre el enlace que contiene para iniciar sesión con ese proveedor a partir de ahora.",
+  "linkedElsewhere": "Este correo ya está vinculado a %{provider}. Inicia sesión con %{provider}.",
+  "linkedElsewhereGeneric": "Este correo ya está vinculado a otro método de inicio de sesión."
 }

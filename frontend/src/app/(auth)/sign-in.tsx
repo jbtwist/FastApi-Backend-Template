@@ -22,13 +22,14 @@ import { AuthScreen } from '@/components/auth/auth-screen';
 import { FormMessage, type FormMessageValue } from '@/components/auth/form-message';
 import { PasswordField } from '@/components/auth/password-field';
 import { PrimaryButton } from '@/components/auth/primary-button';
-import { ProviderButtons, PROVIDER_LABEL_KEY } from '@/components/auth/provider-buttons';
+import { ProviderButtons } from '@/components/auth/provider-buttons';
+import { linkEmailSentMessage, oauthMessageFor } from '@/components/auth/provider-messages';
 import { TextField } from '@/components/auth/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useForm } from '@/forms/use-form';
 import { email as emailRule, required } from '@/forms/validators';
-import type { Message, Translate } from '@/i18n/message';
+import type { Translate } from '@/i18n/message';
 import type { TranslationKey } from '@/i18n/types';
 import { useTranslation } from '@/i18n/provider';
 
@@ -51,51 +52,46 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
 }
 
 /**
- * Banner copy for an oauth failure — `oauth-cancelled` is never shown.
- *
- * `provider` is `undefined` for the web return leg: the redirect's
- * `oauth_error` flag carries no provider identity, so a specific "Google
- * couldn't confirm…" would be a guess and could name the wrong provider.
+ * The web return leg's one-shot flags: `oauth_error` (with `linked_provider`
+ * for `email_linked_to_other_provider`) on a failure, `oauth_notice` when a
+ * link email went out instead of a session.
  */
-function oauthMessageFor(
-  error: AuthUiError,
-  provider: OAuthProvider | undefined,
-  t: Translate,
-): Message {
-  switch (error.kind) {
-    case 'oauth-email-unverified':
-      return provider
-        ? { key: 'providers.emailNotConfirmed', options: { provider: t(PROVIDER_LABEL_KEY[provider]) } }
-        : 'providers.emailNotConfirmedGeneric';
-    case 'oauth-unavailable':
-      return 'providers.unavailable';
-    case 'oauth-not-enabled':
-      return 'providers.notEnabled';
-    case 'oauth-failed':
-      return 'providers.failed';
-    default:
-      return 'errors.unknown';
+type OAuthReturnParams = {
+  oauth_error?: string;
+  linked_provider?: string;
+  oauth_notice?: string;
+};
+
+function oauthReturnMessage(params: OAuthReturnParams, t: Translate): FormMessageValue | null {
+  if (params.oauth_error) {
+    const ui = oauthErrorCodeToAuthUiError(params.oauth_error, params.linked_provider);
+    return ui.kind === 'oauth-cancelled'
+      ? null
+      : { kind: 'error', message: oauthMessageFor(ui, undefined, t) };
   }
+  if (params.oauth_notice === 'link_email_sent') {
+    return { kind: 'info', message: linkEmailSentMessage(undefined, t) };
+  }
+  return null;
 }
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { oauth_error: oauthErrorParam } = useLocalSearchParams<{ oauth_error?: string }>();
+  const returnParams = useLocalSearchParams<OAuthReturnParams>();
+  const hasReturnFlags = Boolean(
+    returnParams.oauth_error || returnParams.linked_provider || returnParams.oauth_notice,
+  );
   const { t } = useTranslation();
   const { signIn, signedOutReason, completeOAuthSignIn } = useAuth();
 
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
   // Seeded once from the URL the screen was launched with — the web return
-  // leg's one-shot `oauth_error` flag. A lazy initializer, not an effect: the
-  // value only ever matters on the very first render, before the effect
-  // below clears it from the URL.
-  const [oauthMessage, setOauthMessage] = useState<FormMessageValue | null>(() => {
-    if (!oauthErrorParam) return null;
-    const ui = oauthErrorCodeToAuthUiError(oauthErrorParam);
-    return ui.kind === 'oauth-cancelled'
-      ? null
-      : { kind: 'error', message: oauthMessageFor(ui, undefined, t) };
-  });
+  // leg's one-shot flags. A lazy initializer, not an effect: the value only
+  // ever matters on the very first render, before the effect below clears the
+  // flags from the URL.
+  const [oauthMessage, setOauthMessage] = useState<FormMessageValue | null>(() =>
+    oauthReturnMessage(returnParams, t),
+  );
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
   const oauthSubmittingRef = useRef(false);
 
@@ -111,14 +107,22 @@ export default function SignInScreen() {
     };
   }, []);
 
-  // Clear the one-shot `oauth_error` flag so it doesn't resurface on a manual
-  // refresh. Deferred a tick: calling a router navigation method during the
-  // very first commit, before the root layout has finished mounting, throws.
+  // Clear the one-shot flags so they don't resurface on a manual refresh.
+  // Deferred a tick: calling a router navigation method during the very first
+  // commit, before the root layout has finished mounting, throws.
   useEffect(() => {
-    if (!oauthErrorParam) return;
-    const timer = setTimeout(() => router.setParams({ oauth_error: undefined }), 0);
+    if (!hasReturnFlags) return;
+    const timer = setTimeout(
+      () =>
+        router.setParams({
+          oauth_error: undefined,
+          linked_provider: undefined,
+          oauth_notice: undefined,
+        }),
+      0,
+    );
     return () => clearTimeout(timer);
-  }, [oauthErrorParam, router]);
+  }, [hasReturnFlags, router]);
 
   const handleProviderSelect = useCallback(
     async (provider: OAuthProvider) => {
@@ -130,6 +134,10 @@ export default function SignInScreen() {
         const outcome = await startOAuthSignIn(provider, { onSignedIn: completeOAuthSignIn });
         if (outcome.kind === 'signed-in') {
           router.replace('/(app)');
+          return;
+        }
+        if (outcome.kind === 'link-email-sent') {
+          setOauthMessage({ kind: 'info', message: linkEmailSentMessage(provider, t) });
           return;
         }
         if (outcome.kind === 'cancelled' || outcome.kind === 'navigating') return;
