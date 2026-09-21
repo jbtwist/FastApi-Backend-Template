@@ -29,7 +29,13 @@ TEST_JWT_SECRET = "test-secret-1234567890123456789012345678901234567890123456789
 
 
 @pytest.fixture
-def auth_config() -> AuthConfig:
+def auth_config_secure() -> bool:
+    """Whether the app is serving over HTTPS. Overridden by tests that need plain HTTP."""
+    return True
+
+
+@pytest.fixture
+def auth_config(auth_config_secure: bool) -> AuthConfig:
     return AuthConfig(
         JWT_SECRET=TEST_JWT_SECRET,
         JWT_ALG="HS256",
@@ -37,7 +43,7 @@ def auth_config() -> AuthConfig:
         REFRESH_TOKEN_EXP=timedelta(days=7),
         EMAIL_VERIFICATION_TOKEN_EXP=timedelta(hours=24),
         PASSWORD_RESET_TOKEN_EXP=timedelta(hours=1),
-        COOKIE_SECURE=True,
+        COOKIE_SECURE=auth_config_secure,
     )
 
 
