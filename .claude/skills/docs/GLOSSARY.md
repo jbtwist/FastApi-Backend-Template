@@ -101,6 +101,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The contents of Apple's `.p8` signing key; never logged or echoed | `APPLE_PRIVATE_KEY` | `APPLE_KEY`, `APPLE_P8` |
 | The cookie binding a browser to its sign-in attempt, separate from the session cookies | `oauth_state` | `state_cookie`, `oauth_csrf` |
 | The Redis key holding one sign-in attempt until it is consumed | `oauth:state:{state}` | `oauth_state:{state}`, `oauth:{state}` |
+| Public base URL of this API; what its own callback URLs are built from | `API_BASE_URL` | `BACKEND_URL`, `SERVER_URL` |
+| Public base URL of the frontend; what every link this app sends someone to is built from | `FRONTEND_BASE_URL` | `APP_URL`, `CLIENT_URL`, `WEB_URL` |
 | Where the shared Redis instance lives; read by the rate limiter and the sign-in state store | `REDIS_URL` | `REDIS_DSN`, `CACHE_URL` |
 | One pending sign-in attempt as the state store holds it: its `provider`, `nonce` and `redirect_target` | `SignInAttempt` | `OAuthState`, `PendingLogin` |
 | Where sign-in attempts wait between `start` and the exchange, each consumed at most once | `SignInStateStore` (Protocol), `RedisSignInStateStore` | `StateCache`, `OAuthSessionStore` |

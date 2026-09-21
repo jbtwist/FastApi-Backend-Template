@@ -7,6 +7,7 @@ import boto3
 
 from backend.auth.config import auth_settings
 from backend.auth.oauth.config import oauth_settings
+from backend.config import settings
 from backend.mail.config import mail_settings
 from backend.mail.service import EmailSender
 from backend.mail.templates import (
@@ -20,17 +21,17 @@ from backend.mail.templates import (
 
 def _confirm_email_url(token: str) -> str:
     query = urlencode({"token": token})
-    return f"{mail_settings.FRONTEND_BASE_URL}/verify-email-confirm?{query}"
+    return f"{settings.FRONTEND_BASE_URL}/verify-email-confirm?{query}"
 
 
 def _reset_password_url(token: str) -> str:
     query = urlencode({"token": token})
-    return f"{mail_settings.FRONTEND_BASE_URL}/reset-password?{query}"
+    return f"{settings.FRONTEND_BASE_URL}/reset-password?{query}"
 
 
 def _link_provider_confirm_url(token: str) -> str:
     query = urlencode({"token": token})
-    return f"{mail_settings.FRONTEND_BASE_URL}/link-provider-confirm?{query}"
+    return f"{settings.FRONTEND_BASE_URL}/link-provider-confirm?{query}"
 
 
 class EmailSenderMixin:

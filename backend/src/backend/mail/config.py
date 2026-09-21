@@ -21,10 +21,6 @@ class MailConfig(BaseSettings):
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025
     FROM_EMAIL: str
-    # Public base URL of this API, used to build the confirm-email link
-    API_BASE_URL: str = "http://localhost:8000"
-    # Public base URL of the frontend, used to build the reset-password link
-    FRONTEND_BASE_URL: str = "http://localhost:8081"
     # Email dispatch settings
     EMAIL_MAX_DISPATCH_ATTEMPTS: int = 5
     EMAIL_SWEEP_INTERVAL_SECONDS: int = 60

@@ -42,7 +42,7 @@ from backend.auth.oauth.schemas import (
     OAuthStartOut,
 )
 from backend.auth.schemas import LoginOut
-from backend.mail.config import mail_settings
+from backend.config import settings
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import queue_dispatch_email
 from backend.rate_limit import rate_limit
@@ -55,11 +55,11 @@ _SIGN_IN_PATH = "/sign-in"
 
 
 def _callback_url(provider_name: str) -> str:
-    return f"{mail_settings.API_BASE_URL}/auth/oauth/{provider_name}/callback"
+    return f"{settings.API_BASE_URL}/auth/oauth/{provider_name}/callback"
 
 
 def _sign_in_url(**flags: str) -> str:
-    return f"{mail_settings.FRONTEND_BASE_URL}{_SIGN_IN_PATH}?{urlencode(flags)}"
+    return f"{settings.FRONTEND_BASE_URL}{_SIGN_IN_PATH}?{urlencode(flags)}"
 
 
 def _login_out(result: service.SignedIn) -> LoginOut:
@@ -253,7 +253,7 @@ async def callback(
             )
         else:
             response = RedirectResponse(
-                f"{mail_settings.FRONTEND_BASE_URL}{attempt.redirect_target}",
+                f"{settings.FRONTEND_BASE_URL}{attempt.redirect_target}",
                 status.HTTP_302_FOUND,
             )
             set_token_cookies(response, result.pair, config=auth_config)
