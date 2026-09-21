@@ -28,8 +28,8 @@ from backend.auth.oauth.dependencies import (
     get_state_store,
 )
 from backend.auth.oauth.error_handlers import add_oauth_error_handlers
+from backend.config import settings
 from backend.mail import tasks as mail_tasks
-from backend.mail.config import mail_settings
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.oauth.fakes import FakeOAuthProvider
 
@@ -69,8 +69,8 @@ async def client(
 
     monkeypatch.setattr(redis_fastapi_deps, "get_async_redis", fake_get_async_redis)
     monkeypatch.setattr(mail_tasks.dispatch_email, "delay", dispatch_calls.append)
-    monkeypatch.setattr(mail_settings, "FRONTEND_BASE_URL", FRONTEND)
-    monkeypatch.setattr(mail_settings, "API_BASE_URL", "https://api.todoapp.local")
+    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", FRONTEND)
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.todoapp.local")
 
     app = FastAPI()
     FastAPIRedis(app).lifespan().rate_limiting()

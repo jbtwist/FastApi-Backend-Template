@@ -2,6 +2,7 @@ from email.message import EmailMessage
 
 import pytest
 
+from backend.config import settings
 from backend.mail import email as email_module
 from backend.mail.config import mail_settings
 from backend.mail.email import SesEmailSender, SmtpEmailSender
@@ -9,8 +10,8 @@ from backend.mail.email import SesEmailSender, SmtpEmailSender
 
 @pytest.fixture(autouse=True)
 def _frontend_url(monkeypatch):
-    monkeypatch.setattr(mail_settings, "API_BASE_URL", "https://api.todoapp.local")
-    monkeypatch.setattr(mail_settings, "FRONTEND_BASE_URL", "https://app.todoapp.local")
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.todoapp.local")
+    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", "https://app.todoapp.local")
     monkeypatch.setattr(mail_settings, "FROM_EMAIL", "no-reply@todoapp.local")
 
 

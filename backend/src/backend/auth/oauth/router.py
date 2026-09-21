@@ -48,7 +48,7 @@ from backend.auth.oauth.schemas import (
 from backend.auth.oauth.state import SignInStateStore
 from backend.auth.repository import RefreshTokenRepository, UserRepository
 from backend.auth.schemas import LoginOut
-from backend.mail.config import mail_settings
+from backend.config import settings
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.service import EmailOutboxRepository
 from backend.mail.tasks import queue_dispatch_email
@@ -62,11 +62,11 @@ _SIGN_IN_PATH = "/sign-in"
 
 
 def _callback_url(provider_name: str) -> str:
-    return f"{mail_settings.API_BASE_URL}/auth/oauth/{provider_name}/callback"
+    return f"{settings.API_BASE_URL}/auth/oauth/{provider_name}/callback"
 
 
 def _sign_in_url(**flags: str) -> str:
-    return f"{mail_settings.FRONTEND_BASE_URL}{_SIGN_IN_PATH}?{urlencode(flags)}"
+    return f"{settings.FRONTEND_BASE_URL}{_SIGN_IN_PATH}?{urlencode(flags)}"
 
 
 def _oauth_state_cookie_site(config: AuthConfig) -> dict[str, object]:
@@ -353,7 +353,7 @@ async def _complete_callback(
             )
         else:
             response = RedirectResponse(
-                f"{mail_settings.FRONTEND_BASE_URL}{attempt.redirect_target}",
+                f"{settings.FRONTEND_BASE_URL}{attempt.redirect_target}",
                 status.HTTP_302_FOUND,
             )
             set_token_cookies(response, result.pair, config=auth_config)
