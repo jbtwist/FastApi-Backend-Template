@@ -1,8 +1,8 @@
 """Password strength policy and pwned-password checking.
 
-Length-based strength with a generous maximum, no composition or rotation rules,
-plus a k-anonymity breach check against Have I Been Pwned that fails open.
-Enforced wherever a password is set (registration, password reset).
+Length-based strength, no composition or rotation rules, plus a k-anonymity
+breach check against Have I Been Pwned that fails open. Enforced wherever a
+password is set.
 
 Every rule here comes from [OWASP ASVS v4, chapter V2.1][asvs]:
 
@@ -46,15 +46,10 @@ async def validate_password_strength(
 ) -> None:
     """Raise if `password` violates the active policy.
 
-    Checks in order: too short -> too long -> found in a breach. The breach check
-    is skipped when the password already failed a length check or when
-    `config.PASSWORD_CHECK_PWNED` is `False`; otherwise `pwned_checker.is_pwned`
-    is awaited exactly once with the raw password.
-
     Raises:
-        PasswordTooShort: `password` is shorter than the active strength floor.
-        PasswordTooLong: `password` exceeds `config.PASSWORD_MAX_LENGTH`.
-        PasswordCompromised: the breach check found `password` in a known breach.
+        PasswordTooShort: shorter than the active strength floor.
+        PasswordTooLong: longer than `config.PASSWORD_MAX_LENGTH`.
+        PasswordCompromised: found in a known breach.
     """
     if len(password) < MIN_LENGTH_BY_STRENGTH[config.PASSWORD_STRENGTH]:
         raise PasswordTooShort
@@ -70,22 +65,16 @@ async def validate_password_strength(
 class HIBPPwnedPasswordChecker:
     """Have I Been Pwned [range-API][api] checker using [k-anonymity][kanon].
 
-    Only the first 5 hex chars of the password's SHA-1 digest leave the process,
-    which is what makes an online breach check (ASVS 2.1.7) safe to run: the
-    service answers with every hash sharing that prefix — hundreds of them — and
-    never learns which one was asked about. SHA-1 is the API's choice of digest,
-    not this app's choice of password hash; stored passwords are argon2.
+    Only the first 5 hex chars of the password's SHA-1 digest leave the process:
+    the service answers with every hash sharing that prefix and never learns
+    which one was asked about. SHA-1 is the API's choice of digest, not this
+    app's password hash, which is argon2.
 
-    Requests set [`Add-Padding`][padding] (in `auth.dependencies`) so the size of
-    the response no longer leaks how many hashes share the prefix. Entries with a
-    count of `0` are the padding, and are skipped.
-
-    Fails open: any transport error or non-200 response is treated as "not
-    pwned", so a HIBP outage never blocks a password change.
+    Fails open: any transport error or non-200 counts as "not pwned", so a HIBP
+    outage never blocks a password change.
 
     [api]: https://haveibeenpwned.com/API/v3#SearchingPwnedPasswordsByRange
     [kanon]: https://blog.cloudflare.com/validating-leaked-passwords-with-k-anonymity/
-    [padding]: https://haveibeenpwned.com/API/v3#PwnedPasswordsPadding
     """
 
     def __init__(self, *, client: httpx.AsyncClient) -> None:

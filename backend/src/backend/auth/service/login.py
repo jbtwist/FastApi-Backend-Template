@@ -25,7 +25,7 @@ from backend.auth.security import (
 
 @dataclass
 class TokenPair:
-    """An access token and refresh token issued together, e.g. at login or refresh."""
+    """An access token and refresh token issued together."""
 
     access_token: str
     refresh_token: str
@@ -35,9 +35,8 @@ class TokenPair:
 class ReuseDetected:
     """A spent refresh token was presented again; its family is now revoked.
 
-    Returned rather than raised so that the revocation reaches the database.
-    A request is one transaction and an exception leaving the endpoint rolls it back.
-    The caller still answers 401.
+    Returned, not raised, so the revocation reaches the database: a request is
+    one transaction, and an exception leaving the endpoint rolls it back.
     """
 
     family_id: uuid.UUID
@@ -46,10 +45,9 @@ class ReuseDetected:
 async def authenticate_user(user_repo: UserRepository, *, email: str, password: str) -> User:
     """Verify credentials and return the matching user.
 
-    Always runs a password hash comparison, against `DUMMY_PASSWORD_HASH` for an
-    unknown email or an account with no password (one created through a sign-in
-    provider), so neither can be told apart from a wrong password by a timing
-    attack.
+    Always runs a hash comparison, against `DUMMY_PASSWORD_HASH` for an unknown
+    email or an account with no password (one created through a sign-in
+    provider), so timing tells neither apart from a wrong password.
 
     Raises:
         InvalidCredentials: the email is unknown, the account has no password,
@@ -80,9 +78,8 @@ async def issue_token_pair(
 ) -> TokenPair:
     """Issue a fresh access/refresh token pair for a new session, starting a new rotation family.
 
-    Each call (e.g. one per login) gets its own `family_id`, so revoking one
-    session's family (see `rotate_refresh_token`) never affects the user's
-    other sessions/devices.
+    Each call gets its own `family_id`, so revoking one session's family never
+    affects the user's other sessions.
     """
     access_token = create_access_token(str(user.id), config=config, now=now)
     raw_refresh_token = generate_opaque_token()
@@ -107,25 +104,19 @@ async def rotate_refresh_token(
     """Exchange a refresh token for a new pair, retiring the old one within its family.
 
     Each refresh token is single-use: this consumes `raw_refresh_token` and
-    issues a replacement in the same `family_id`. If a token that was already
-    used is presented again, that's treated as a stolen token and the whole family is revoked,
-    which signs out every device sharing that login's rotation chain.
+    issues a replacement in the same `family_id`. Presenting an already-spent
+    token is treated as theft and revokes the whole family, signing out every
+    device on that rotation chain.
 
-    Two requests rotating the same token at once are a race, not a theft: the
-    one that loses the atomic `mark_used` update, or that arrives within
+    Two requests rotating the same token at once are a race, not a theft: the one
+    that loses the atomic `mark_used`, or arrives within
     `REFRESH_TOKEN_REUSE_GRACE` of the token being spent, raises
     `ConcurrentRefresh` and changes nothing. Revoking there would sign out the
-    request that won — usually a second tab of the same browser, since tabs
-    share one cookie.
-
-    The cost of that window: a thief who replays inside it gets no tokens, but
-    is not detected either. Detection resumes once it has passed.
+    request that won, usually a second tab sharing the same cookie. The cost: a
+    thief replaying inside that window gets no tokens, but isn't detected either.
 
     Returns:
-        The new `TokenPair`, or `ReuseDetected` if `raw_refresh_token` had
-        already been spent. Reuse is a return value, not an exception, because
-        the revocation it performs has to survive the 401 the caller sends
-        back; see `ReuseDetected`.
+        The new `TokenPair`, or `ReuseDetected` if the token was already spent.
 
     Raises:
         InvalidRefreshToken: the token doesn't exist or its family was already revoked.

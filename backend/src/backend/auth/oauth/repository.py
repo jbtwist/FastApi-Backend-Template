@@ -33,9 +33,8 @@ class OAuthIdentityRepository(Protocol):
 
         Raises:
             IntegrityError: `(provider, provider_subject)` is already linked, or
-                `user_id` already has an identity. The database enforces both
-                rather than a prior lookup, so two concurrent first sign-ins or
-                link confirmations can't both succeed.
+                `user_id` already has an identity. Enforced by the database, not
+                a prior lookup, so concurrent first sign-ins can't both succeed.
         """
         ...
 

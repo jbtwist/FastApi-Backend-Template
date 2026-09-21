@@ -17,16 +17,16 @@ from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 
 _password_hasher = PasswordHasher()
 
-# Valid argon2 hash of a value nobody can log in with, used to pay the same
-# hashing cost on verifying hash operations.
+# Argon2 hash of an unguessable value, so a login for an unknown email pays the
+# same hashing cost as a real one.
 DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
 
 def hash_password(password: str) -> str:
-    """Hash a password with argon2 for storage.
+    """Hash a password for storage.
 
-    argon2id at `argon2-cffi`'s own defaults, which track the
-    [OWASP Password Storage Cheat Sheet][owasp] recommendation.
+    argon2id at `argon2-cffi`'s defaults, which track the
+    [OWASP Password Storage Cheat Sheet][owasp].
 
     [owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
     """
@@ -36,9 +36,8 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, password_hash: str) -> bool:
     """Check a password against a stored hash.
 
-    Returns `False` instead of raising on a malformed or mismatched hash, so
-    callers can always compare against a real or dummy hash (see
-    `DUMMY_PASSWORD_HASH`) without a try/except of their own.
+    Returns `False` rather than raising on a malformed or mismatched hash, so
+    callers can compare against `DUMMY_PASSWORD_HASH` without a try/except.
     """
     try:
         return _password_hasher.verify(password_hash, password)
@@ -50,11 +49,9 @@ def verify_password(password: str, password_hash: str) -> bool:
 async def minimum_duration(minimum: timedelta) -> AsyncGenerator:
     """Pad the enclosed work to at least `minimum` wall-clock time, whatever its outcome.
 
-    How an enumeration-safe endpoint enforces its response floor (e.g.
-    `REGISTER_RESPONSE_FLOOR`), so how long a request took can't reveal which
-    path it took. Pads when the work raises, too. Best-effort defence against a
-    timing oracle — not a hard guarantee against scheduler jitter. A no-op when
-    `minimum` is zero.
+    How an enumeration-safe endpoint enforces its response floor, so how long a
+    request took can't reveal which path it took. Best-effort against a timing
+    oracle, not a guarantee. A no-op when `minimum` is zero.
     """
     start = time.perf_counter()
     try:
@@ -109,8 +106,8 @@ def decode_access_token(token: str, *, config: AuthConfig) -> dict:
 def generate_opaque_token() -> str:
     """A high-entropy URL-safe token for the DB-backed token tables.
 
-    Used for refresh, email-verification and password-reset tokens alike. Not a
-    JWT — verified only against its stored hash (see `hash_opaque_token`).
+    Refresh, email-verification and password-reset alike. Not a JWT: verified
+    only against its stored hash.
     """
     return secrets.token_urlsafe(32)
 
@@ -118,7 +115,7 @@ def generate_opaque_token() -> str:
 def hash_opaque_token(raw_token: str) -> str:
     """SHA-256 hex of an opaque token, for storage and lookup.
 
-    Unsalted: the token is already high-entropy. Only the hash is persisted, so
-    a database leak doesn't expose usable tokens.
+    Unsalted: the token is already high-entropy. Only the hash is persisted, so a
+    database leak doesn't expose usable tokens.
     """
     return sha256(raw_token.encode("utf-8")).hexdigest()

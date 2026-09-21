@@ -103,6 +103,13 @@ Behavior-focused tests with `@testing-library/react-native`: render the screen, 
 
 - **Glossary first.** Before naming any variable, function, class, Pydantic field, DB column, API field, or storage key, check `.claude/skills/docs/GLOSSARY.md` and use the canonical name exactly. If the concept is missing, add it to the glossary first, then write the code. `snake_case` in Python, `camelCase` in TS.
 - **Comments: what, not why, and rarely.** No inline comments explaining rationale. Put rationale in a docstring (Python, Google style) or TSDoc (`/** */`) on the exported symbol — mkdocstrings and TSDoc publish those; inline comments are invisible. A short comment stating a non-obvious *what* is fine.
+- **Docstrings are short.** Write for a reader who knows the language and this repo but was not in the conversation that produced the code, and who is skimming.
+  - A function or class gets **one line**: what it does. `Args:` / `Raises:` stay when a parameter or error needs them.
+  - Prose belongs in the **module docstring** — why the module exists, plus any rule for callers (`import rate_limit from here, never the library`). Say it once there and never restate it in a symbol below.
+  - A symbol earns a second paragraph only for a fact the body cannot show: it fails open, it returns `False` instead of raising, the insert runs in a savepoint. Cite a source (OWASP, NIST, an RFC) when a number would otherwise look arbitrary.
+  - Delete anything that narrates the code beneath it ("checks in order: too short → too long → breached") or justifies a design choice the reader isn't questioning.
+  - Endpoint docstrings in `router.py` are the published OpenAPI description — trim them, but keep them useful to an API consumer.
+  - Plain commas over em-dashes. Ruff's 100-char limit applies to docstring lines too.
 - **No spec-driven-development references in code or comments.** `taskify/` is not committed, so `FR-036`, `SC-013`, `T022`, `contracts/auth-api.md`, `data-model.md`, "ADR 5" etc. must not appear in `src/`. Some legacy violations exist — remove them when you touch that code.
 - **No `abc.ABC` / `@abstractmethod`.** Use `typing.Protocol` for interfaces; for shared behaviour use a plain mixin with `NotImplementedError` hooks.
 - **ADR bar.** An ADR needs a real either/or tradeoff with alternatives considered. A config-tunable security knob is not an ADR.

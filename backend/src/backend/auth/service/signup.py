@@ -24,13 +24,10 @@ from backend.mail.service import EmailOutboxRepository
 async def register_user(user_repo: UserRepository, *, email: str, password: str) -> User | None:
     """Create a new user with a hashed password, or no-op if the email is taken.
 
-    Email is lowercased/trimmed before lookup and storage.
-
-    Returns the new `User`, or `None` when the normalized email already belongs
-    to an account — including when a concurrent signup wins the insert race. The
-    caller must not disclose which case occurred, or the endpoint becomes an
-    account-enumeration oracle: a `None` return means "queue no verification
-    email", nothing more.
+    Returns `None` when the email already belongs to an account, including when a
+    concurrent signup wins the insert race. The caller must not disclose which
+    case occurred, or the endpoint becomes an account-enumeration oracle: `None`
+    means "queue no verification email", nothing more.
     """
     normalized_email = email.strip().lower()
     if await user_repo.get_by_email(normalized_email) is not None:
@@ -53,9 +50,8 @@ async def queue_verification_email(
 ) -> EmailOutboxEntry:
     """Mint a verification token for `user` and durably queue the confirmation email.
 
-    Writes the outbox row in the same call (and, at the call site, the same DB
-    transaction as registration) so the email survives even if the Celery
-    dispatch that follows never fires — see `backend.mail.service.enqueue_email`.
+    Writes the outbox row in the same transaction as the registration, so the
+    email survives even if the Celery dispatch that follows never fires.
     """
     raw_token = generate_opaque_token()
     await token_repo.create(
@@ -110,10 +106,8 @@ async def resend_verification_email(
 ) -> EmailOutboxEntry | None:
     """Re-queue the verification email for an unverified user, identified by email.
 
-    Returns `None` without raising or revealing anything if the email is
-    unregistered or already verified — callers should treat both cases the
-    same as a normal "check your inbox" response, to avoid leaking whether an
-    email is registered.
+    Returns `None` if the email is unregistered or already verified. Callers
+    answer both the same as a success, so nothing leaks.
     """
     normalized_email = email.strip().lower()
     user = await user_repo.get_by_email(normalized_email)

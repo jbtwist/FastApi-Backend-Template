@@ -52,8 +52,8 @@ def render_password_reset_email(*, reset_password_url: str, expires_in: str) -> 
 def render_oauth_link_email(*, link_provider_confirm_url: str, expires_in: str) -> RenderedEmail:
     """Render the email asking the account owner to confirm linking a sign-in provider.
 
-    Names no provider: the mail domain only holds the token, and the copy tells
-    the reader to ignore it if they didn't just try to sign in.
+    Names no provider: the copy tells the reader to ignore it if they didn't just
+    try to sign in.
     """
     context = {"link_provider_confirm_url": link_provider_confirm_url, "expires_in": expires_in}
     html = _env.get_template("oauth_link_email.html.jinja").render(**context)

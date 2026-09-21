@@ -1,17 +1,13 @@
 """Provider sign-in: opening an attempt, resolving a verified identity, and confirming a link.
 
 A returning person is found by `(provider, provider_subject)` alone. A provider's
-email is consulted only when that pair is unknown, and only once the provider has
-vouched for it (`email_verified`); even then it never signs anyone into an
-existing account on its own. An account whose address was never verified is
-taken over, since nobody has proven they own it. A verified account without a
-provider gets a link confirmation email instead, and one that already has a
-provider is refused: an account holds at most one.
+email is consulted only when that pair is unknown, and never signs anyone into an
+existing account on its own. `sign_in_with_provider` has the full order.
 
-That second-to-last pair of outcomes reveals that an account exists, which
-password registration is careful never to do. It is acceptable here because
-only someone who just proved control of that exact address to the provider can
-reach them.
+Offering a link, or refusing an account that already has a provider, reveals that
+the account exists, which password registration is careful never to do. It is
+acceptable here because only someone who just proved control of that exact
+address to the provider can reach those outcomes.
 """
 
 from dataclasses import dataclass
@@ -60,9 +56,9 @@ class LinkPending:
 def safe_redirect_target(redirect_target: str | None) -> str:
     """Return `redirect_target` if it is an app-relative path, else `DEFAULT_REDIRECT_TARGET`.
 
-    Only a path starting with exactly one `/` is kept: anything with a scheme, a
-    host (`//evil.example`), a backslash or a control character would let the
-    web return leg be used as an open redirect.
+    Only a path starting with exactly one `/` is kept: a scheme, a host
+    (`//evil.example`), a backslash or a control character would make the web
+    return leg an open redirect.
     """
     if (
         not redirect_target
@@ -84,9 +80,8 @@ async def start_sign_in(
 ) -> tuple[str, SignInAttempt]:
     """Open a sign-in attempt: mint a fresh `state` and `nonce` and store the attempt.
 
-    `state` and `nonce` are independent values from a CSPRNG. The attempt lives
-    for `OAUTH_STATE_TTL`, and its `redirect_target` has already passed
-    `safe_redirect_target`.
+    `state` and `nonce` are independent CSPRNG values. The attempt lives for
+    `OAUTH_STATE_TTL`.
 
     Returns:
         The `state` to hand the client, and the stored attempt.
@@ -136,13 +131,12 @@ async def sign_in_with_provider(
        whatever the email now says.
     2. No email, or one the provider didn't verify: refuse.
     3. No account has the email: create one with no password and a verified
-       address, link the identity, and sign in.
+       address, link the identity, sign in.
     4. The account already has a provider identity: refuse.
-    5. The account's address was never verified: take it over. Its password is
-       cleared, its sessions revoked, its address marked verified, and the
-       identity linked, then sign in.
-    6. Otherwise: mint an `oauth_link_token`, invalidating older ones, and
-       queue the `oauth_link` email in the same transaction.
+    5. The account's address was never verified: take it over, clearing its
+       password and revoking its sessions, then sign in.
+    6. Otherwise: mint an `oauth_link_token`, invalidating older ones, and queue
+       the `oauth_link` email in the same transaction.
 
     A unique-constraint race on any insert re-runs the resolution once.
 
@@ -175,7 +169,7 @@ async def confirm_identity_link(
 ) -> None:
     """Redeem an `oauth_link_token`: attach its frozen identity to its user.
 
-    Doesn't sign in: the email may be opened on another device than the one
+    Doesn't sign in: the email may be opened on a different device than the one
     that started the sign-in. The person signs in with the provider afterwards.
 
     Raises:

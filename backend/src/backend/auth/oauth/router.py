@@ -2,9 +2,9 @@
 
 Two routes into the same sign-in. Native clients call `start`, run the platform
 SDK with the returned `nonce`, and post the assertion to `native`, getting JSON
-back. Browsers go to `authorize`, are sent to the provider, and come back
-through `callback`, which answers with a redirect to the frontend: session
-cookies set on success, an `oauth_error` or `oauth_notice` flag otherwise.
+back. Browsers go to `authorize` and come back through `callback`, which always
+answers with a redirect: session cookies on success, an `oauth_error` or
+`oauth_notice` flag otherwise.
 """
 
 import secrets
@@ -223,9 +223,9 @@ async def callback(
     """Finish a browser sign-in that came back as a redirect, and land on the frontend.
 
     The `state` must match the `oauth_state` cookie as well as a stored attempt,
-    so a callback link can't be replayed into another browser. Every outcome is
-    a redirect: to the attempt's `redirect_target` with session cookies, or to
-    the sign-in screen with an `oauth_error` or `oauth_notice` flag.
+    so a callback link can't be replayed into another browser. Every outcome is a
+    redirect: to the attempt's `redirect_target` with session cookies, or to the
+    sign-in screen with an `oauth_error` or `oauth_notice` flag.
     """
     return await _complete_callback(
         provider,

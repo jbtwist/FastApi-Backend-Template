@@ -37,12 +37,10 @@ async def _dispatch_email(entry_id: str) -> None:
 def dispatch_email(entry_id: str) -> None:
     """Celery task: dispatch one outbox entry's email.
 
-    The outbox row's `kind` decides which template/sender
-    `backend.mail.service.dispatch_email` uses, so one task covers every email
-    type. Two retry layers apply: Celery retries this task up to 5 times with
-    exponential backoff (capped at 600s) for transient failures within one run,
-    while the service function tracks `attempts` on the outbox row itself and
-    marks it `DEAD` once that count reaches `EMAIL_MAX_DISPATCH_ATTEMPTS`.
+    The row's `kind` picks the template and sender, so one task covers every
+    email type. Two retry layers apply: Celery retries this task with backoff
+    for a transient failure, while the service counts `attempts` on the row
+    itself and marks it `DEAD` at `EMAIL_MAX_DISPATCH_ATTEMPTS`.
     """
     asyncio.run(_dispatch_email(entry_id))
 
@@ -59,13 +57,11 @@ async def _sweep_pending_emails() -> list[str]:
 def sweep_pending_emails() -> None:
     """Celery beat task: re-dispatch outbox entries stuck `PENDING`.
 
-    Runs every `EMAIL_SWEEP_INTERVAL_SECONDS`.
+    Runs every `EMAIL_SWEEP_INTERVAL_SECONDS`, over rows untouched for
+    `EMAIL_SWEEP_STALE_AFTER_SECONDS`.
 
-    Safety net for entries whose dispatch was never queued or got lost, not the
-    primary delivery path — the endpoints that enqueue email already queue
-    dispatch directly. Every stale row goes back through the single
-    `dispatch_email` task, which reads its `kind`. Threshold is
-    `SWEEP_STALE_AFTER_SECONDS`; see `backend.mail.service.list_stale_pending_emails`.
+    A safety net, not the delivery path: the endpoints that enqueue email already
+    queue dispatch directly.
     """
     for entry_id in asyncio.run(_sweep_pending_emails()):
         dispatch_email.delay(entry_id)
@@ -75,8 +71,8 @@ async def queue_dispatch_email(entry_id: str) -> None:
     """Fire the Celery dispatch for a freshly queued outbox row, tolerating a broker outage.
 
     A failed enqueue must not surface to the caller: on `forgot-password` a 500
-    for registered addresses (vs. 204 for unknown ones) would be an enumeration
-    oracle. The row stays `PENDING`; `sweep_pending_emails` redelivers it.
+    for registered addresses, against a 204 for unknown ones, would be an
+    enumeration oracle. The row stays `PENDING` and the sweep redelivers it.
     """
     try:
         await asyncio.to_thread(dispatch_email.delay, entry_id)

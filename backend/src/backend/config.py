@@ -8,9 +8,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DATABASE_URL: PostgresDsn
-    # Where each half of the app is reachable. Both are public URLs that end up
-    # in links and redirects: the API's own callback URLs, and every link this
-    # app sends someone to (emails, the return leg of a provider sign-in).
     API_BASE_URL: str = "http://localhost:8000"
     FRONTEND_BASE_URL: str = "http://localhost:8081"
     CORS_ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:8081"]
@@ -27,8 +24,7 @@ class Settings(BaseSettings):
     @field_validator("CORS_ALLOWED_ORIGINS", mode="after")
     @classmethod
     def _check_origins(cls, origins: list[str]) -> list[str]:
-        # An `Origin` header is scheme://host[:port] — a trailing slash would
-        # never match, silently.
+        """An `Origin` header is scheme://host[:port], so a trailing slash never matches."""
         origins = [origin.rstrip("/") for origin in origins]
         if "*" in origins:
             raise ValueError(

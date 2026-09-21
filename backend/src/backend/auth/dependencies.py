@@ -46,10 +46,8 @@ def get_password_reset_token_repo(db: DbDep) -> SqlPasswordResetTokenRepository:
 async def get_pwned_password_checker() -> AsyncIterator[PwnedPasswordChecker]:
     """A HIBP breach checker backed by a per-request httpx client.
 
-    Register/reset are the only callers, so a fresh connection per call is cheap
-    and it sidesteps the lifecycle problems of a module-level client. HIBP
-    [requires a User-Agent][ua] identifying the caller, and
-    [`Add-Padding`][padding] hides the true bucket size.
+    HIBP [requires a User-Agent][ua] naming the caller; [`Add-Padding`][padding]
+    hides the true bucket size.
 
     [ua]: https://haveibeenpwned.com/API/v3#UserAgent
     [padding]: https://haveibeenpwned.com/API/v3#PwnedPasswordsPadding

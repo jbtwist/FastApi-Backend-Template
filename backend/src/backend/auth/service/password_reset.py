@@ -26,13 +26,12 @@ async def request_password_reset(
 ) -> EmailOutboxEntry | None:
     """Mint a password-reset token for a verified user and durably queue the reset email.
 
-    Returns `None` without raising or revealing anything if the email is
-    unregistered or not yet verified so the endpoint can't be
-    used to enumerate registered addresses. An unverified address also hasn't
-    been proven to belong to the account, so it can't be used to take it over.
+    Returns `None` if the email is unregistered or unverified, so the endpoint
+    can't enumerate addresses. An unverified address hasn't been proven to belong
+    to the account either, so it can't be used to take one over.
 
-    Repeated calls issue independent tokens; prior tokens are only invalidated
-    once a reset actually completes (see `reset_password`).
+    Repeated calls issue independent tokens; earlier ones are invalidated only
+    once a reset completes.
     """
     normalized_email = email.strip().lower()
     user = await user_repo.get_by_email(normalized_email)
@@ -63,10 +62,9 @@ async def assert_reset_token_valid(
 ) -> None:
     """Check that a reset token exists, is unused and unexpired without consuming it.
 
-    Lets the router reject a bad token before running the password policy,
-    which may make an outbound breach-check call.
-    `reset_password` re-runs these checks and additionally guards the
-    consume race, so this is an optimisation, not the security boundary.
+    Lets the router reject a bad token before the password policy makes its
+    outbound breach-check call. `reset_password` re-runs these checks and guards
+    the consume race, so this is an optimisation, not the security boundary.
 
     Raises:
         InvalidPasswordResetToken: the token doesn't exist or was already used.
@@ -90,10 +88,8 @@ async def reset_password(
 ) -> None:
     """Consume a reset token, set a new password, and sign the user out everywhere.
 
-    On success: the password is re-hashed with argon2, every refresh-token
-    session for that user is revoked, and every other outstanding reset token
-    for that user is burned so a second issued-but-unused link can't be
-    redeemed afterwards.
+    Every other outstanding reset token for the user is burned too, so a second
+    issued-but-unused link can't be redeemed afterwards.
 
     Raises:
         InvalidPasswordResetToken: the token doesn't exist, was already used,

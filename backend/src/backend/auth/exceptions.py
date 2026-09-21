@@ -25,8 +25,7 @@ class RefreshTokenExpired(AuthError):
 class ConcurrentRefresh(AuthError):
     """The refresh token was just spent by a request racing this one.
 
-    Not theft: two tabs of one browser send the same cookie and refresh at the
-    same moment routinely. Endpoints answer `409` and leave the session alone.
+    Not theft: two tabs of one browser refresh at the same moment routinely.
     """
 
 

@@ -4,15 +4,15 @@
 class ProviderNotConfigured(Exception):
     """The named provider has no adapter module, no `PROVIDER`, or incomplete settings.
 
-    Rendered exactly like an unknown provider name, so a deployment never reveals
-    which providers it has half set up.
+    Rendered exactly like an unknown name, so a deployment never reveals which
+    providers it has half set up.
     """
 
 
 class ProviderAssertionInvalid(Exception):
     """A provider assertion failed verification: signature, issuer, audience, expiry or nonce.
 
-    Always a refusal, never retried, and never carrying the assertion itself.
+    Never retried, and never carries the assertion itself.
     """
 
 
@@ -27,8 +27,8 @@ class InvalidOAuthState(Exception):
 class EmailLinkedToOtherProvider(Exception):
     """The account with this email already has a provider identity; an account holds at most one.
 
-    Carries `linked_provider`, a configured adapter name and never
-    provider-supplied data, so the client can name the provider to use instead.
+    `linked_provider` is a configured adapter name, never provider-supplied data,
+    so the client can name the provider to use instead.
     """
 
     def __init__(self, linked_provider: str) -> None:
