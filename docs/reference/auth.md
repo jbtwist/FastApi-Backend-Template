@@ -7,6 +7,10 @@ show: the logic behind the endpoints, and the primitives they are built from.
 
 ::: backend.auth.service
 
+::: backend.auth.oauth.service
+
+::: backend.auth.oauth.router
+
 ::: backend.auth.security
 
 ::: backend.auth.cookies
