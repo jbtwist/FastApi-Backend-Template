@@ -123,5 +123,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | An `AuthUiError` kind: this email's account is already linked to another provider, optionally naming it as `linkedProvider` | `oauth-email-linked-elsewhere` | `oauth-conflict`, `already-linked` |
 | Whether a `/native` result is the link-pending `202` rather than a session | `isLinkPending` | `isLinkRequired`, `needsLink` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
+| A sign-in callback performed via a form POST | `callback_form_post` | `form_post_callback` |
 
 
