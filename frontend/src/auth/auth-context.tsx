@@ -55,6 +55,13 @@ export interface AuthContextValue {
   /** Enumeration-safe: resolves on `204`, throws `AuthApiError` on `422` / `429`.
    *  Never signs the user in — the caller routes to the verify screen. */
   register: (email: string, password: string) => Promise<void>;
+  /**
+   * Apply a session an OAuth sign-in already obtained — the same
+   * `LoginOut` shape `signIn` gets from `POST /auth/login`. No new session
+   * handling: this is `signIn`'s own post-login step, exposed so
+   * `oauth-client` never touches tokens or state itself.
+   */
+  completeOAuthSignIn: (out: authApi.LoginOut) => Promise<void>;
   /** Best-effort server logout, then always clears local state. */
   signOut: () => Promise<void>;
   /** Explicit refresh. `true` → still `signedIn`; `false` → `expired` → `signedOut`. */
@@ -106,9 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [goSignedIn, goSignedOut]);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      const out = await authApi.login({ email: email.trim(), password });
+  const applySession = useCallback(
+    async (out: authApi.LoginOut) => {
       if (isNative()) {
         await setTokens({ accessToken: out.access_token, refreshToken: out.refresh_token });
       }
@@ -119,6 +125,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       goSignedIn(out);
     },
     [goSignedIn],
+  );
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const out = await authApi.login({ email: email.trim(), password });
+      await applySession(out);
+    },
+    [applySession],
   );
 
   const register = useCallback(async (email: string, password: string) => {
@@ -181,10 +195,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bootstrap,
       signIn,
       register,
+      completeOAuthSignIn: applySession,
       signOut,
       refreshSession,
     }),
-    [status, user, signedOutReason, bootstrap, signIn, register, signOut, refreshSession],
+    [
+      status,
+      user,
+      signedOutReason,
+      bootstrap,
+      signIn,
+      register,
+      applySession,
+      signOut,
+      refreshSession,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

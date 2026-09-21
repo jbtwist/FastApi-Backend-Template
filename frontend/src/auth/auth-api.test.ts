@@ -115,16 +115,83 @@ describe('auth-api — each call delegates to request() with the contract shape'
       authed: false,
     });
   });
+
+  it('oauthProviders → GET /auth/oauth/providers, unauthenticated', async () => {
+    await authApi.oauthProviders();
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/providers', {
+      method: 'GET',
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthStart(provider, redirectTarget) → POST /auth/oauth/{provider}/start { redirect_target }', async () => {
+    await authApi.oauthStart('google', '/tasks');
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/start', {
+      method: 'POST',
+      body: { redirect_target: '/tasks' },
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthStart(provider) → no body when redirectTarget is omitted', async () => {
+    await authApi.oauthStart('google');
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/start', {
+      method: 'POST',
+      body: undefined,
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('oauthNative(provider, body) → POST /auth/oauth/{provider}/native, unauthenticated', async () => {
+    await authApi.oauthNative('google', { state: 's1', assertion: 'id-token-1' });
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/google/native', {
+      method: 'POST',
+      body: { state: 's1', assertion: 'id-token-1' },
+      context: 'oauth',
+      authed: false,
+    });
+  });
+
+  it('confirmIdentityLink → POST /auth/oauth/link/confirm { token }, unauthenticated', async () => {
+    await authApi.confirmIdentityLink('tok');
+    expect(mockRequest).toHaveBeenCalledWith('/auth/oauth/link/confirm', {
+      method: 'POST',
+      body: { token: 'tok' },
+      context: 'oauth-link-confirm',
+      authed: false,
+    });
+  });
 });
 
-it('authApi bundles all nine calls', () => {
+it('isLinkPending tells the link-pending 202 apart from a session', () => {
+  expect(authApi.isLinkPending({ status: 'link_email_sent' })).toBe(true);
+  expect(
+    authApi.isLinkPending({
+      id: 'u1',
+      email: 'a@b.c',
+      email_verified: true,
+      access_token: 'a',
+      refresh_token: 'r',
+      token_type: 'bearer',
+    }),
+  ).toBe(false);
+});
+
+it('authApi bundles all thirteen calls', () => {
   expect(Object.keys(authApi.authApi).sort()).toEqual(
     [
       'confirmEmail',
+      'confirmIdentityLink',
       'forgotPassword',
       'login',
       'logout',
       'me',
+      'oauthNative',
+      'oauthProviders',
+      'oauthStart',
       'refresh',
       'register',
       'resendVerification',

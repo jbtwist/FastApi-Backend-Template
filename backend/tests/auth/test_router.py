@@ -31,6 +31,7 @@ from backend.auth.dependencies import (
 from backend.auth.error_handlers import add_auth_error_handlers
 from backend.auth.exceptions import InvalidCredentials, InvalidRefreshToken
 from backend.auth.security import hash_opaque_token
+from backend.mail import tasks as mail_tasks
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.fakes import (
     FakeEmailVerificationTokenRepository,
@@ -128,7 +129,7 @@ async def client(
         return fake_redis
 
     monkeypatch.setattr(redis_fastapi_deps, "get_async_redis", fake_get_async_redis)
-    monkeypatch.setattr(auth_router_module.dispatch_email, "delay", dispatch_calls.append)
+    monkeypatch.setattr(mail_tasks.dispatch_email, "delay", dispatch_calls.append)
 
     app = FastAPI()
     FastAPIRedis(app).lifespan().rate_limiting()
@@ -196,7 +197,7 @@ class TestForgotPassword:
         def boom(entry_id):
             raise RuntimeError("broker unreachable")
 
-        monkeypatch.setattr(auth_router_module.dispatch_email, "delay", boom)
+        monkeypatch.setattr(mail_tasks.dispatch_email, "delay", boom)
         res = await client.post("/auth/forgot-password", json={"email": "ada@example.com"})
 
         assert res.status_code == 204

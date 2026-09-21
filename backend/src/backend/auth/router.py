@@ -1,23 +1,16 @@
 """`/auth` endpoints: registration, login, refresh, logout, email verification, password reset."""
 
-import asyncio
-import contextlib
-import logging
-import time
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from backend.auth import service
 from backend.auth.config import AuthConfig
 from backend.auth.cookies import (
-    access_token_cookie,
     clear_access_token_cookie,
     clear_refresh_token_cookie,
-    refresh_token_cookie,
+    set_token_cookies,
 )
 from backend.auth.dependencies import (
     AuthConfigDep,
@@ -36,6 +29,7 @@ from backend.auth.exceptions import (
     PasswordTooShort,
     RefreshTokenExpired,
 )
+from backend.auth.oauth.router import router as oauth_router
 from backend.auth.password_policy import (
     MIN_LENGTH_BY_STRENGTH,
     PwnedPasswordChecker,
@@ -54,26 +48,13 @@ from backend.auth.schemas import (
     TokenPairOut,
     UserOut,
 )
+from backend.auth.security import minimum_duration
 from backend.mail.dependencies import EmailOutboxRepoDep
-from backend.mail.tasks import dispatch_email
+from backend.mail.tasks import queue_dispatch_email
 from backend.rate_limit import rate_limit
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-async def _queue_dispatch(entry_id: str) -> None:
-    """Fire the Celery dispatch for a freshly queued outbox row, tolerating a broker outage.
-
-    A failed enqueue must not surface to the caller: on `forgot-password` a 500
-    for registered addresses (vs. 204 for unknown ones) would be an enumeration
-    oracle. The row stays `PENDING`; `sweep_pending_emails` redelivers it.
-    """
-    try:
-        await run_in_threadpool(dispatch_email.delay, entry_id)
-    except Exception:
-        logger.warning("dispatch enqueue failed for outbox entry %s", entry_id, exc_info=True)
+router.include_router(oauth_router)
 
 
 async def _enforce_password_policy(
@@ -101,29 +82,6 @@ async def _enforce_password_policy(
         ) from exc
 
 
-@contextlib.asynccontextmanager
-async def _response_floor(minimum: timedelta) -> AsyncGenerator:
-    """Pad the enclosed work to at least `minimum` wall-clock time.
-
-    Best-effort defence against a timing oracle — not a hard guarantee against
-    scheduler jitter. A no-op when `minimum` is zero.
-    """
-    start = time.perf_counter()
-    try:
-        yield
-    finally:
-        remaining = minimum.total_seconds() - (time.perf_counter() - start)
-        if remaining > 0:
-            await asyncio.sleep(remaining)
-
-
-def _set_token_cookies(
-    response: Response, pair: service.TokenPair, *, config: AuthConfigDep
-) -> None:
-    response.set_cookie(**access_token_cookie(pair.access_token, config=config))
-    response.set_cookie(**refresh_token_cookie(pair.refresh_token, config=config))
-
-
 @router.post(
     "/register",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -147,7 +105,7 @@ async def register(
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
-    async with _response_floor(config.REGISTER_RESPONSE_FLOOR):
+    async with minimum_duration(config.REGISTER_RESPONSE_FLOOR):
         user = await service.register_user(
             user_repo, email=payload.email, password=payload.password
         )
@@ -157,7 +115,7 @@ async def register(
         entry = await service.queue_verification_email(
             token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
         )
-        await _queue_dispatch(str(entry.id))
+        await queue_dispatch_email(str(entry.id))
 
 
 @router.post(
@@ -183,7 +141,7 @@ async def login(
     pair = await service.issue_token_pair(
         refresh_token_repo, user, config=config, now=datetime.now(UTC)
     )
-    _set_token_cookies(response, pair, config=config)
+    set_token_cookies(response, pair, config=config)
     return LoginOut(
         id=user.id,
         email=user.email,
@@ -246,7 +204,7 @@ async def refresh(
     if isinstance(result, service.ReuseDetected):
         return _signed_out_response(config=config)
 
-    _set_token_cookies(response, result, config=config)
+    set_token_cookies(response, result, config=config)
     return TokenPairOut(access_token=result.access_token, refresh_token=result.refresh_token)
 
 
@@ -308,7 +266,7 @@ async def resend_verification(
         now=datetime.now(UTC),
     )
     if entry is not None:
-        await _queue_dispatch(str(entry.id))
+        await queue_dispatch_email(str(entry.id))
 
 
 @router.post(
@@ -330,7 +288,7 @@ async def forgot_password(
     `FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
     which addresses have accounts.
     """
-    async with _response_floor(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
+    async with minimum_duration(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
         entry = await service.request_password_reset(
             reset_token_repo,
             user_repo,
@@ -340,7 +298,7 @@ async def forgot_password(
             now=datetime.now(UTC),
         )
         if entry is not None:
-            await _queue_dispatch(str(entry.id))
+            await queue_dispatch_email(str(entry.id))
 
 
 @router.post(

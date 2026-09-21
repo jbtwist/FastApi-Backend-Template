@@ -17,7 +17,6 @@ function loadConfig(env: Partial<Record<(typeof ENV_KEYS)[number], string>>): Au
   jest.resetModules();
   // `require` rather than `import()`: the module has to be re-evaluated after
   // the environment changes, and jest's ESM loader is not enabled here.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return (require('../config') as typeof import('../config')).authConfig;
 }
 

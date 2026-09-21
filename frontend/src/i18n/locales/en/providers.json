@@ -2,5 +2,14 @@
   "continueWith": "Continue with %{provider}",
   "comingSoon": "Third-party sign-in is coming soon.",
   "google": "Google",
-  "apple": "Apple"
+  "apple": "Apple",
+  "emailNotConfirmed": "%{provider} couldn't confirm your email. Create an account with it instead.",
+  "emailNotConfirmedGeneric": "We couldn't confirm your email with that provider. Create an account with it instead.",
+  "failed": "We couldn't sign you in. Please try again.",
+  "unavailable": "Sign-in is temporarily unavailable. Try again in a moment.",
+  "notEnabled": "This sign-in option isn't available right now.",
+  "linkEmailSent": "You already have an account with this email. We sent you an email: open the link in it to sign in with %{provider} from now on.",
+  "linkEmailSentGeneric": "You already have an account with this email. We sent you an email: open the link in it to sign in with that provider from now on.",
+  "linkedElsewhere": "This email is already linked to %{provider}. Sign in with %{provider} instead.",
+  "linkedElsewhereGeneric": "This email is already linked to another sign-in method."
 }

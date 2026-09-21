@@ -22,6 +22,8 @@
  *    field when the failure names one, in the `FormMessage` banner otherwise.
  */
 
+import type { OAuthProvider } from './config';
+
 export type AuthEndpointContext =
   | 'login'
   | 'register'
@@ -32,7 +34,37 @@ export type AuthEndpointContext =
   | 'resend-verification'
   | 'forgot-password'
   | 'reset-password'
-  | 'authed';
+  | 'authed'
+  | 'oauth'
+  | 'oauth-link-confirm';
+
+/** The `oauth_error` query flag the web return leg appends to the sign-in URL. */
+export type OAuthErrorCode =
+  | 'cancelled'
+  | 'failed'
+  | 'unavailable'
+  | 'email_not_verified_by_provider'
+  | 'email_linked_to_other_provider';
+
+const KNOWN_PROVIDERS: ReadonlySet<string> = new Set<OAuthProvider>(['google', 'apple']);
+
+/**
+ * Narrow a provider name the backend sent to one the app has a label for.
+ * Anything else is dropped rather than rendered, so the message falls back to
+ * its generic wording.
+ */
+function asOAuthProvider(value: unknown): OAuthProvider | undefined {
+  return typeof value === 'string' && KNOWN_PROVIDERS.has(value)
+    ? (value as OAuthProvider)
+    : undefined;
+}
+
+function linkedElsewhere(linkedProvider: unknown): AuthUiError {
+  const provider = asOAuthProvider(linkedProvider);
+  return provider
+    ? { kind: 'oauth-email-linked-elsewhere', linkedProvider: provider }
+    : { kind: 'oauth-email-linked-elsewhere' };
+}
 
 /**
  * A rendered auth failure, identified only by what the app can derive itself.
@@ -57,18 +89,27 @@ export type AuthUiError =
   | { kind: 'rate-limited'; retryAfterSeconds?: number }
   | { kind: 'offline' }
   | { kind: 'timeout' }
-  | { kind: 'unknown' };
+  | { kind: 'unknown' }
+  | { kind: 'oauth-cancelled' }
+  | { kind: 'oauth-failed' }
+  | { kind: 'oauth-unavailable' }
+  | { kind: 'oauth-not-enabled' }
+  | { kind: 'oauth-email-unverified' }
+  | { kind: 'oauth-email-linked-elsewhere'; linkedProvider?: OAuthProvider };
 
 export interface ToAuthUiErrorOptions {
   /** Email typed into the form — attached to `email-not-verified` (403 on login). */
   submittedEmail?: string;
   /** Seconds from a parsed `Retry-After` header — attached to `rate-limited` (429). */
   retryAfterSeconds?: number;
+  /** The body's `linked_provider` — attached to `oauth-email-linked-elsewhere` (409). */
+  linkedProvider?: unknown;
 }
 
 const INVALID_TOKEN_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
   'confirm-email',
   'reset-password',
+  'oauth-link-confirm',
 ]);
 
 const PASSWORD_POLICY_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
@@ -123,13 +164,23 @@ export function toAuthUiError(
 
     case 401:
       if (context === 'login') return { kind: 'invalid-credentials' };
+      if (context === 'oauth') return { kind: 'oauth-failed' };
       return null;
 
     case 403:
       if (context === 'login') {
         return { kind: 'email-not-verified', email: options.submittedEmail ?? '' };
       }
+      if (context === 'oauth') return { kind: 'oauth-email-unverified' };
       return { kind: 'unknown' };
+
+    case 404:
+      return context === 'oauth' ? { kind: 'oauth-not-enabled' } : { kind: 'unknown' };
+
+    case 409:
+      return context === 'oauth' || context === 'oauth-link-confirm'
+        ? linkedElsewhere(options.linkedProvider)
+        : { kind: 'unknown' };
 
     case 422: {
       const fields = invalidFields(detail);
@@ -147,6 +198,38 @@ export function toAuthUiError(
         ? { kind: 'rate-limited' }
         : { kind: 'rate-limited', retryAfterSeconds: options.retryAfterSeconds };
 
+    case 503:
+      return context === 'oauth' ? { kind: 'oauth-unavailable' } : { kind: 'unknown' };
+
+    default:
+      return { kind: 'unknown' };
+  }
+}
+
+/**
+ * Turn the web return leg's `oauth_error` query flag into an {@link AuthUiError}.
+ * `cancelled` is not shown as a banner — the screen checks for that kind and
+ * stays quiet, the same as a dismissed native provider sheet.
+ *
+ * @param code The `oauth_error` value read from the URL.
+ * @param linkedProvider The `linked_provider` flag that accompanies
+ *   `email_linked_to_other_provider`.
+ */
+export function oauthErrorCodeToAuthUiError(
+  code: OAuthErrorCode | string,
+  linkedProvider?: string,
+): AuthUiError {
+  switch (code) {
+    case 'cancelled':
+      return { kind: 'oauth-cancelled' };
+    case 'failed':
+      return { kind: 'oauth-failed' };
+    case 'unavailable':
+      return { kind: 'oauth-unavailable' };
+    case 'email_not_verified_by_provider':
+      return { kind: 'oauth-email-unverified' };
+    case 'email_linked_to_other_provider':
+      return linkedElsewhere(linkedProvider);
     default:
       return { kind: 'unknown' };
   }

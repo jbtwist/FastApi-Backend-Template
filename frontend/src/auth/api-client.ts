@@ -100,6 +100,8 @@ const PUBLIC_CONTEXTS: ReadonlySet<AuthEndpointContext> = new Set([
   'resend-verification',
   'refresh',
   'logout',
+  'oauth',
+  'oauth-link-confirm',
 ]);
 
 function isAuthed(options: RequestOptions): boolean {
@@ -251,6 +253,10 @@ function mapError(raw: RawResponse, options: RequestOptions): AuthApiError {
     toAuthUiError(raw.status, raw.detail, options.context, {
       submittedEmail: options.submittedEmail,
       retryAfterSeconds: raw.retryAfterSeconds,
+      linkedProvider:
+        raw.json && typeof raw.json === 'object'
+          ? (raw.json as { linked_provider?: unknown }).linked_provider
+          : undefined,
     }) ?? { kind: 'unknown' };
   return new AuthApiError(uiError, raw.status);
 }

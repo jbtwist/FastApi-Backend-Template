@@ -21,6 +21,18 @@ export type AuthConfig = {
   /** Providers to show, in display order. */
   providers: OAuthProvider[];
   /**
+   * Google OAuth client IDs, one per platform — `expo-auth-session` picks the
+   * one matching `Platform.OS`. `EXPO_PUBLIC_GOOGLE_CLIENT_ID_{WEB,IOS,ANDROID}`.
+   * `undefined` on an unconfigured platform disables the native Google flow
+   * there (surfaced as `oauth-unavailable`), matching the backend leaving the
+   * matching `GOOGLE_CLIENT_ID_*` row unset.
+   */
+  googleClientIds: {
+    web?: string;
+    ios?: string;
+    android?: string;
+  };
+  /**
    * Shortest password the register form will submit.
    * `EXPO_PUBLIC_PASSWORD_MIN_LENGTH`, defaulting to 12.
    *
@@ -65,7 +77,16 @@ function positiveIntFromEnv(raw: string | undefined, fallback: number): number {
 export const authConfig: AuthConfig = {
   apiBaseUrl: process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_BASE_URL,
   oauthEnabled: false,
-  providers: ['google', 'apple'],
+  // 'apple' stays a valid OAuthProvider (label, copy, backend adapter all
+  // exist) but is dropped from this default list: the client-side Apple
+  // flow needs a paid Apple Developer Program membership this project
+  // doesn't have, so there is no code path that could run it (2026-09-12).
+  providers: ['google'],
+  googleClientIds: {
+    web: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB,
+    ios: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
+    android: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,
+  },
   passwordMinLength: positiveIntFromEnv(
     process.env.EXPO_PUBLIC_PASSWORD_MIN_LENGTH,
     DEFAULT_PASSWORD_MIN_LENGTH,

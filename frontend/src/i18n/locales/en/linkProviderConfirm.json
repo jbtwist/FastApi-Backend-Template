@@ -1,0 +1,11 @@
+{
+  "linking": "Linking your account…",
+  "success": "Sign-in method linked",
+  "successBody": "You can now sign in with that provider.",
+  "continue": "Continue",
+  "invalidTitle": "This link is invalid or expired",
+  "invalidBody": "Sign in with the provider again to get a new link.",
+  "missingToken": "This link is missing its token.",
+  "linkedElsewhereTitle": "Already linked",
+  "backToSignIn": "Back to sign in"
+}

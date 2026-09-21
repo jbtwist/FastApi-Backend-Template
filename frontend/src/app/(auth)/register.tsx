@@ -15,19 +15,22 @@
  * server can still fail — so a `password-policy` 422 can be named precisely
  * without reading what the server wrote.
  */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AuthApiError } from '@/auth/api-client';
 import { useAuth } from '@/auth/auth-context';
-import { authConfig } from '@/auth/config';
+import { authConfig, type OAuthProvider } from '@/auth/config';
 import type { AuthUiError } from '@/auth/errors';
+import { fetchEnabledProviders, startOAuthSignIn } from '@/auth/oauth-client';
 import * as pendingVerification from '@/auth/pending-verification';
 import { AuthScreen } from '@/components/auth/auth-screen';
-import { FormMessage } from '@/components/auth/form-message';
+import { FormMessage, type FormMessageValue } from '@/components/auth/form-message';
 import { PasswordField } from '@/components/auth/password-field';
 import { PrimaryButton } from '@/components/auth/primary-button';
 import { ProviderButtons } from '@/components/auth/provider-buttons';
+import { linkEmailSentMessage, oauthMessageFor } from '@/components/auth/provider-messages';
 import { TextField } from '@/components/auth/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -55,7 +58,50 @@ function messageKeyFor(error: AuthUiError): TranslationKey {
 export default function RegisterScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { register } = useAuth();
+  const { register, completeOAuthSignIn } = useAuth();
+
+  const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
+  const [oauthMessage, setOauthMessage] = useState<FormMessageValue | null>(null);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const oauthSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchEnabledProviders()
+      .then((providers) => {
+        if (active) setOauthProviders(providers);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleProviderSelect = useCallback(
+    async (provider: OAuthProvider) => {
+      if (oauthSubmittingRef.current) return;
+      oauthSubmittingRef.current = true;
+      setOauthSubmitting(true);
+      setOauthMessage(null);
+      try {
+        const outcome = await startOAuthSignIn(provider, { onSignedIn: completeOAuthSignIn });
+        if (outcome.kind === 'signed-in') {
+          router.replace('/(app)');
+          return;
+        }
+        if (outcome.kind === 'link-email-sent') {
+          setOauthMessage({ kind: 'info', message: linkEmailSentMessage(provider, t) });
+          return;
+        }
+        if (outcome.kind === 'cancelled' || outcome.kind === 'navigating') return;
+        setOauthMessage({ kind: 'error', message: oauthMessageFor(outcome.error, provider, t) });
+      } finally {
+        oauthSubmittingRef.current = false;
+        setOauthSubmitting(false);
+      }
+    },
+    [completeOAuthSignIn, router, t],
+  );
 
   const form = useForm<RegisterValues>({
     initialValues: { email: '', password: '' },
@@ -108,7 +154,16 @@ export default function RegisterScreen() {
           submitting={submitting}
         />
       }
-      dividerSlot={<ProviderButtons />}>
+      dividerSlot={
+        <>
+          <ProviderButtons
+            providers={oauthProviders}
+            enabled={!oauthSubmitting}
+            onSelect={handleProviderSelect}
+          />
+          <FormMessage message={oauthMessage} testID="register-oauth-message" />
+        </>
+      }>
       <FormMessage message={formMessage} testID="register-form-message" />
 
       <TextField

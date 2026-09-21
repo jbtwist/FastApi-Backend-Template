@@ -7,6 +7,7 @@
  * Error handling, transport and refresh-on-401 all live in `api-client`; this
  * module only names the calls and types their payloads.
  */
+import type { OAuthProvider } from './config';
 import { request } from './api-client';
 
 /** `UserOut` from the API. */
@@ -119,6 +120,82 @@ export function resetPassword(body: { token: string; new_password: string }): Pr
   });
 }
 
+/** `OAuthProvidersOut` — which providers this deployment offers. */
+export interface OAuthProvidersOut {
+  providers: OAuthProvider[];
+}
+
+/** `OAuthStartOut` — the `state` + `nonce` a native sign-in attempt runs on. */
+export interface OAuthStartOut {
+  state: string;
+  nonce: string;
+  expires_in: number;
+}
+
+/** `GET /auth/oauth/providers` → `200 OAuthProvidersOut`. Never an error. */
+export function oauthProviders(): Promise<OAuthProvidersOut> {
+  return request<OAuthProvidersOut>('/auth/oauth/providers', {
+    method: 'GET',
+    context: 'oauth',
+    authed: false,
+  });
+}
+
+/** `POST /auth/oauth/{provider}/start` → `200 OAuthStartOut`. `404` if unknown/unconfigured. */
+export function oauthStart(
+  provider: OAuthProvider,
+  redirectTarget?: string,
+): Promise<OAuthStartOut> {
+  return request<OAuthStartOut>(`/auth/oauth/${provider}/start`, {
+    method: 'POST',
+    body: redirectTarget ? { redirect_target: redirectTarget } : undefined,
+    context: 'oauth',
+    authed: false,
+  });
+}
+
+/**
+ * `OAuthLinkPendingOut` — the provider's email belongs to an existing account,
+ * which was emailed a link to confirm the new sign-in method. No session yet.
+ */
+export interface OAuthLinkPendingOut {
+  status: 'link_email_sent';
+}
+
+/** Whether a `/native` result is the link-pending `202`, not a session. */
+export function isLinkPending(out: LoginOut | OAuthLinkPendingOut): out is OAuthLinkPendingOut {
+  return (out as OAuthLinkPendingOut).status === 'link_email_sent';
+}
+
+/**
+ * `POST /auth/oauth/{provider}/native` → `200 LoginOut` (same body as
+ * `POST /auth/login`) | `202 OAuthLinkPendingOut` | `401` | `403` | `409` | `503`.
+ */
+export function oauthNative(
+  provider: OAuthProvider,
+  body: { state: string; assertion: string; display_name?: string },
+): Promise<LoginOut | OAuthLinkPendingOut> {
+  return request<LoginOut | OAuthLinkPendingOut>(`/auth/oauth/${provider}/native`, {
+    method: 'POST',
+    body,
+    context: 'oauth',
+    authed: false,
+  });
+}
+
+/**
+ * `POST /auth/oauth/link/confirm` → `204` | `400` (invalid or expired link) |
+ * `409` (the account got a provider meanwhile). Doesn't sign in.
+ */
+export function confirmIdentityLink(token: string): Promise<void> {
+  return request<void>('/auth/oauth/link/confirm', {
+    method: 'POST',
+    body: { token },
+    context: 'oauth-link-confirm',
+    authed: false,
+  });
+}
+
 export const authApi = {
   register,
   login,
@@ -129,4 +206,8 @@ export const authApi = {
   resendVerification,
   forgotPassword,
   resetPassword,
+  oauthProviders,
+  oauthStart,
+  oauthNative,
+  confirmIdentityLink,
 };

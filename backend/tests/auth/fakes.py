@@ -22,7 +22,7 @@ class FakeUserRepository:
                 return user
         return None
 
-    async def create(self, *, email: str, password_hash: str) -> User:
+    async def create(self, *, email: str, password_hash: str | None) -> User:
         user = User(id=uuid.uuid4(), email=email, password_hash=password_hash)
         self._users_by_email[email] = user
         return user
@@ -35,7 +35,7 @@ class FakeUserRepository:
         return True
 
     async def set_password_hash(
-        self, user_id: uuid.UUID, *, password_hash: str, updated_at: datetime
+        self, user_id: uuid.UUID, *, password_hash: str | None, updated_at: datetime
     ) -> bool:
         user = await self.get_by_id(user_id)
         if user is None:

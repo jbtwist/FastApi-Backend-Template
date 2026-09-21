@@ -10,11 +10,16 @@ import {
   fireEvent,
 } from 'expo-router/testing-library';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { AuthApiError } from '@/auth/api-client';
-import { LocaleProvider } from '@/i18n/provider';
+import { mockFetch, type MockFetch } from '@/test-utils';
+import { DEFAULT_LOCALE, i18n } from '@/i18n';
+import { LocaleProvider, useLocale } from '@/i18n/provider';
 import { ColorSchemeProvider } from '@/theme/provider';
 
 const mockSignIn = jest.fn<Promise<void>, [string, string]>();
+const mockCompleteOAuthSignIn = jest.fn<Promise<void>, [unknown]>();
 let mockSignedOutReason: 'session-expired' | null = null;
 
 jest.mock('@/auth/auth-context', () => ({
@@ -23,19 +28,42 @@ jest.mock('@/auth/auth-context', () => ({
     user: null,
     signedOutReason: mockSignedOutReason,
     signIn: mockSignIn,
+    completeOAuthSignIn: mockCompleteOAuthSignIn,
   }),
 }));
+
+// The platform SDK is faked at the module edge; the real `oauth-client.ts`
+// runs against it and against `fetchMock` below.
+const mockPromptAsync = jest.fn();
+jest.mock('expo-auth-session', () => ({
+  AuthRequest: jest.fn().mockImplementation(() => ({ promptAsync: mockPromptAsync })),
+  ResponseType: { IdToken: 'id_token' },
+  makeRedirectUri: () => 'com.example.app://redirect',
+}));
+jest.mock('expo-auth-session/providers/google', () => ({ discovery: {} }));
 
 const SAFE_AREA_METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
+/**
+ * Stands in for `<LanguageSwitcher />`, which renders on web only and so is
+ * absent from this native-preset render.
+ */
+function LocaleProbe() {
+  const { setLocale } = useLocale();
+  return <Text testID="switch-to-es" onPress={() => void setLocale('es')} />;
+}
+
 function Providers({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <LocaleProvider>
-        <ColorSchemeProvider>{children}</ColorSchemeProvider>
+        <ColorSchemeProvider>
+          {children}
+          <LocaleProbe />
+        </ColorSchemeProvider>
       </LocaleProvider>
     </SafeAreaProvider>
   );
@@ -58,8 +86,8 @@ function routes() {
   };
 }
 
-function mount() {
-  return renderRouter(routes(), { initialUrl: '/sign-in', wrapper: Providers });
+function mount(initialUrl = '/sign-in') {
+  return renderRouter(routes(), { initialUrl, wrapper: Providers });
 }
 
 async function fillForm(email: string, password: string) {
@@ -71,14 +99,22 @@ function submit() {
   fireEvent.press(screen.getByRole('button', { name: 'Sign in' }));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  i18n.locale = DEFAULT_LOCALE;
   mockSignIn.mockReset();
   mockSignIn.mockResolvedValue(undefined);
+  mockCompleteOAuthSignIn.mockReset();
+  mockCompleteOAuthSignIn.mockResolvedValue(undefined);
+  mockPromptAsync.mockReset();
   mockSignedOutReason = null;
 });
 
 describe('sign-in screen — layout', () => {
   it('renders the email + password fields, the primary button, the links and the provider buttons', async () => {
+    // Provider buttons render only once the launch fetch resolves —
+    // hide-until-known, never a stale static default.
+    const fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
     mount();
 
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
@@ -86,7 +122,8 @@ describe('sign-in screen — layout', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
     expect(screen.getByText('Create an account')).toBeOnTheScreen();
     expect(screen.getByText('Forgot password?')).toBeOnTheScreen();
-    expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByTestId('provider-buttons')).toBeOnTheScreen());
+    fetchMock.restore();
   });
 
   it('navigates to register / forgot-password from the links', async () => {
@@ -253,5 +290,254 @@ describe('sign-in screen — signed-out notice', () => {
     mount();
 
     expect(screen.queryByText('Please sign in again.')).toBeNull();
+  });
+});
+
+describe('sign-in screen — oauth (native)', () => {
+  let fetchMock: MockFetch;
+
+  beforeEach(() => {
+    fetchMock = mockFetch();
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
+  it('pressing a provider button reaches the authenticated area', async () => {
+    fetchMock
+      .queueJson(200, { providers: ['google'] }) // GET /auth/oauth/providers, on launch
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 }) // POST /start
+      .queueJson(200, {
+        id: 'u1',
+        email: 'user@example.com',
+        email_verified: true,
+        access_token: 'a',
+        refresh_token: 'r',
+        token_type: 'bearer',
+      }); // POST /native
+    mockPromptAsync.mockResolvedValue({
+      type: 'success',
+      params: { id_token: 'id-token-1' },
+      authentication: { idToken: 'id-token-1' },
+      url: 'com.example.app://redirect',
+    });
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+
+    await waitFor(() => expect(mockCompleteOAuthSignIn).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('app home')).toBeOnTheScreen());
+  });
+
+  it('cancelling the provider sheet returns quietly, with no error banner', async () => {
+    fetchMock
+      .queueJson(200, { providers: ['google'] })
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 });
+    mockPromptAsync.mockResolvedValue({ type: 'cancel' });
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+
+    await waitFor(() => expect(mockPromptAsync).toHaveBeenCalled());
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a provider absent from GET /auth/oauth/providers is hidden, not disabled', async () => {
+    // The server, not the static `authConfig.providers` default, decides what
+    // renders: an empty list must hide Google too, proving this isn't just
+    // today's hardcoded default happening to agree with the assertion.
+    fetchMock.queueJson(200, { providers: [] });
+
+    mount();
+
+    await waitFor(() => expect(screen.queryByTestId('provider-buttons')).toBeNull());
+  });
+
+  it('an on-screen provider error follows a language switch', async () => {
+    fetchMock
+      .queueJson(200, { providers: ['google'] })
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 })
+      .queueJson(403, { detail: 'email_not_verified_by_provider' });
+    mockPromptAsync.mockResolvedValue({
+      type: 'success',
+      params: { id_token: 'id-token-1' },
+      authentication: { idToken: 'id-token-1' },
+      url: 'com.example.app://redirect',
+    });
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Google couldn't confirm your email. Create an account with it instead."),
+      ).toBeOnTheScreen(),
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('switch-to-es'));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Google no pudo confirmar tu correo electrónico. Crea una cuenta con él en su lugar.',
+        ),
+      ).toBeOnTheScreen(),
+    );
+  });
+});
+
+describe('sign-in screen — oauth account linking (native)', () => {
+  let fetchMock: MockFetch;
+
+  const googleSuccess = {
+    type: 'success',
+    params: { id_token: 'id-token-1' },
+    authentication: { idToken: 'id-token-1' },
+    url: 'com.example.app://redirect',
+  };
+
+  beforeEach(() => {
+    fetchMock = mockFetch()
+      .queueJson(200, { providers: ['google'] })
+      .queueJson(200, { state: 's1', nonce: 'n1', expires_in: 600 });
+    mockPromptAsync.mockResolvedValue(googleSuccess);
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
+  async function continueWithGoogle() {
+    mount();
+    await waitFor(() => expect(screen.getByTestId('provider-button-google')).toBeOnTheScreen());
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+  }
+
+  it('an existing account gets a link email: says so and stays signed out', async () => {
+    fetchMock.queueJson(202, { status: 'link_email_sent' });
+
+    await continueWithGoogle();
+
+    expect(
+      await screen.findByText(
+        'You already have an account with this email. We sent you an email: open the link in it to sign in with Google from now on.',
+      ),
+    ).toBeOnTheScreen();
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+    expect(screen.queryByText('app home')).toBeNull();
+  });
+
+  it('an email linked to another provider names that provider', async () => {
+    fetchMock.queueJson(409, {
+      detail: 'Email linked to another provider',
+      linked_provider: 'apple',
+    });
+
+    await continueWithGoogle();
+
+    expect(
+      await screen.findByText('This email is already linked to Apple. Sign in with Apple instead.'),
+    ).toBeOnTheScreen();
+    expect(mockCompleteOAuthSignIn).not.toHaveBeenCalled();
+  });
+
+  it('the "already linked" banner follows a language switch', async () => {
+    fetchMock.queueJson(409, { detail: 'x', linked_provider: 'apple' });
+
+    await continueWithGoogle();
+    await screen.findByText('This email is already linked to Apple. Sign in with Apple instead.');
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('switch-to-es'));
+    });
+
+    expect(
+      await screen.findByText('Este correo ya está vinculado a Apple. Inicia sesión con Apple.'),
+    ).toBeOnTheScreen();
+  });
+});
+
+describe('sign-in screen — oauth web return', () => {
+  let fetchMock: MockFetch;
+
+  beforeEach(() => {
+    fetchMock = mockFetch().queueJson(200, { providers: ['google'] });
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
+  it('email_not_verified_by_provider shows the "couldn\'t confirm your address" state, and clears the flag', async () => {
+    // The redirect's oauth_error flag carries no provider identity, so the
+    // copy stays generic here — never guesses "Google" for what could just
+    // as well have been an Apple attempt.
+    const router = mount('/sign-in?oauth_error=email_not_verified_by_provider');
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "We couldn't confirm your email with that provider. Create an account with it instead.",
+        ),
+      ).toBeOnTheScreen(),
+    );
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
+  });
+
+  it('cancelled shows no banner at all, and clears the flag', async () => {
+    const router = mount('/sign-in?oauth_error=cancelled');
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
+  });
+
+  it('email_linked_to_other_provider names the flagged provider, and clears both flags', async () => {
+    const router = mount(
+      '/sign-in?oauth_error=email_linked_to_other_provider&linked_provider=google',
+    );
+
+    expect(
+      await screen.findByText(
+        'This email is already linked to Google. Sign in with Google instead.',
+      ),
+    ).toBeOnTheScreen();
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
+  });
+
+  it('email_linked_to_other_provider without a known provider stays generic', async () => {
+    mount('/sign-in?oauth_error=email_linked_to_other_provider&linked_provider=nope');
+
+    expect(
+      await screen.findByText('This email is already linked to another sign-in method.'),
+    ).toBeOnTheScreen();
+  });
+
+  it('oauth_notice=link_email_sent explains the emailed link, and clears the flag', async () => {
+    const router = mount('/sign-in?oauth_notice=link_email_sent');
+
+    expect(
+      await screen.findByText(
+        'You already have an account with this email. We sent you an email: open the link in it to sign in with that provider from now on.',
+      ),
+    ).toBeOnTheScreen();
+    await waitFor(() => expect(router.getSearchParams()).toEqual({}));
   });
 });

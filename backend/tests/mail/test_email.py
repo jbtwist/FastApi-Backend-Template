@@ -38,6 +38,21 @@ class TestSmtpEmailSender:
         assert "api.todoapp.local" not in text_body
         assert "api.todoapp.local" not in html_body
 
+    async def test_sends_an_oauth_link_email_pointing_at_the_link_confirm_screen(self, monkeypatch):
+        sent: list[EmailMessage] = []
+
+        async def fake_send(message, *, hostname, port):
+            sent.append(message)
+
+        monkeypatch.setattr(email_module.aiosmtplib, "send", fake_send)
+
+        await SmtpEmailSender().send_oauth_link_email(email="ada@example.com", token="raw-token")
+
+        confirm_url = "https://app.todoapp.local/link-provider-confirm?token=raw-token"
+        assert sent[0]["To"] == "ada@example.com"
+        assert confirm_url in sent[0].get_body(preferencelist=("plain",)).get_content()
+        assert confirm_url in sent[0].get_body(preferencelist=("html",)).get_content()
+
 
 class TestSesEmailSender:
     async def test_sends_an_email_with_text_and_html_bodies_containing_the_confirm_link(

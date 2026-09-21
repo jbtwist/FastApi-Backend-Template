@@ -6,6 +6,7 @@ import type { Translations } from '../en';
 import common from './common.json';
 import errors from './errors.json';
 import forgotPassword from './forgotPassword.json';
+import linkProviderConfirm from './linkProviderConfirm.json';
 import providers from './providers.json';
 import register from './register.json';
 import resetPassword from './resetPassword.json';
@@ -21,6 +22,7 @@ export const es: Translations = {
   register,
   verifyEmail,
   verifyEmailConfirm,
+  linkProviderConfirm,
   forgotPassword,
   resetPassword,
   session,

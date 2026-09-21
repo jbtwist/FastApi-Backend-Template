@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -8,6 +9,8 @@ from backend.mail.celery_app import celery_app
 from backend.mail.config import mail_settings
 from backend.mail.email import get_email_sender
 from backend.mail.repository import SqlEmailOutboxRepository
+
+logger = logging.getLogger(__name__)
 
 _email_sender = get_email_sender()
 
@@ -66,3 +69,16 @@ def sweep_pending_emails() -> None:
     """
     for entry_id in asyncio.run(_sweep_pending_emails()):
         dispatch_email.delay(entry_id)
+
+
+async def queue_dispatch_email(entry_id: str) -> None:
+    """Fire the Celery dispatch for a freshly queued outbox row, tolerating a broker outage.
+
+    A failed enqueue must not surface to the caller: on `forgot-password` a 500
+    for registered addresses (vs. 204 for unknown ones) would be an enumeration
+    oracle. The row stays `PENDING`; `sweep_pending_emails` redelivers it.
+    """
+    try:
+        await asyncio.to_thread(dispatch_email.delay, entry_id)
+    except Exception:
+        logger.warning("dispatch enqueue failed for outbox entry %s", entry_id, exc_info=True)
