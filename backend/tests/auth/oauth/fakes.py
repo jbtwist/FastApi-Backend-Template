@@ -23,6 +23,7 @@ class FakeOAuthProvider:
     name = "fake"
 
     def __init__(self, identity: ProviderIdentity | None = None) -> None:
+        self.user_details: str | None = None
         self.identity = identity or ProviderIdentity(
             provider=self.name,
             subject=f"{self.name}-subject-1",
@@ -40,11 +41,14 @@ class FakeOAuthProvider:
         return f"https://{self.name}.example/authorize?{query}"
 
     async def exchange_redirect(
-        self, *, code: str, redirect_uri: str, nonce: str
+        self, *, code: str, redirect_uri: str, nonce: str, user_details: str | None = None
     ) -> ProviderIdentity:
+        self.user_details = user_details
         return self._verify(code, nonce=nonce)
 
-    async def exchange_native(self, *, assertion: str, nonce: str) -> ProviderIdentity:
+    async def exchange_native(
+        self, *, assertion: str, nonce: str, display_name: str | None = None
+    ) -> ProviderIdentity:
         return self._verify(assertion, nonce=nonce)
 
     def _verify(self, assertion: str, *, nonce: str) -> ProviderIdentity:
