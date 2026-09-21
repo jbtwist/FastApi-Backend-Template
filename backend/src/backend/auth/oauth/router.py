@@ -10,14 +10,17 @@ cookies set on success, an `oauth_error` or `oauth_notice` flag otherwise.
 import secrets
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from backend.auth.config import AuthConfig
 from backend.auth.cookies import set_token_cookies
 from backend.auth.dependencies import AuthConfigDep, RefreshTokenRepoDep, UserRepoDep
 from backend.auth.oauth import service
+from backend.auth.oauth.config import OAuthConfig
+from backend.auth.oauth.contract import OAuthProvider
 from backend.auth.oauth.dependencies import (
     EnabledProvidersDep,
     OAuthConfigDep,
@@ -33,6 +36,7 @@ from backend.auth.oauth.exceptions import (
     ProviderEmailUnverified,
     ProviderUnavailable,
 )
+from backend.auth.oauth.repository import OAuthIdentityRepository, OAuthLinkTokenRepository
 from backend.auth.oauth.schemas import (
     OAuthLinkConfirmIn,
     OAuthLinkPendingOut,
@@ -41,9 +45,12 @@ from backend.auth.oauth.schemas import (
     OAuthStartIn,
     OAuthStartOut,
 )
+from backend.auth.oauth.state import SignInStateStore
+from backend.auth.repository import RefreshTokenRepository, UserRepository
 from backend.auth.schemas import LoginOut
 from backend.mail.config import mail_settings
 from backend.mail.dependencies import EmailOutboxRepoDep
+from backend.mail.service import EmailOutboxRepository
 from backend.mail.tasks import queue_dispatch_email
 from backend.rate_limit import rate_limit
 
@@ -60,6 +67,20 @@ def _callback_url(provider_name: str) -> str:
 
 def _sign_in_url(**flags: str) -> str:
     return f"{mail_settings.FRONTEND_BASE_URL}{_SIGN_IN_PATH}?{urlencode(flags)}"
+
+
+def _oauth_state_cookie_site(config: AuthConfig) -> dict[str, object]:
+    """How the `oauth_state` cookie travels.
+
+    A provider that posts the result back (Apple) returns the browser from its
+    own site, and a `SameSite=Lax` cookie is not sent on a cross-site POST — the
+    binding would be lost and every such sign-in refused. `None` restores it,
+    and browsers only accept `None` together with `Secure`, so plain HTTP (local
+    development) keeps `Lax`: there the callback is same-site anyway.
+    """
+    if config.COOKIE_SECURE:
+        return {"secure": True, "samesite": "none"}
+    return {"secure": False, "samesite": "lax"}
 
 
 def _login_out(result: service.SignedIn) -> LoginOut:
@@ -178,8 +199,7 @@ async def authorize(
         max_age=int(oauth_config.OAUTH_STATE_TTL.total_seconds()),
         path=_OAUTH_STATE_COOKIE_PATH,
         httponly=True,
-        secure=auth_config.COOKIE_SECURE,
-        samesite="lax",
+        **_oauth_state_cookie_site(auth_config),
     )
     return response
 
@@ -200,13 +220,90 @@ async def callback(
     error: str | None = None,
     oauth_state: Annotated[str | None, Cookie()] = None,
 ) -> RedirectResponse:
-    """Finish a browser sign-in and redirect back to the frontend.
+    """Finish a browser sign-in that came back as a redirect, and land on the frontend.
 
     The `state` must match the `oauth_state` cookie as well as a stored attempt,
     so a callback link can't be replayed into another browser. Every outcome is
     a redirect: to the attempt's `redirect_target` with session cookies, or to
     the sign-in screen with an `oauth_error` or `oauth_notice` flag.
     """
+    return await _complete_callback(
+        provider,
+        state_store,
+        user_repo,
+        identity_repo,
+        refresh_token_repo,
+        link_token_repo,
+        outbox_repo,
+        auth_config=auth_config,
+        oauth_config=oauth_config,
+        code=code,
+        state=state,
+        error=error,
+        user_details=None,
+        oauth_state=oauth_state,
+    )
+
+
+@router.post("/{provider}/callback", dependencies=[Depends(rate_limit("10/minute"))])
+async def callback_form_post(
+    request: Request,
+    provider: ProviderDep,
+    state_store: StateStoreDep,
+    user_repo: UserRepoDep,
+    identity_repo: OAuthIdentityRepoDep,
+    refresh_token_repo: RefreshTokenRepoDep,
+    link_token_repo: OAuthLinkTokenRepoDep,
+    outbox_repo: EmailOutboxRepoDep,
+    auth_config: AuthConfigDep,
+    oauth_config: OAuthConfigDep,
+    oauth_state: Annotated[str | None, Cookie()] = None,
+) -> RedirectResponse:
+    """The same return leg, for a provider that posts the result back as a form.
+
+    Apple does: it posts `code` and `state`, and on the very first sign-in a
+    `user` field carrying the person's name, which its ID token never repeats.
+    The urlencoded body is parsed here rather than declared with `Form(...)`,
+    which would pull in a multipart library this app doesn't need.
+    """
+    form = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
+
+    return await _complete_callback(
+        provider,
+        state_store,
+        user_repo,
+        identity_repo,
+        refresh_token_repo,
+        link_token_repo,
+        outbox_repo,
+        auth_config=auth_config,
+        oauth_config=oauth_config,
+        code=form.get("code"),
+        state=form.get("state"),
+        error=form.get("error"),
+        user_details=form.get("user"),
+        oauth_state=oauth_state,
+    )
+
+
+async def _complete_callback(
+    provider: OAuthProvider,
+    state_store: SignInStateStore,
+    user_repo: UserRepository,
+    identity_repo: OAuthIdentityRepository,
+    refresh_token_repo: RefreshTokenRepository,
+    link_token_repo: OAuthLinkTokenRepository,
+    outbox_repo: EmailOutboxRepository,
+    *,
+    auth_config: AuthConfig,
+    oauth_config: OAuthConfig,
+    code: str | None,
+    state: str | None,
+    error: str | None,
+    user_details: str | None,
+    oauth_state: str | None,
+) -> RedirectResponse:
+    """Verify the returned attempt, sign in, and turn every outcome into a redirect."""
     try:
         if error is not None:
             raise _ProviderRefused(error)
@@ -214,7 +311,10 @@ async def callback(
             raise InvalidOAuthState
         attempt = await service.consume_sign_in_attempt(state_store, state, provider=provider.name)
         identity = await provider.exchange_redirect(
-            code=code, redirect_uri=_callback_url(provider.name), nonce=attempt.nonce
+            code=code,
+            redirect_uri=_callback_url(provider.name),
+            nonce=attempt.nonce,
+            user_details=user_details,
         )
         result = await service.sign_in_with_provider(
             user_repo,
@@ -228,7 +328,7 @@ async def callback(
             now=datetime.now(UTC),
         )
     except _ProviderRefused as exc:
-        flag = "cancelled" if exc.error == "access_denied" else "failed"
+        flag = "cancelled" if exc.error in _CANCELLED_BY_PERSON else "failed"
         response = RedirectResponse(_sign_in_url(oauth_error=flag), status.HTTP_302_FOUND)
     except InvalidOAuthState, ProviderAssertionInvalid:
         response = RedirectResponse(_sign_in_url(oauth_error="failed"), status.HTTP_302_FOUND)
@@ -262,8 +362,7 @@ async def callback(
         OAUTH_STATE_COOKIE,
         path=_OAUTH_STATE_COOKIE_PATH,
         httponly=True,
-        secure=auth_config.COOKIE_SECURE,
-        samesite="lax",
+        **_oauth_state_cookie_site(auth_config),
     )
     return response
 
@@ -285,6 +384,10 @@ async def confirm_link(
     await service.confirm_identity_link(
         link_token_repo, identity_repo, payload.token, now=datetime.now(UTC)
     )
+
+
+#: What each provider calls "the person pressed Cancel": a normal act, not a failure.
+_CANCELLED_BY_PERSON = frozenset({"access_denied", "user_cancelled_authorize"})
 
 
 class _ProviderRefused(Exception):

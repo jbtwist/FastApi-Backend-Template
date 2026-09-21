@@ -92,6 +92,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The per-provider adapter implementing the sign-in contract | `OAuthProvider` (Protocol) | `OAuthStrategy`, `Backend`, `Handler`, `Client` |
 | The single-use anti-forgery value binding one sign-in attempt's browser round-trip | `state` | `csrf_token`; never `nonce`, a different value |
 | The single-use replay guard the provider echoes inside a `provider_assertion` | `nonce` | `challenge`; never `state`, a different value |
+| Unsigned details a provider posts back with the authorization code on the first sign-in, such as Apple's `user` form field; read only for a `display_name` | `user_details` | `profile`, `user_info`, `user_blob` |
 | Attaching a provider identity to an existing `user` | `link_identity` | `connect`, `merge`, `associate` |
 | Which OAuth providers a deployment offers: comma-separated adapter names; empty means password sign-in only | `OAUTH_ENABLED_PROVIDERS` | `OAUTH_PROVIDERS`, `ENABLED_PROVIDERS` |
 | How long a sign-in attempt's `state` and `nonce` stay valid | `OAUTH_STATE_TTL` | `STATE_TTL`, `OAUTH_STATE_EXPIRY` |

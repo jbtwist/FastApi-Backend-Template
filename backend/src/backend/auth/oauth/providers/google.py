@@ -182,9 +182,12 @@ class GoogleProvider:
         return f"{GOOGLE_AUTHORIZATION_URL}?{query}"
 
     async def exchange_redirect(
-        self, *, code: str, redirect_uri: str, nonce: str
+        self, *, code: str, redirect_uri: str, nonce: str, user_details: str | None = None
     ) -> ProviderIdentity:
         """Trade an authorization code for an ID token at Google's token endpoint, then verify it.
+
+        `user_details` is ignored: Google puts everything it vouches for in the
+        ID token, and never posts details back beside it.
 
         Raises:
             ProviderAssertionInvalid: Google refused the code or sent no usable ID
@@ -194,8 +197,12 @@ class GoogleProvider:
         assertion = await self._trade_code(code, redirect_uri=redirect_uri)
         return await self._identity(assertion, nonce=nonce)
 
-    async def exchange_native(self, *, assertion: str, nonce: str) -> ProviderIdentity:
+    async def exchange_native(
+        self, *, assertion: str, nonce: str, display_name: str | None = None
+    ) -> ProviderIdentity:
         """Verify an ID token the platform SDK returned.
+
+        `display_name` is ignored, for the same reason as in `exchange_redirect`.
 
         Raises:
             ProviderAssertionInvalid: the ID token failed verification.

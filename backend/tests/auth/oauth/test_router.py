@@ -133,6 +133,15 @@ async def _callback(client, *, state: str, cookie_state: str | None = None, **pa
     )
 
 
+async def _post_callback(client, *, state: str, cookie_state: str | None = None, **form):
+    """The form-post return leg, as Apple sends it."""
+    return await client.post(
+        "/auth/oauth/fake/callback",
+        data={"state": state, **form},
+        headers={"Cookie": f"oauth_state={cookie_state or state}"},
+    )
+
+
 def _flags(response) -> dict[str, str]:
     location = urlsplit(response.headers["location"])
     assert f"{location.scheme}://{location.netloc}{location.path}" == f"{FRONTEND}/sign-in"
@@ -309,6 +318,76 @@ class TestCallback:
 
         assert _flags(response) == {"oauth_notice": "link_email_sent"}
         assert len(dispatch_calls) == 1
+
+
+class TestFormPostCallback:
+    """Apple returns the browser with a form POST, not a query-string GET."""
+
+    async def test_signs_in_and_lands_on_the_redirect_target(self, client, provider, state_store):
+        state, nonce = await _authorize(client, state_store, redirect_target="/(app)")
+
+        response = await _post_callback(client, state=state, code=provider.assertion_for(nonce))
+
+        assert response.status_code == 302
+        assert response.headers["location"] == f"{FRONTEND}/(app)"
+        cookies = response.headers.get_list("set-cookie")
+        assert any(c.startswith("access_token=") for c in cookies)
+        assert any(c.startswith("refresh_token=") for c in cookies)
+
+    async def test_a_state_not_matching_the_cookie_fails(self, client, provider, state_store):
+        state, nonce = await _authorize(client, state_store)
+
+        response = await _post_callback(
+            client, state=state, cookie_state="someone-else", code=provider.assertion_for(nonce)
+        )
+
+        assert _flags(response) == {"oauth_error": "failed"}
+
+    async def test_a_cancelled_consent_screen_is_flagged_cancelled(self, client, state_store):
+        """Apple words it differently from Google, and it is just as normal an act."""
+        state, _ = await _authorize(client, state_store)
+
+        response = await _post_callback(client, state=state, error="user_cancelled_authorize")
+
+        assert _flags(response) == {"oauth_error": "cancelled"}
+
+    async def test_any_other_refusal_is_a_failure(self, client, state_store):
+        state, _ = await _authorize(client, state_store)
+
+        response = await _post_callback(client, state=state, error="invalid_request")
+
+        assert _flags(response) == {"oauth_error": "failed"}
+
+    async def test_posted_user_details_reach_the_provider(self, client, provider, state_store):
+        """Apple posts the person's name once, beside the code, never inside the token."""
+        state, nonce = await _authorize(client, state_store)
+        details = '{"name": {"firstName": "Ada", "lastName": "Lovelace"}}'
+
+        await _post_callback(
+            client, state=state, code=provider.assertion_for(nonce), user=details
+        )
+
+        assert provider.user_details == details
+
+
+class TestStateCookie:
+    """The cookie binding a browser to its attempt has to survive Apple's cross-site POST."""
+
+    async def test_is_cross_site_and_secure_when_cookies_are_secure(self, client):
+        response = await client.get("/auth/oauth/fake/authorize")
+
+        cookie = response.headers["set-cookie"]
+        assert "SameSite=none" in cookie.replace("samesite", "SameSite")
+        assert "Secure" in cookie
+
+    @pytest.mark.parametrize("auth_config_secure", [False])
+    async def test_falls_back_to_lax_without_https(self, client, auth_config_secure):
+        """`SameSite=None` without `Secure` is refused by browsers, so plain HTTP keeps `Lax`."""
+        response = await client.get("/auth/oauth/fake/authorize")
+
+        cookie = response.headers["set-cookie"]
+        assert "SameSite=lax" in cookie.replace("samesite", "SameSite")
+        assert "Secure" not in cookie
 
 
 class TestConfirmLink:
