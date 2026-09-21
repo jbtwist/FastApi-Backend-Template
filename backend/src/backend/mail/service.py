@@ -46,12 +46,9 @@ async def enqueue_email(
 ) -> EmailOutboxEntry:
     """Write a pending outbox row without contacting the email provider.
 
-    This is the durability boundary: the row exists whether or not the Celery
-    dispatch that follows ever runs, so a caller that writes this in the same
-    DB transaction as the triggering action (e.g. registration) can't lose the
-    email to a Celery/Redis outage — `sweep_pending_emails` will eventually
-    pick up anything left `PENDING` too long. `kind` selects which template and
-    sender method the dispatch step uses.
+    The durability boundary: written in the same transaction as the triggering
+    action, the row survives a Celery or Redis outage, and
+    `sweep_pending_emails` picks up whatever stays `PENDING` too long.
     """
     return await outbox_repo.create(
         user_id=user_id, email=email, token=token, created_at=created_at, kind=kind
@@ -61,8 +58,8 @@ async def enqueue_email(
 async def _send_for_kind(email_sender: EmailSender, entry: EmailOutboxEntry) -> None:
     """The single switch point wiring an `EmailKind` to a sender method.
 
-    Add a branch here (and a `render_*` template + a `send_*` method on
-    `EmailSender`) to introduce a new kind.
+    A new kind needs a branch here, a `render_*` template, and a `send_*` method
+    on `EmailSender`.
     """
     if entry.kind == EmailKind.PASSWORD_RESET:
         await email_sender.send_password_reset_email(email=entry.email, token=entry.token)
@@ -82,10 +79,9 @@ async def dispatch_email(
 ) -> None:
     """Send one outbox entry's email and update its status.
 
-    No-ops if the entry is already `SENT` or `DEAD` — safe to call more than
-    once for the same entry. On send failure, increments `attempts` and
-    re-raises so the Celery task's own retry/backoff applies; once `attempts`
-    reaches `max_attempts` the entry is marked `DEAD` and given up on for good.
+    No-ops if the entry is already `SENT` or `DEAD`, so it is safe to call twice.
+    A send failure increments `attempts` and re-raises, so the Celery task's
+    backoff applies; at `max_attempts` the entry is marked `DEAD` for good.
 
     Raises:
         EmailOutboxEntryNotFound: no entry with this id exists.
@@ -113,10 +109,8 @@ async def list_stale_pending_emails(
 ) -> list[EmailOutboxEntry]:
     """List `PENDING` entries with no activity since `older_than`.
 
-    Catches entries whose dispatch was never actually queued (e.g. the
-    process crashed between the outbox write and the Celery `.delay()` call)
-    as well as ones stuck between retries — "activity" is the entry's
-    `last_attempted_at`, falling back to `created_at` if it's never been
-    attempted.
+    Activity is `last_attempted_at`, falling back to `created_at`, so this
+    catches entries whose dispatch was never queued as well as ones stuck
+    between retries.
     """
     return await outbox_repo.list_stale_pending(older_than=older_than)

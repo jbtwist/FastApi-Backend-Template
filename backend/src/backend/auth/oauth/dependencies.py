@@ -30,7 +30,7 @@ def get_provider(
 ) -> OAuthProvider:
     """The adapter named by the `{provider}` path segment.
 
-    The name is only ever looked up among the loaded providers, never imported.
+    Looked up among the loaded providers, never imported.
 
     Raises:
         ProviderNotConfigured: the deployment doesn't offer that provider.

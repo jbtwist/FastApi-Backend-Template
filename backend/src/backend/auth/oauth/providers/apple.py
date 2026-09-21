@@ -37,13 +37,13 @@ REQUEST_TIMEOUT = httpx.Timeout(5.0)
 class AppleConfig(BaseSettings):
     """Apple sign-in settings, read from the flat `.env` namespace.
 
-    - `APPLE_TEAM_ID`: the developer team. Issuer of the client secret.
-    - `APPLE_SERVICES_ID`: the web client. Audience of web sign-ins.
-    - `APPLE_BUNDLE_ID`: the iOS app. Audience of native sign-ins.
-    - `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`: the `.p8` key that signs the client secret.
+    - `APPLE_TEAM_ID`: the developer team, issuer of the client secret.
+    - `APPLE_SERVICES_ID`: the web client, audience of web sign-ins.
+    - `APPLE_BUNDLE_ID`: the iOS app, audience of native sign-ins.
+    - `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`: the `.p8` key signing the client secret.
 
-    A settings error never shows the values it read, so a half-filled `.env`
-    cannot leak the key.
+    `hide_input_in_errors` keeps a settings error from showing the values it read,
+    so a half-filled `.env` cannot leak the key.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
@@ -67,9 +67,8 @@ def _trimmed(value: str | None) -> str | None:
 def _name_from_user_details(user_details: str | None) -> str | None:
     """The person's name out of Apple's `user` field.
 
-    The field is unsigned, sent once, and shaped
-    `{"name": {"firstName": ..., "lastName": ...}}`. Anything unreadable is no name:
-    a sign-in never fails over it.
+    Unsigned, sent once, shaped `{"name": {"firstName": ..., "lastName": ...}}`.
+    Anything unreadable is no name: a sign-in never fails over it.
     """
     if not user_details:
         return None
@@ -87,23 +86,20 @@ def _name_from_user_details(user_details: str | None) -> str | None:
 class AppleProvider:
     """Sign in with Apple, on the native route and the web route.
 
-    Every Apple token is checked before anything in it is used:
-
-    - the signature, against Apple's published keys;
-    - `iss` is Apple;
-    - `aud` is the Services ID or the bundle ID;
-    - `exp` and `iat`, allowing 60 seconds of clock skew;
-    - `nonce` equals the one the sign-in started with.
+    Accepts an identity token only if Apple signed it with a key it currently
+    publishes, `iss` is Apple, `aud` is the Services ID or the bundle ID, `exp`
+    and `iat` hold within `CLOCK_SKEW_LEEWAY`, and it echoes the attempt's
+    `nonce`.
 
     Apple's quirks, all handled here:
 
-    - The client secret is an ES256 JWT signed with the `.p8` key. It is
-      short-lived and reminted when it expires.
+    - The client secret is a short-lived ES256 JWT signed with the `.p8` key,
+      reminted when it expires.
     - The web result comes back as a form POST.
     - The person's name comes once, on the first sign-in only.
     - `email_verified` and `is_private_email` may be strings or booleans.
 
-    Building one makes no request. Apple's keys are fetched on first use, then cached.
+    Building one makes no request; the keys are fetched on first use and cached.
     """
 
     name = "apple"
@@ -119,10 +115,10 @@ class AppleProvider:
 
         Args:
             config: Apple's identifiers and the `.p8` key.
-            transport: how requests reach Apple. `None` means the network.
+            transport: how requests reach Apple; the network when `None`.
             clock: the current time, for the client secret and the key cache.
-                `None` means the system clock. Token expiry is always checked
-                against the system clock.
+                Token expiry is always checked against the system clock, whatever
+                this is set to.
         """
         self._config = config
         self._transport = transport
@@ -135,8 +131,8 @@ class AppleProvider:
     def authorization_url(self, *, state: str, nonce: str, redirect_uri: str) -> str:
         """Build Apple's authorize URL for a web sign-in.
 
-        Asks for `name email`, with `response_mode=form_post` so Apple posts the
-        result back to `redirect_uri`.
+        `response_mode=form_post` means Apple POSTs the result to `redirect_uri`
+        instead of redirecting to it.
         """
         query = urlencode(
             {

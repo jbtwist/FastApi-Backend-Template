@@ -35,11 +35,11 @@ def _link_provider_confirm_url(token: str) -> str:
 
 
 class EmailSenderMixin:
-    """Shared rendering + link building for every transactional email.
+    """Shared rendering and link building for every transactional email.
 
-    Providers mix this in and supply `_send` (the transport); the public
-    `send_*_email` methods are identical across providers. `EmailSender` (a
-    `Protocol` in `mail.service`) stays the structural interface callers depend on.
+    A provider mixes this in and supplies `_send`, the transport; the
+    `send_*_email` methods are identical across providers. Callers depend on the
+    `EmailSender` Protocol, not on this class.
     """
 
     async def send_verification_email(self, *, email: str, token: str) -> None:

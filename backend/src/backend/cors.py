@@ -1,14 +1,12 @@
 """Cross-origin access for browser clients.
 
-The web client is served from its own origin (the Expo web build) and talks to
-this API with cookies, so every response — including error responses — needs
-CORS headers. Without them the browser rejects the response before the client
-sees it, and a failed `fetch` is indistinguishable from being offline.
+The web client calls this API from its own origin with cookies, so every
+response, including errors, needs CORS headers, or the browser hides it from
+the client and a failed `fetch` looks like being offline.
 
-An unhandled exception is the one response CORS cannot reach on its own:
-Starlette answers it from `ServerErrorMiddleware`, which always sits outside
-every middleware added here, so the 500 would go out with no CORS headers at
-all. `ServerErrorAsResponse` answers it from inside CORS instead.
+Unhandled exceptions are the one response CORS cannot reach: Starlette answers
+those from `ServerErrorMiddleware`, outside every middleware added here, so
+`ServerErrorAsResponse` answers them from inside CORS instead.
 """
 
 from collections.abc import Sequence
@@ -20,23 +18,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
 ALLOWED_HEADERS = ["Accept", "Authorization", "Content-Type"]
-# `Retry-After` is not a CORS-safelisted response header: without exposing it,
-# the client can't read the rate-limit countdown off a 429.
+# `Retry-After` is not CORS-safelisted; unexposed, the client can't read the 429 countdown.
 EXPOSED_HEADERS = ["Retry-After"]
 PREFLIGHT_MAX_AGE_SECONDS = 600
 
 
 class ServerErrorAsResponse:
-    """Answer an unhandled exception with a plain 500, from inside `CORSMiddleware`.
-
-    Install it directly inside CORS, so the headers CORS adds reach this 500
-    too.
-
-    The exception is re-raised after the response is sent, so the server logs
-    it as it always did; `ServerErrorMiddleware` then sees a response already
-    started and adds nothing of its own. An exception raised after the response
-    started is left alone — there is nothing left to answer with.
-    """
+    """Answer an unhandled exception with a plain 500, from inside `CORSMiddleware`."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -66,12 +54,8 @@ class ServerErrorAsResponse:
 def add_cors(app: FastAPI, *, allowed_origins: Sequence[str]) -> None:
     """Allow credentialed calls from `allowed_origins`.
 
-    Call this last: `add_middleware` prepends, so the middleware added last runs
-    outermost and a response built by an inner middleware (a 429 from the rate
-    limiter, or the 500 from `ServerErrorAsResponse`) still gets its CORS headers.
-
-    Origins are always an explicit list — `allow_credentials` with a wildcard
-    would let any site make authenticated calls, so `Settings` rejects `*`.
+    `allow_credentials` with a wildcard origin would let any site make
+    authenticated calls, so `Settings` rejects `*`.
     """
     app.add_middleware(ServerErrorAsResponse)
     app.add_middleware(

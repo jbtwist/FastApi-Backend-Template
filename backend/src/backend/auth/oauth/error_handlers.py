@@ -1,7 +1,7 @@
 """Maps the JSON OAuth endpoints' failures to HTTP responses in one place.
 
 The web callback doesn't reach these: it answers every failure with a redirect
-back to the sign-in screen, carrying an `oauth_error` flag instead of a body.
+carrying an `oauth_error` flag instead of a body.
 """
 
 from fastapi import FastAPI, Request, status

@@ -8,12 +8,10 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 class OAuthConfig(BaseSettings):
     """Provider-agnostic sign-in knobs, read from the flat `.env` namespace.
 
-    `OAUTH_ENABLED_PROVIDERS` names the adapters to load, comma-separated, each
-    the name of a module under `backend.auth.oauth.providers`; empty runs the app
-    with password sign-in only. Each adapter declares its own settings class in
-    its own module, so nothing provider-specific belongs here. As with
-    `AuthConfig`, there is no `env_prefix`: a field's name is its environment
-    variable name and must be unique across every settings class.
+    `OAUTH_ENABLED_PROVIDERS` is a comma-separated list of module names under
+    `providers/`; empty runs the app with password sign-in only. Each adapter
+    declares its own settings in its own module, so nothing provider-specific
+    belongs here. No `env_prefix`, as in `AuthConfig`.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

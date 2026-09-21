@@ -19,8 +19,8 @@ class EmailOutboxStatus(StrEnum):
 class EmailKind(StrEnum):
     """Which transactional email an outbox row carries.
 
-    The dispatch step selects the template and sender method by this value; the
-    `token` column holds whichever opaque token that kind's link needs.
+    Dispatch picks the template and sender method by this value, and `token`
+    holds whichever opaque token that kind's link needs.
     """
 
     VERIFICATION = "verification"

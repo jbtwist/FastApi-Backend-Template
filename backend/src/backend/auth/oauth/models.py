@@ -14,12 +14,12 @@ class OAuthIdentity(Base):
     """A link between a `user` and one account at a third-party sign-in provider.
 
     A credential of the user, beside `password_hash`, never a second kind of user.
-    A returning person is found by `(provider, provider_subject)` alone, never by
-    email; the unique constraint on that pair is what guarantees one provider
-    identity maps to at most one account, even under concurrent first sign-ins.
-    `user_id` is unique too: an account holds at most one provider identity.
-    No provider token of any kind is stored. `email_at_link` is contact data only,
-    and `display_name` is unsigned, untrusted and never rendered.
+    The unique constraint on `(provider, provider_subject)` is what holds one
+    identity to at most one account under concurrent first sign-ins; `user_id` is
+    unique too, so an account holds at most one identity.
+
+    No provider token is stored. `email_at_link` is contact data only, and
+    `display_name` is unsigned, untrusted and never rendered.
     """
 
     __tablename__ = "oauth_identity"
@@ -54,11 +54,9 @@ class OAuthIdentity(Base):
 class OAuthLinkToken(SingleUseTokenMixin, Base):
     """A pending link of one verified provider identity to an existing `user`.
 
-    Minted when a provider vouches for an email that already has an account with
-    no provider linked, and emailed to that account's address: redeeming it is
-    the proof that the person signing in with the provider owns the account. The
-    identity is frozen here at mint time, so what gets linked is exactly what
-    the provider verified. Stored only as a `sha256` hash, like every opaque token.
+    Emailed to the account's address, so redeeming it proves the person signing
+    in with the provider owns the account. The identity is frozen at mint time,
+    so what gets linked is exactly what the provider verified.
     """
 
     __tablename__ = "oauth_link_token"

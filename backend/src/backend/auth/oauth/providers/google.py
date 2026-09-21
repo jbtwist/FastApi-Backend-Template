@@ -1,9 +1,9 @@
 """Google sign-in.
 
 Web, iOS and Android each have their own Google client ID, and a token addressed
-to any of them is accepted. The web redirect flow trades an authorization code
-for an ID token at Google's token endpoint; the native flow submits the ID token
-the platform SDK returned. Both are verified the same way.
+to any of them is accepted. The web flow trades an authorization code for an ID
+token; the native flow submits the one the platform SDK returned. Both are
+verified the same way.
 """
 
 import time
@@ -39,8 +39,8 @@ REQUEST_TIMEOUT = httpx.Timeout(5.0)
 class GoogleConfig(BaseSettings):
     """Google sign-in settings, read from the flat `.env` namespace.
 
-    Every field is required and must not be blank. A missing one fails
-    construction, which `load_provider` reports as not configured.
+    A missing or blank field fails construction, which `load_provider` reports as
+    Google not being configured.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -75,10 +75,9 @@ def _audiences_of(claims: dict[str, Any]) -> set[str]:
 class _SigningKeys:
     """Google's published signing keys, cached in this process.
 
-    Fetches again when the cache is older than `JWKS_CACHE_TTL`, and when a token
-    names a key the cache does not hold. The second kind of refresh happens at
-    most once per `JWKS_REFRESH_COOLDOWN`, so made-up key IDs cannot make every
-    sign-in fetch the keys again.
+    Refetches past `JWKS_CACHE_TTL`, and when a token names an unknown key. The
+    second kind is rate-limited to once per `JWKS_REFRESH_COOLDOWN`, so made-up
+    key IDs can't make every sign-in refetch.
     """
 
     def __init__(
@@ -127,14 +126,13 @@ class _SigningKeys:
 class GoogleProvider:
     """The Google `OAuthProvider`.
 
-    Accepts an ID token only if all of these hold: Google signed it with a key it
-    currently publishes, it comes from either Google issuer, every `aud` is one of
-    the three client IDs, it is unexpired give or take `CLOCK_SKEW_LEEWAY`, and it
+    Accepts an ID token only if Google signed it with a key it currently
+    publishes, it comes from either Google issuer, every `aud` is one of the
+    three client IDs, it is unexpired give or take `CLOCK_SKEW_LEEWAY`, and it
     carries the attempt's `nonce`.
 
-    `email_verified` is true only when Google sent the boolean `true`. Google has
-    no relay addresses and no name is requested, so `is_private_relay` is always
-    false and `display_name` always `None`.
+    Google has no relay addresses and no name is requested, so `is_private_relay`
+    is always false and `display_name` always `None`.
     """
 
     name = PROVIDER_NAME
@@ -146,7 +144,7 @@ class GoogleProvider:
         transport: httpx.AsyncBaseTransport | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        """Keep the settings. Makes no network call.
+        """Keep the settings; makes no network call.
 
         Args:
             config: the client IDs and secret.
@@ -165,10 +163,7 @@ class GoogleProvider:
         self._signing_keys = _SigningKeys(transport=transport, clock=clock)
 
     def authorization_url(self, *, state: str, nonce: str, redirect_uri: str) -> str:
-        """Build the URL that starts Google's code flow for the web client.
-
-        Asks for `openid email` only.
-        """
+        """Build the URL that starts Google's code flow for the web client."""
         query = urlencode(
             {
                 "client_id": self._config.GOOGLE_CLIENT_ID_WEB,
@@ -187,7 +182,7 @@ class GoogleProvider:
         """Trade an authorization code for an ID token at Google's token endpoint, then verify it.
 
         `user_details` is ignored: Google puts everything it vouches for in the
-        ID token, and never posts details back beside it.
+        ID token.
 
         Raises:
             ProviderAssertionInvalid: Google refused the code or sent no usable ID
@@ -281,8 +276,8 @@ class GoogleProvider:
 def __getattr__(name: str) -> GoogleProvider:
     """Build `PROVIDER` from the environment the first time it is read.
 
-    Lazy so this module imports without Google settings. `load_provider` still
-    gets the settings error and reports Google as not configured.
+    Lazy so the module imports without Google settings; `load_provider` still
+    gets the settings error.
     """
     if name != "PROVIDER":
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

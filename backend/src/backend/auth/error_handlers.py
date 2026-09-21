@@ -1,8 +1,7 @@
 """Maps `AuthError` subclasses to their HTTP responses in one place.
 
-Endpoints in `router.py` call the service and let domain exceptions propagate;
-the handlers registered here turn them into JSON responses. An `AuthError` not
-listed below propagates to a 500 — the signal that a path is unmapped.
+Endpoints let domain exceptions propagate and the handlers here turn them into
+JSON. An `AuthError` missing below reaches a 500, flagging the unmapped path.
 """
 
 from fastapi import FastAPI, Request, status

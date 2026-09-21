@@ -20,8 +20,8 @@ class UserRepository(Protocol):
         """Store a new user.
 
         Raises:
-            IntegrityError: the email is already registered. The insert runs in
-                a savepoint, so the caller's transaction survives the conflict.
+            IntegrityError: the email is already registered. The insert runs in a
+                savepoint, so the caller's transaction survives the conflict.
         """
         ...
 

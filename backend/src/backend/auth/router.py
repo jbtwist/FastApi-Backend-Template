@@ -97,11 +97,9 @@ async def register(
 ) -> None:
     """Register an account and queue its verification email.
 
-    Enumeration-safe: an already-registered address is a silent
-    no-op with a byte-identical `204` and the same response-floor timing, so the
-    endpoint can't be used to discover which addresses have accounts. The
-    password policy still runs first and can `422` — that check never consults
-    the user table, so it's identical for every address.
+    Enumeration-safe: an already-registered address is a silent no-op with a
+    byte-identical `204` and the same response-floor timing. The password policy
+    runs first and can `422`, but never consults the user table.
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
@@ -154,10 +152,8 @@ async def login(
 def _signed_out_response(*, config: AuthConfig) -> JSONResponse:
     """A 401 that also clears both token cookies.
 
-    Returned rather than raised, for two reasons. A raise discards the injected
-    `Response`, so cookies set on it never reach the client; and it rolls the
-    request's transaction back, which would undo the family revocation that `ReuseDetected`
-    carries. The body matches what `HTTPException` would have produced.
+    Returned, not raised: a raise discards the injected `Response` and rolls the
+    transaction back, undoing the family revocation `ReuseDetected` carries.
     """
     response = JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Not authenticated"}
@@ -177,14 +173,11 @@ async def refresh(
 ) -> TokenPairOut | JSONResponse:
     """Rotate the refresh token for a new pair.
 
-    Reuse of an already-used token revokes its whole family. Accepts the
-    refresh token from either the request body or the cookie so both
-    browser and non-browser clients can call it.
+    Reuse of an already-used token revokes its whole family. Takes the token from
+    the request body or the cookie, so both kinds of client can call it.
 
-    A request that raced another refresh of the same token gets a `409`, and no
-    cookies are set or cleared: a browser already holds the cookies the winning
-    request set, so its other tab can retry the call it was making. A native
-    client, which holds tokens of its own, treats the `409` as a failed refresh.
+    A request that raced another refresh gets a `409`, with no cookies set or
+    cleared: the winning request's cookies are still good, so the caller retries.
     """
     raw_refresh_token = (payload.refresh_token if payload else None) or refresh_token
     if raw_refresh_token is None:
@@ -283,10 +276,8 @@ async def forgot_password(
 ) -> None:
     """Start a password reset.
 
-    Always returns 204 with an empty body, whether or not the address belongs to
-    a registered, verified account — identical response body, status, and (within
-    `FORGOT_PASSWORD_RESPONSE_FLOOR`) timing, so it can't be used to discover
-    which addresses have accounts.
+    Enumeration-safe: the same empty `204` whether or not the address belongs to a
+    registered, verified account, within `FORGOT_PASSWORD_RESPONSE_FLOOR` timing.
     """
     async with minimum_duration(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
         entry = await service.request_password_reset(

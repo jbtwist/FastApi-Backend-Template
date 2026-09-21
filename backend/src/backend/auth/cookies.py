@@ -1,9 +1,7 @@
-"""Httponly cookie parameters for the access/refresh tokens.
+"""Httponly cookie parameters for the access and refresh tokens.
 
-The refresh token cookie is scoped to `path="/auth"` so the browser only ever
-sends it to auth endpoints, not on every request — the access token cookie
-covers the whole app (`path="/"`) since it's needed on every authenticated
-request.
+The refresh cookie is scoped to `path="/auth"` so the browser only sends it to
+auth endpoints; the access cookie covers `/`, where every request needs it.
 """
 
 from typing import TypedDict
@@ -61,6 +59,6 @@ def clear_refresh_token_cookie(*, config: AuthConfig) -> CookieParams:
 
 
 def set_token_cookies(response: Response, pair: TokenPair, *, config: AuthConfig) -> None:
-    """Set both session cookies on `response`, as every sign-in path does."""
+    """Set both session cookies on `response`."""
     response.set_cookie(**access_token_cookie(pair.access_token, config=config))
     response.set_cookie(**refresh_token_cookie(pair.refresh_token, config=config))
