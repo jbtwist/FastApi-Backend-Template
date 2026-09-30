@@ -363,9 +363,7 @@ class TestFormPostCallback:
         state, nonce = await _authorize(client, state_store)
         details = '{"name": {"firstName": "Ada", "lastName": "Lovelace"}}'
 
-        await _post_callback(
-            client, state=state, code=provider.assertion_for(nonce), user=details
-        )
+        await _post_callback(client, state=state, code=provider.assertion_for(nonce), user=details)
 
         assert provider.user_details == details
 
