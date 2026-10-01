@@ -187,7 +187,7 @@ async def refresh(
         result = await service.rotate_refresh_token(
             refresh_token_repo, raw_refresh_token, config=config, now=datetime.now(UTC)
         )
-    except (InvalidRefreshToken, RefreshTokenExpired):
+    except InvalidRefreshToken, RefreshTokenExpired:
         return _signed_out_response(config=config)
     except ConcurrentRefresh:
         return JSONResponse(
