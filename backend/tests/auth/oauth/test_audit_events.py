@@ -132,28 +132,22 @@ class TestSignIn:
             "reason": "new_account",
         }
 
-    async def test_claiming_an_unverified_account_records_the_takeover(
+    async def test_claiming_an_unverified_account_is_a_warning(
         self, sign_in, unverified_user, captured_records
     ):
+        """The account's password and sessions go with it; the link event says so."""
         captured_records.clear()
 
         await sign_in()
 
-        assert _events(captured_records) == [
-            "sessions.revoked_all",
-            "oauth.identity_linked",
-            "login.succeeded",
-        ]
-        revoked_all = _only(captured_records, "sessions.revoked_all")
-        assert revoked_all.levelno == logging.WARNING
-        assert revoked_all.audit_fields == {
+        assert _events(captured_records) == ["oauth.identity_linked", "login.succeeded"]
+        linked = _only(captured_records, "oauth.identity_linked")
+        assert linked.levelno == logging.WARNING
+        assert linked.audit_fields == {
             "user_id": unverified_user.id,
-            "reason": "oauth_account_claimed",
+            "provider": "fake",
+            "reason": "unverified_account_claimed",
         }
-        assert (
-            _only(captured_records, "oauth.identity_linked").audit_fields["reason"]
-            == "unverified_account_claimed"
-        )
 
     async def test_a_verified_account_records_the_link_request(
         self, sign_in, verified_user, captured_records

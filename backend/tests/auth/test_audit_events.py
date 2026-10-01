@@ -111,17 +111,16 @@ class TestLogin:
 
 
 class TestLogout:
-    async def test_logout_records_logout_then_the_revocation(
+    async def test_logout_is_one_event(
         self, refresh_token_repo, session, family_id, verified_user, captured_records
     ):
         await service.logout(refresh_token_repo, session.refresh_token, now=NOW)
 
-        assert _events(captured_records) == ["logout", "token.family_revoked"]
+        assert _events(captured_records) == ["logout"]
         assert _only(captured_records, "logout").audit_fields == {
             "user_id": verified_user.id,
             "family_id": family_id,
         }
-        assert _only(captured_records, "token.family_revoked").audit_fields["reason"] == "logout"
 
     async def test_an_unknown_token_records_nothing(self, refresh_token_repo, captured_records):
         await service.logout(refresh_token_repo, "never-issued-token", now=NOW)
@@ -147,7 +146,7 @@ class TestReuseDetection:
 
 
 class TestPasswordReset:
-    async def test_completing_records_the_reset_and_the_sign_out_everywhere(
+    async def test_completing_is_one_event(
         self,
         password_reset_token_repo,
         user_repo,
@@ -177,8 +176,7 @@ class TestPasswordReset:
             now=NOW,
         )
 
-        assert _events(captured_records) == ["password.reset_completed", "sessions.revoked_all"]
-        assert _only(captured_records, "sessions.revoked_all").audit_fields == {
-            "user_id": verified_user.id,
-            "reason": "password_reset",
+        assert _events(captured_records) == ["password.reset_completed"]
+        assert _only(captured_records, "password.reset_completed").audit_fields == {
+            "user_id": verified_user.id
         }

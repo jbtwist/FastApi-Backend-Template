@@ -125,15 +125,14 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | An `AuthUiError` kind: this email's account is already linked to another provider, optionally naming it as `linkedProvider` | `oauth-email-linked-elsewhere` | `oauth-conflict`, `already-linked` |
 | Whether a `/native` result is the link-pending `202` rather than a session | `isLinkPending` | `isLinkRequired`, `needsLink` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
-| A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by `log_event`) | `audit_log`, `activity`, `trace`, `analytics_event` |
+| A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by an `AuditLogger`) | `audit_log`, `activity`, `trace`, `analytics_event` |
 | The logger every `audit_event` goes through; filter on it, or on its name as a prefix, to select the audit stream | `backend.audit` (`AUDIT_LOGGER_NAME`) | `audit_log`, `security_logger` |
-| A child of `backend.audit` for one area, passed to `log_event` so each line names where it came from and each area's level can be set on its own | `audit_logger(area)`, areas `auth`, `oauth`, `db` | `get_audit_logger`, `domain_logger`, `AUDIT_<AREA>` |
+| The logger one area writes its `audit_event`s through, wrapping a child of `backend.audit`: `audit.info(event, **fields)` / `audit.warning(...)` scrub `SENSITIVE_FIELDS` and nest the fields before the record exists | `AuditLogger`, made with `audit_logger(area)`, areas `auth`, `oauth`, `db` | `log_event`, `get_audit_logger`, `domain_logger`, `AUDIT_<AREA>` |
 | The id shared by every log line from one request or task, used to join them | `correlation_id` | `request_id`, `trace_id`, `req_id` |
 | The client address an `audit_event` came from, taken from the ASGI `client` (behind a proxy, uvicorn's `--forwarded-allow-ips` decides who to trust, never a raw `X-Forwarded-For`) | `ip_address` | `client_ip`, `remote_addr`, `ip` |
 | The `User-Agent` header an `audit_event` came with, truncated to `MAX_USER_AGENT_LENGTH` | `user_agent` | `ua`, `client_agent`, `browser` |
 | How a `login.succeeded` or `user.registered` came about | `method` (`password`, `oauth`) | `auth_method`, `login_type`, `via` |
 | An `audit_event`: a refresh token family was signed out through `POST /auth/logout` | `logout` | `user.logged_out`, `session.ended` |
-| An `audit_event`: every refresh token family of one user was revoked, with a `reason` | `sessions.revoked_all` | `token.all_revoked`, `sessions.cleared` |
 | An `audit_event`: a provider identity was attached to a `user`, with a `reason` (`new_account`, `link_confirmed`, `unverified_account_claimed`) | `oauth.identity_linked` | `oauth.linked`, `identity.created` |
 | An `audit_event`: a provider sign-in matched a verified account, so an `oauth_link` email was queued | `oauth.link_requested` | `oauth.link_offered`, `link.pending` |
 | An `audit_event`: a link was refused because the account or the identity already has another provider | `oauth.link_refused` | `oauth.link_denied`, `link.conflict` |

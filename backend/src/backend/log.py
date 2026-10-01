@@ -29,6 +29,7 @@ import sys
 import uuid
 from contextvars import ContextVar
 from datetime import UTC, datetime
+from functools import cache
 from typing import Any
 
 AUDIT_LOGGER_NAME = "backend.audit"
@@ -62,9 +63,29 @@ ip_address: ContextVar[str | None] = ContextVar("ip_address", default=None)
 user_agent: ContextVar[str | None] = ContextVar("user_agent", default=None)
 
 
-def audit_logger(area: str) -> logging.Logger:
+class AuditLogger:
+    """Writes one area's `audit_event`s, with their data as structured fields."""
+
+    def __init__(self, logger: logging.Logger) -> None:
+        self._logger = logger
+
+    @property
+    def name(self) -> str:
+        return self._logger.name
+
+    def info(self, event: str, **fields: Any) -> None:
+        """Record `event` at `INFO`."""
+        raise NotImplementedError
+
+    def warning(self, event: str, **fields: Any) -> None:
+        """Record `event` at `WARNING`, for anything a human should chase."""
+        raise NotImplementedError
+
+
+@cache
+def audit_logger(area: str) -> AuditLogger:
     """Return the audit logger for one area, a child of `backend.audit`."""
-    return logging.getLogger(f"{AUDIT_LOGGER_NAME}.{area}")
+    return AuditLogger(logging.getLogger(f"{AUDIT_LOGGER_NAME}.{area}"))
 
 
 def new_correlation_id() -> str:
@@ -79,9 +100,7 @@ def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def log_event(
-    logger: logging.Logger, event: str, *, level: int = logging.INFO, **fields: Any
-) -> None:
+def log_event(logger: AuditLogger, event: str, *, level: int = logging.INFO, **fields: Any) -> None:
     """Record one `audit_event` with its data as structured fields.
 
     Fields land in a single `audit_fields` dict on the record rather than as
@@ -98,7 +117,9 @@ def log_event(
         **fields: Structured data for the event. Ids, counts, reasons. Never a
             credential, and never an email address.
     """
-    logger.log(level, event, extra={"event": event, "audit_fields": _scrub(fields)})
+    logging.getLogger(logger.name).log(
+        level, event, extra={"event": event, "audit_fields": _scrub(fields)}
+    )
 
 
 class CorrelationIdFilter(logging.Filter):
