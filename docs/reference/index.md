@@ -12,6 +12,7 @@ none of which has an HTTP surface.
 - [Auth (Backend)](auth.md) — registration, login, token rotation, email verification, password reset.
 - [Password Policy](password_policy.md) — length rules and the Have I Been Pwned breach check.
 - [Mail](mail.md) — the email outbox and its Celery dispatch.
+- [Logging](log.md) — stdout configuration, formatters, and the `audit_event` API.
 
 Backend only: mkdocstrings is configured with the Python handler, so there is no
 generated reference for the Expo app. Frontend modules document themselves in
