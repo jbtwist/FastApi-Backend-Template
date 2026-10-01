@@ -240,7 +240,9 @@ class TestAuthorize:
         query = parse_qs(location.query)
         assert response.status_code == 302
         assert location.netloc == "fake.example"
-        assert query["redirect_uri"] == ["https://api.backend-template.local/auth/oauth/fake/callback"]
+        assert query["redirect_uri"] == [
+            "https://api.backend-template.local/auth/oauth/fake/callback"
+        ]
 
     async def test_binds_the_browser_with_an_httponly_state_cookie(self, client):
         response = await client.get("/auth/oauth/fake/authorize")
@@ -393,7 +395,9 @@ class TestConfirmLink:
         self, client, provider, email_outbox_repo, verified_user
     ):
         await _native(client, provider)
-        [entry] = await email_outbox_repo.list_stale_pending(older_than=FAR_FUTURE)
+        [entry] = await email_outbox_repo.list_stale_pending(
+            unattempted_before=FAR_FUTURE, attempted_before=FAR_FUTURE
+        )
 
         response = await client.post("/auth/oauth/link/confirm", json={"token": entry.token})
 

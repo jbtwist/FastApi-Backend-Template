@@ -99,10 +99,16 @@ class FakeEmailOutboxRepository:
         entry.dead_at = failed_at
         return True
 
-    async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]:
+    async def list_stale_pending(
+        self, *, unattempted_before: datetime, attempted_before: datetime
+    ) -> list[EmailOutboxEntry]:
         return [
             entry
             for entry in self._entries_by_id.values()
             if entry.status == EmailOutboxStatus.PENDING
-            and (entry.last_attempted_at or entry.created_at) <= older_than
+            and (
+                entry.created_at <= unattempted_before
+                if entry.attempts == 0
+                else entry.last_attempted_at <= attempted_before
+            )
         ]

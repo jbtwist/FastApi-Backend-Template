@@ -45,6 +45,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sent`, `dead` | `queued`, `failed`, `completed` |
 | Count of failed dispatch attempts on an outbox entry | `attempts` | `retry_count`, `tries` |
 | The periodic job that re-dispatches outbox entries stuck in `pending` | `sweep` (e.g. `sweep_pending_emails`) | `relay`, `reaper`, `poller` |
+| How long a never-attempted outbox entry sits before the sweep re-dispatches it | `EMAIL_SWEEP_STALE_AFTER_SECONDS` (cutoff arg `unattempted_before`) | `SWEEP_STALE_AFTER_SECONDS` |
+| How long an outbox entry between retries sits idle before the sweep re-dispatches it; longer than the longest retry wait | `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS` (cutoff arg `attempted_before`) | `EMAIL_RETRY_STALE_SECONDS` |
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.log import audit_logger
@@ -29,6 +29,7 @@ class SqlEmailOutboxRepository:
             token=token,
             kind=kind,
             status=EmailOutboxStatus.PENDING,
+            created_at=created_at,
         )
         self._db.add(entry)
         await self._db.flush()
@@ -97,14 +98,22 @@ class SqlEmailOutboxRepository:
         )
         return True
 
-    async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]:
-        last_activity_at = func.coalesce(
-            EmailOutboxEntry.last_attempted_at, EmailOutboxEntry.created_at
-        )
+    async def list_stale_pending(
+        self, *, unattempted_before: datetime, attempted_before: datetime
+    ) -> list[EmailOutboxEntry]:
         result = await self._db.execute(
             select(EmailOutboxEntry).where(
                 EmailOutboxEntry.status == EmailOutboxStatus.PENDING,
-                last_activity_at <= older_than,
+                or_(
+                    and_(
+                        EmailOutboxEntry.attempts == 0,
+                        EmailOutboxEntry.created_at <= unattempted_before,
+                    ),
+                    and_(
+                        EmailOutboxEntry.attempts > 0,
+                        EmailOutboxEntry.last_attempted_at <= attempted_before,
+                    ),
+                ),
             )
         )
         return list(result.scalars())

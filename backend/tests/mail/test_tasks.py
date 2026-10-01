@@ -41,3 +41,23 @@ class TestTaskRegistration:
     def test_the_old_per_kind_task_name_is_gone(self):
         assert "backend.mail.tasks.dispatch_verification_email" not in tasks.celery_app.tasks
         assert "backend.mail.tasks.dispatch_password_reset_email" not in tasks.celery_app.tasks
+
+
+class TestDispatchRetrySchedule:
+    def test_waits_double_from_two_minutes_up_to_sixteen_without_jitter(self):
+        """With the default five attempts, the waits total 30 min."""
+        task = tasks.dispatch_email
+
+        assert task.retry_backoff == 120
+        assert task.retry_backoff_max == 960
+        assert task.retry_jitter is False
+
+    def test_celery_stops_retrying_when_the_entry_goes_dead(self):
+        max_attempts = tasks.mail_settings.EMAIL_MAX_DISPATCH_ATTEMPTS
+
+        assert tasks.dispatch_email.max_retries == max_attempts - 1
+
+    def test_sweep_leaves_entries_alone_for_longer_than_the_longest_retry_wait(self):
+        retrying_stale_after = tasks.mail_settings.EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS
+
+        assert retrying_stale_after > tasks.dispatch_email.retry_backoff_max

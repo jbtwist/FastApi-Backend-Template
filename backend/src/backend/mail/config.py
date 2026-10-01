@@ -24,6 +24,7 @@ class MailConfig(BaseSettings):
     EMAIL_MAX_DISPATCH_ATTEMPTS: int = 5
     EMAIL_SWEEP_INTERVAL_SECONDS: int = 60
     EMAIL_SWEEP_STALE_AFTER_SECONDS: int = 120
+    EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS: int = 1200
 
 
 mail_settings = MailConfig()
