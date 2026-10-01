@@ -42,7 +42,7 @@ async def register_user(user_repo: UserRepository, *, email: str, password: str)
         log_event("user.registration_skipped", reason="insert_race")
         return None
 
-    log_event("user.registered", user_id=user.id)
+    log_event("user.registered", user_id=user.id, method="password")
     return user
 
 

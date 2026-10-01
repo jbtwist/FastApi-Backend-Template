@@ -62,15 +62,18 @@ async def authenticate_user(user_repo: UserRepository, *, email: str, password: 
     password_hash = user.password_hash if user is not None else None
     password_valid = verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
 
-    if user is None or not password_valid:
+    if user is None:
         log_event("login.failed", reason="invalid_credentials")
+        raise InvalidCredentials
+    if not password_valid:
+        log_event("login.failed", reason="invalid_credentials", user_id=user.id)
         raise InvalidCredentials
 
     if user.email_verified_at is None:
         log_event("login.failed", reason="email_not_verified", user_id=user.id)
         raise EmailNotVerified
 
-    log_event("login.succeeded", user_id=user.id)
+    log_event("login.succeeded", user_id=user.id, method="password")
     return user
 
 
@@ -190,6 +193,7 @@ async def logout(
         return
 
     await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
+    log_event("logout", user_id=record.user_id, family_id=record.family_id)
     log_event(
         "token.family_revoked",
         reason="logout",

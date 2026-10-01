@@ -127,3 +127,4 @@ async def reset_password(
     await refresh_token_repo.revoke_all_for_user(record.user_id, revoked_at=now)
     await password_reset_token_repo.invalidate_all_for_user(record.user_id, invalidated_at=now)
     log_event("password.reset_completed", user_id=record.user_id)
+    log_event("sessions.revoked_all", user_id=record.user_id, reason="password_reset")

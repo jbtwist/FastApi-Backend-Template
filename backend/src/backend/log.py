@@ -50,6 +50,7 @@ SENSITIVE_FIELDS = frozenset(
 )
 
 _UNSAFE_CORRELATION_ID = re.compile(r"[^A-Za-z0-9_-]")
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 ip_address: ContextVar[str | None] = ContextVar("ip_address", default=None)
@@ -90,7 +91,7 @@ def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
 
 
 class CorrelationIdFilter(logging.Filter):
-    """Stamps the active `correlation_id` onto every record reaching the handler.
+    """Stamps the active `correlation_id`, `ip_address` and `user_agent` onto every record.
 
     A filter rather than a formatter lookup, so the value is read while the
     emitting context is still current.
@@ -98,6 +99,8 @@ class CorrelationIdFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.correlation_id = correlation_id.get()
+        record.ip_address = ip_address.get()
+        record.user_agent = user_agent.get()
         return True
 
 
@@ -106,6 +109,7 @@ class JsonLogFormatter(logging.Formatter):
 
     Caller fields nest under `fields` rather than flattening into the envelope,
     so an audit field named `level` or `timestamp` cannot shadow the real one.
+    Only an `audit_event` carries `ip_address` and `user_agent`.
     Values `json` cannot serialise — a `UUID`, a `datetime` — fall back to `str`.
     """
 
@@ -122,6 +126,8 @@ class JsonLogFormatter(logging.Formatter):
             payload["message"] = record.getMessage()
         else:
             payload["event"] = event
+            payload["ip_address"] = getattr(record, "ip_address", None)
+            payload["user_agent"] = getattr(record, "user_agent", None)
 
         fields = getattr(record, "audit_fields", None)
         if fields:
@@ -134,7 +140,11 @@ class JsonLogFormatter(logging.Formatter):
 
 
 class ConsoleLogFormatter(logging.Formatter):
-    """A readable line for local development: `HH:MM:SS LEVEL event key=value`."""
+    """A readable line for local development: `HH:MM:SS LEVEL event key=value`.
+
+    Nothing here is escaped, so control characters are stripped from the
+    caller-supplied `user_agent`: a newline in it would forge a second line.
+    """
 
     def format(self, record: logging.LogRecord) -> str:
         stamp = datetime.fromtimestamp(record.created, UTC).strftime("%H:%M:%S")
@@ -144,6 +154,14 @@ class ConsoleLogFormatter(logging.Formatter):
         fields = getattr(record, "audit_fields", None)
         if fields:
             parts.append(" ".join(f"{key}={value}" for key, value in fields.items()))
+
+        if getattr(record, "event", None) is not None:
+            client_ip_address = getattr(record, "ip_address", None)
+            if client_ip_address:
+                parts.append(f"ip_address={client_ip_address}")
+            client_user_agent = getattr(record, "user_agent", None)
+            if client_user_agent:
+                parts.append(f"user_agent={_CONTROL_CHARACTERS.sub('', client_user_agent)}")
 
         active_correlation_id = getattr(record, "correlation_id", None)
         if active_correlation_id:
@@ -210,11 +228,15 @@ def sanitize_correlation_id(raw: str) -> str:
 
 
 class CorrelationIdMiddleware:
-    """Gives every request a `correlation_id`, so its log lines can be joined.
+    """Gives every request a `correlation_id`, `ip_address` and `user_agent` for its log lines.
 
-    Pure ASGI rather than `BaseHTTPMiddleware`: the context variable is set in
+    Pure ASGI rather than `BaseHTTPMiddleware`: the context variables are set in
     the same task that runs the endpoint, with no task hop in between. Logs
     nothing itself.
+
+    `ip_address` is the ASGI `client`, never a header. Behind a reverse proxy,
+    run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`; trusting a
+    raw `X-Forwarded-For` would let any caller choose the address it is logged as.
     """
 
     def __init__(self, app: Any) -> None:
@@ -225,13 +247,24 @@ class CorrelationIdMiddleware:
             await self.app(scope, receive, send)
             return
 
-        inbound = dict(scope["headers"]).get(CORRELATION_ID_HEADER)
+        headers = dict(scope["headers"])
+        inbound = headers.get(CORRELATION_ID_HEADER)
         value = (
             sanitize_correlation_id(inbound.decode("latin-1")) if inbound else new_correlation_id()
         )
+        client = scope.get("client")
+        agent = headers.get(USER_AGENT_HEADER)
 
-        token = correlation_id.set(value)
+        tokens = [
+            (correlation_id, correlation_id.set(value)),
+            (ip_address, ip_address.set(client[0] if client else None)),
+            (
+                user_agent,
+                user_agent.set(agent.decode("latin-1")[:MAX_USER_AGENT_LENGTH] if agent else None),
+            ),
+        ]
         try:
             await self.app(scope, receive, send)
         finally:
-            correlation_id.reset(token)
+            for var, token in reversed(tokens):
+                var.reset(token)
