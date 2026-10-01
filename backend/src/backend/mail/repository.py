@@ -4,7 +4,10 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.log import audit_logger
 from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
+
+audit = audit_logger("db")
 
 
 class SqlEmailOutboxRepository:
@@ -29,6 +32,14 @@ class SqlEmailOutboxRepository:
         )
         self._db.add(entry)
         await self._db.flush()
+        audit.info(
+            "db_write",
+            table=EmailOutboxEntry.__tablename__,
+            operation="insert",
+            entry_id=entry.id,
+            user_id=user_id,
+            kind=kind,
+        )
         return entry
 
     async def get_by_id(self, entry_id: uuid.UUID) -> EmailOutboxEntry | None:
@@ -41,6 +52,14 @@ class SqlEmailOutboxRepository:
         entry.status = EmailOutboxStatus.SENT
         entry.sent_at = sent_at
         await self._db.flush()
+        audit.info(
+            "db_write",
+            table=EmailOutboxEntry.__tablename__,
+            operation="update",
+            column="status",
+            entry_id=entry_id,
+            status=EmailOutboxStatus.SENT,
+        )
         return True
 
     async def mark_attempt_failed(
@@ -50,6 +69,14 @@ class SqlEmailOutboxRepository:
         entry.attempts += 1
         entry.last_attempted_at = attempted_at
         await self._db.flush()
+        audit.info(
+            "db_write",
+            table=EmailOutboxEntry.__tablename__,
+            operation="update",
+            column="attempts",
+            entry_id=entry_id,
+            attempts=entry.attempts,
+        )
         return entry
 
     async def mark_dead(self, entry_id: uuid.UUID, *, failed_at: datetime) -> bool:
@@ -59,6 +86,15 @@ class SqlEmailOutboxRepository:
         entry.status = EmailOutboxStatus.DEAD
         entry.dead_at = failed_at
         await self._db.flush()
+        audit.info(
+            "db_write",
+            table=EmailOutboxEntry.__tablename__,
+            operation="update",
+            column="status",
+            entry_id=entry_id,
+            status=EmailOutboxStatus.DEAD,
+            attempts=entry.attempts,
+        )
         return True
 
     async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]:

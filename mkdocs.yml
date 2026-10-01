@@ -19,6 +19,12 @@ theme:
         icon: material/brightness-4
         name: Light mode
 
+extra_css:
+  - assets/stylesheets/diagram-zoom.css
+
+extra_javascript:
+  - assets/javascripts/diagram-zoom.js
+
 plugins:
   - search
   - mkdocstrings:
@@ -53,11 +59,13 @@ nav:
       - Overview: guides/index.md
       - Add a Language: guides/add-a-language.md
       - Theming: guides/theming.md
+      - Logging: guides/logging.md
   - API Reference:
       - reference/index.md
       - Auth (Backend): reference/auth.md
       - Password Policy: reference/password_policy.md
       - Mail: reference/mail.md
+      - Logging: reference/log.md
   - Architecture:
       - Overview: architecture/overview.md
       - Decisions:
@@ -68,3 +76,4 @@ nav:
           - 4. Email verification via frontend: architecture/decisions/0004-email-verification-via-frontend.md
           - 5. Frontend owns auth error copy: architecture/decisions/0005-frontend-owns-auth-error-copy.md
           - 6. Harden npm installs over pnpm: architecture/decisions/0006-harden-npm-installs-over-pnpm.md
+          - 7. Structured logs to stdout: architecture/decisions/0007-structured-logs-to-stdout-with-an-audit-stream.md

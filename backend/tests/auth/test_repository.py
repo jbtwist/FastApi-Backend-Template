@@ -17,6 +17,7 @@ from backend.auth.repository import (
     SqlEmailVerificationTokenRepository,
     SqlPasswordResetTokenRepository,
     SqlRefreshTokenRepository,
+    SqlUserRepository,
 )
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -137,3 +138,12 @@ class TestSqlRefreshTokenRepository:
 
         assert (await repo.get_by_hash("a")).revoked_at == NOW
         assert (await repo.get_by_hash("b")).revoked_at == NOW
+
+
+async def test_a_row_write_is_logged_on_the_db_audit_logger(db, captured_records):
+    """Row writes have a logger of their own, so their volume can be set apart."""
+    await SqlUserRepository(db).create(email=f"{uuid.uuid4()}@example.com", password_hash="x")
+
+    [record] = [record for record in captured_records if record.event == "db_write"]
+    assert record.name == "backend.audit.db"
+    assert record.audit_fields["table"] == "user"

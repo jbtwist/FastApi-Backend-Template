@@ -145,6 +145,17 @@ flowchart LR
     G --> C
 ```
 
+## Logging
+
+Every API and worker process writes one line per record to stdout, as JSON or
+as a readable console line (`LOG_FORMAT`), and leaves collection and retention to
+whatever runs it. Alongside ordinary operational logs, each security-relevant
+auth action and each repository row write emits an `audit_event` on a child of
+`backend.audit` (`auth`, `oauth`, `db`), so the audit trail is one filter on the
+`logger` field. Every line from one request or Celery task shares a
+`correlation_id`. See [ADR 7](decisions/0007-structured-logs-to-stdout-with-an-audit-stream.md)
+and the [logging guide](../guides/logging.md).
+
 ## Decisions
 
 See [architecture decisions](decisions/index.md) for the reasoning behind

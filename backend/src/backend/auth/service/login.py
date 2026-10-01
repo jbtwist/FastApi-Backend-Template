@@ -21,6 +21,9 @@ from backend.auth.security import (
     hash_opaque_token,
     verify_password,
 )
+from backend.log import audit_logger
+
+audit = audit_logger("auth")
 
 
 @dataclass
@@ -60,12 +63,18 @@ async def authenticate_user(user_repo: UserRepository, *, email: str, password: 
     password_hash = user.password_hash if user is not None else None
     password_valid = verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
 
-    if user is None or not password_valid:
+    if user is None:
+        audit.info("login.failed", reason="invalid_credentials")
+        raise InvalidCredentials
+    if not password_valid:
+        audit.info("login.failed", reason="invalid_credentials", user_id=user.id)
         raise InvalidCredentials
 
     if user.email_verified_at is None:
+        audit.info("login.failed", reason="email_not_verified", user_id=user.id)
         raise EmailNotVerified
 
+    audit.info("login.succeeded", user_id=user.id, method="password")
     return user
 
 
@@ -129,7 +138,20 @@ async def rotate_refresh_token(
 
     if record.used_at is not None:
         if now - record.used_at < config.REFRESH_TOKEN_REUSE_GRACE:
+            audit.info(
+                "token.refresh_concurrent",
+                reason="replay_within_grace",
+                user_id=record.user_id,
+                family_id=record.family_id,
+            )
             raise ConcurrentRefresh
+
+        audit.warning(
+            "token.reuse_detected",
+            reason="spent_token_replayed",
+            user_id=record.user_id,
+            family_id=record.family_id,
+        )
         await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
         return ReuseDetected(family_id=record.family_id)
 
@@ -138,6 +160,12 @@ async def rotate_refresh_token(
 
     won_race = await refresh_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
+        audit.info(
+            "token.refresh_concurrent",
+            reason="lost_consume_race",
+            user_id=record.user_id,
+            family_id=record.family_id,
+        )
         raise ConcurrentRefresh
 
     new_raw_refresh_token = generate_opaque_token()
@@ -149,6 +177,7 @@ async def rotate_refresh_token(
     )
 
     access_token = create_access_token(str(record.user_id), config=config, now=now)
+    audit.info("token.refreshed", user_id=record.user_id, family_id=record.family_id)
     return TokenPair(access_token=access_token, refresh_token=new_raw_refresh_token)
 
 
@@ -164,3 +193,4 @@ async def logout(
         return
 
     await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
+    audit.info("logout", user_id=record.user_id, family_id=record.family_id)

@@ -16,6 +16,7 @@ The project does not have a fixed domain model yet (it's early-stage, still bein
 - **Accuracy over completeness.** Less documentation that's correct beats more documentation based on assumptions.
 - **Do not guess.** If behavior can't be established from the code, tests, or existing docs, don't invent an explanation — leave `<!-- TODO: confirm ... -->` and say so to the user.
 - **Minimal coherent change.** Update only what's actually affected. Don't rewrite existing docs for stylistic preference alone, and don't create a new page when an existing one can be updated instead.
+- **The docs are for humans; never mention the AI tooling in them.** Pages under `docs/` (and docstrings/TSDoc, which publish into the reference) describe the code and how a person works with it. They must not mention or send the reader to anything that exists for the AI assistants: `.claude/` and its skills, templates and `GLOSSARY.md`, `CLAUDE.md`, `taskify/`, or the conventions those files define (glossary-first naming, TDD stop points, docstring style, and so on). The people maintaining this project may change those rules at any time. When a how-to would include such a step ("add the name to the glossary"), leave the step out, and keep following the rule yourself. When something only exists in AI tooling (an ADR template under `.claude/`), describe what the reader needs inline instead of linking to it.
 
 ## 1. Before writing: figure out what's actually affected
 

@@ -16,9 +16,12 @@ from backend.auth.security import (
     hash_opaque_token,
     hash_password,
 )
+from backend.log import audit_logger
 from backend.mail import service as mail_service
 from backend.mail.models import EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
+
+audit = audit_logger("auth")
 
 
 async def register_user(user_repo: UserRepository, *, email: str, password: str) -> User | None:
@@ -31,13 +34,18 @@ async def register_user(user_repo: UserRepository, *, email: str, password: str)
     """
     normalized_email = email.strip().lower()
     if await user_repo.get_by_email(normalized_email) is not None:
+        audit.info("user.registration_skipped", reason="email_taken")
         return None
 
     password_hash = hash_password(password)
     try:
-        return await user_repo.create(email=normalized_email, password_hash=password_hash)
+        user = await user_repo.create(email=normalized_email, password_hash=password_hash)
     except IntegrityError:
+        audit.info("user.registration_skipped", reason="insert_race")
         return None
+
+    audit.info("user.registered", user_id=user.id, method="password")
+    return user
 
 
 async def queue_verification_email(
@@ -92,6 +100,7 @@ async def confirm_email(
     await user_repo.mark_email_verified(record.user_id, verified_at=now)
     user = await user_repo.get_by_id(record.user_id)
     assert user is not None
+    audit.info("email.verified", user_id=user.id)
     return user
 
 

@@ -10,9 +10,12 @@ from backend.auth.repository import (
     UserRepository,
 )
 from backend.auth.security import generate_opaque_token, hash_opaque_token, hash_password
+from backend.log import audit_logger
 from backend.mail import service as mail_service
 from backend.mail.models import EmailKind, EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
+
+audit = audit_logger("auth")
 
 
 async def request_password_reset(
@@ -36,6 +39,10 @@ async def request_password_reset(
     normalized_email = email.strip().lower()
     user = await user_repo.get_by_email(normalized_email)
     if user is None or user.email_verified_at is None:
+        audit.info(
+            "password.reset_skipped",
+            reason="unknown_email" if user is None else "email_unverified",
+        )
         return None
 
     raw_token = generate_opaque_token()
@@ -44,6 +51,7 @@ async def request_password_reset(
         token_hash=hash_opaque_token(raw_token),
         expires_at=now + config.PASSWORD_RESET_TOKEN_EXP,
     )
+    audit.info("password.reset_requested", user_id=user.id)
     return await mail_service.enqueue_email(
         outbox_repo,
         user_id=user.id,
@@ -106,6 +114,11 @@ async def reset_password(
 
     won_race = await password_reset_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
+        audit.warning(
+            "password.reset_race_lost",
+            user_id=record.user_id,
+            token_id=record.id,
+        )
         raise InvalidPasswordResetToken
 
     await user_repo.set_password_hash(
@@ -113,3 +126,4 @@ async def reset_password(
     )
     await refresh_token_repo.revoke_all_for_user(record.user_id, revoked_at=now)
     await password_reset_token_repo.invalidate_all_for_user(record.user_id, invalidated_at=now)
+    audit.info("password.reset_completed", user_id=record.user_id)
