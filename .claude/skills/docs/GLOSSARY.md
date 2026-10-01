@@ -125,12 +125,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | An `AuthUiError` kind: this email's account is already linked to another provider, optionally naming it as `linkedProvider` | `oauth-email-linked-elsewhere` | `oauth-conflict`, `already-linked` |
 | Whether a `/native` result is the link-pending `202` rather than a session | `isLinkPending` | `isLinkRequired`, `needsLink` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
-| A durable row recording one security-relevant action, kept in Postgres because a log stream is best-effort | `security_event` (table `security_event`) | `audit_log`, `audit_record`, `event_log`, `activity_log` |
-| The closed set of actions that earn a `security_event` row; everything else stays an `audit_event` only | `SecurityEventKind` | `AuditKind`, `EventType`, `audit_action` |
-| Writing a `security_event` in the same transaction as the change it records | `record_security_event` | `write_audit`, `log_audit`, `save_event` |
-| The moment a `security_event` happened | `occurred_at` | `created_at`, `timestamp`, `event_at` |
-| How long `security_event` rows are kept before the sweep deletes them | `SECURITY_EVENT_RETENTION_DAYS` | `SECURITY_EVENT_RETENTION`, `AUDIT_RETENTION`, `audit_ttl` |
-| The periodic job that deletes `security_event` rows past `SECURITY_EVENT_RETENTION_DAYS` | `sweep_security_events` | `purge_audit`, `prune_events` |
 | A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by `log_event`) | `audit_log`, `activity`, `trace`, `analytics_event` |
 | The id shared by every log line from one request or task, used to join them | `correlation_id` | `request_id`, `trace_id`, `req_id` |
 | An `audit_event` for a refresh that lost a legitimate race, distinct from `token.reuse_detected` which means theft | `token.refresh_concurrent` | `refresh_race`, `token.race_lost` |

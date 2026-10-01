@@ -4,7 +4,6 @@ from celery import Celery
 from celery.signals import setup_logging
 
 from backend import models  # noqa: F401
-from backend.audit.config import audit_settings
 from backend.config import settings
 from backend.log import configure_logging
 from backend.mail.config import mail_settings
@@ -26,16 +25,12 @@ celery_app = Celery(
     "mail",
     broker=mail_settings.CELERY_BROKER_URL,
     backend=mail_settings.CELERY_RESULT_BACKEND,
-    include=["backend.mail.tasks", "backend.audit.tasks"],
+    include=["backend.mail.tasks"],
 )
 celery_app.conf.timezone = "UTC"
 celery_app.conf.beat_schedule = {
     "sweep-pending-emails": {
         "task": "backend.mail.tasks.sweep_pending_emails",
         "schedule": timedelta(seconds=mail_settings.EMAIL_SWEEP_INTERVAL_SECONDS),
-    },
-    "sweep-security-events": {
-        "task": "backend.audit.tasks.sweep_security_events",
-        "schedule": timedelta(seconds=audit_settings.SECURITY_EVENT_SWEEP_INTERVAL_SECONDS),
     },
 }
