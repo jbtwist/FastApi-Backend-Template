@@ -4,18 +4,14 @@ A ready-made backend for apps that need user accounts, so you don't have to buil
 sign-up and login from scratch again.
 
 It's written in [FastAPI](https://fastapi.tiangolo.com/) (Python) and built to be
-**elastic**. The server doesn't keep anything in its own memory between requests:
-everything it needs to remember lives in a shared database (Postgres) and a shared cache
-(Redis). So when more people show up, you run more copies of the server behind a load
-balancer, and they all work as one. The code puts no limit on how many users you can
-serve; that's up to how many machines you give it.
+an elastic microservice.
 
 ## What you get
 
 - **Accounts:** sign up, confirm your email, log in, log out, forgot and reset password.
 - **Sign in with Google and Apple**, linked safely to existing accounts.
 - **Sessions that renew themselves**, with detection of stolen login tokens.
-- **Rate limiting**, so nobody can hammer the login form.
+- **Rate limiting**, so nobody can attack your app.
 - **Email that doesn't get lost:** if the mail service is down, messages wait and go out later.
 - **Audit logs** of who did what and when.
 
