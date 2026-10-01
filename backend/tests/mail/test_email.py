@@ -10,9 +10,9 @@ from backend.mail.email import SesEmailSender, SmtpEmailSender
 
 @pytest.fixture(autouse=True)
 def _frontend_url(monkeypatch):
-    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.todoapp.local")
-    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", "https://app.todoapp.local")
-    monkeypatch.setattr(mail_settings, "FROM_EMAIL", "no-reply@todoapp.local")
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.backend-template.local")
+    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", "https://app.backend-template.local")
+    monkeypatch.setattr(mail_settings, "FROM_EMAIL", "no-reply@backend-template.local")
 
 
 class TestSmtpEmailSender:
@@ -28,16 +28,16 @@ class TestSmtpEmailSender:
 
         assert len(sent) == 1
         message = sent[0]
-        assert message["From"] == "no-reply@todoapp.local"
+        assert message["From"] == "no-reply@backend-template.local"
         assert message["To"] == "ada@example.com"
 
-        confirm_url = "https://app.todoapp.local/verify-email-confirm?token=raw-token"
+        confirm_url = "https://app.backend-template.local/verify-email-confirm?token=raw-token"
         text_body = message.get_body(preferencelist=("plain",)).get_content()
         html_body = message.get_body(preferencelist=("html",)).get_content()
         assert confirm_url in text_body
         assert confirm_url in html_body
-        assert "api.todoapp.local" not in text_body
-        assert "api.todoapp.local" not in html_body
+        assert "api.backend-template.local" not in text_body
+        assert "api.backend-template.local" not in html_body
 
     async def test_sends_an_oauth_link_email_pointing_at_the_link_confirm_screen(self, monkeypatch):
         sent: list[EmailMessage] = []
@@ -49,7 +49,7 @@ class TestSmtpEmailSender:
 
         await SmtpEmailSender().send_oauth_link_email(email="ada@example.com", token="raw-token")
 
-        confirm_url = "https://app.todoapp.local/link-provider-confirm?token=raw-token"
+        confirm_url = "https://app.backend-template.local/link-provider-confirm?token=raw-token"
         assert sent[0]["To"] == "ada@example.com"
         assert confirm_url in sent[0].get_body(preferencelist=("plain",)).get_content()
         assert confirm_url in sent[0].get_body(preferencelist=("html",)).get_content()
@@ -71,10 +71,10 @@ class TestSesEmailSender:
 
         assert len(calls) == 1
         call = calls[0]
-        confirm_url = "https://app.todoapp.local/verify-email-confirm?token=raw-token"
-        assert call["Source"] == "no-reply@todoapp.local"
+        confirm_url = "https://app.backend-template.local/verify-email-confirm?token=raw-token"
+        assert call["Source"] == "no-reply@backend-template.local"
         assert call["Destination"] == {"ToAddresses": ["ada@example.com"]}
         assert confirm_url in call["Message"]["Body"]["Text"]["Data"]
         assert confirm_url in call["Message"]["Body"]["Html"]["Data"]
-        assert "api.todoapp.local" not in call["Message"]["Body"]["Text"]["Data"]
-        assert "api.todoapp.local" not in call["Message"]["Body"]["Html"]["Data"]
+        assert "api.backend-template.local" not in call["Message"]["Body"]["Text"]["Data"]
+        assert "api.backend-template.local" not in call["Message"]["Body"]["Html"]["Data"]

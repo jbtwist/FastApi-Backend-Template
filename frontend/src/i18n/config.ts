@@ -17,7 +17,7 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 };
 
 /** AsyncStorage key holding the user's explicit language choice (absent = follow the device). */
-export const LOCALE_STORAGE_KEY = 'taskify.locale';
+export const LOCALE_STORAGE_KEY = 'backend-template.locale';
 
 export function isSupportedLocale(value: string | null | undefined): value is Locale {
   return !!value && (SUPPORTED_LOCALES as readonly string[]).includes(value);

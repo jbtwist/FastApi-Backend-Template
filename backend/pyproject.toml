@@ -1,7 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "GTD application for portfolio project"
+description = "Reusable FastAPI JWT-auth backend template"
 authors = [
     { name = "Juan Villarejo", email = "jbtwist92@gmail.com" }
 ]

@@ -7,9 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Two independent apps in one tree that meet over a JSON auth API:
 
 - **`backend/`** — a FastAPI app (`backend.main:app`). Designed to scale **horizontally**: keep it stateless, push all shared state to Postgres / Redis.
-- **`frontend/`** — an Expo (React Native) app, **SDK 57**. First and foremost a *reusable public JWT-auth template*; the todo/GTD product UI comes later. Not expected to scale horizontally (it's a client).
+- **`frontend/`** — an Expo (React Native) app, **SDK 57**. A *reusable public JWT-auth template*. Not expected to scale horizontally (it's a client).
 - **`docs/`** — MkDocs (Material) site, config at repo-root `mkdocs.yml`. Owned by the `docs` skill.
-- **`taskify/`** — spec-driven-development workspace (specs, plans, task lists). **Gitignored, never committed.** Code and comments must not reference anything in it (see Conventions).
 
 `GLOSSARY.md` lives at `.claude/skills/docs/GLOSSARY.md` — nowhere else.
 
@@ -110,7 +109,7 @@ Behavior-focused tests with `@testing-library/react-native`: render the screen, 
   - Delete anything that narrates the code beneath it ("checks in order: too short → too long → breached") or justifies a design choice the reader isn't questioning.
   - Endpoint docstrings in `router.py` are the published OpenAPI description — trim them, but keep them useful to an API consumer.
   - Plain commas over em-dashes. Ruff's 100-char limit applies to docstring lines too.
-- **No spec-driven-development references in code or comments.** `taskify/` is not committed, so `FR-036`, `SC-013`, `T022`, `contracts/auth-api.md`, `data-model.md`, "ADR 5" etc. must not appear in `src/`. Some legacy violations exist — remove them when you touch that code.
+- **No spec-driven-development references in code or comments.** Spec and task IDs such as `FR-036`, `SC-013`, `T022`, `contracts/auth-api.md`, `data-model.md`, "ADR 5" etc. must not appear in `src/`. Some legacy violations exist — remove them when you touch that code.
 - **No `abc.ABC` / `@abstractmethod`.** Use `typing.Protocol` for interfaces; for shared behaviour use a plain mixin with `NotImplementedError` hooks.
 - **ADR bar.** An ADR needs a real either/or tradeoff with alternatives considered. A config-tunable security knob is not an ADR.
 - **No animations** unless explicitly requested.

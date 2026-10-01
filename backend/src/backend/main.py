@@ -12,7 +12,7 @@ from backend.rate_limit import enable_rate_limiting
 
 configure_logging(level=settings.LOG_LEVEL, log_format=settings.LOG_FORMAT)
 
-app = FastAPI(title="GTD Backend")
+app = FastAPI(title="Backend Template")
 enable_rate_limiting(FastAPIRedis(app).lifespan())
 app.include_router(auth_router)
 add_auth_error_handlers(app)

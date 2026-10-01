@@ -90,7 +90,7 @@ Without a mail catcher running, take the token from the database and visit the
 link yourself:
 
 ```bash
-psql todoapp -c \
+psql backend_template -c \
   "SELECT token FROM email_outbox WHERE email = 'you@example.com' ORDER BY created_at DESC LIMIT 1"
 ```
 
@@ -120,7 +120,7 @@ from the API — see
 ![The signed-in home screen](../assets/screenshots/signed-in.png)
 
 The signed-in area is still the Expo starter screen — the frontend is a
-reusable auth template first, and the todo product UI comes later.
+reusable auth template; build your own screens there.
 
 From here the session maintains itself. The access token lasts 15 minutes; when
 it expires the client exchanges the refresh token for a new pair and retries

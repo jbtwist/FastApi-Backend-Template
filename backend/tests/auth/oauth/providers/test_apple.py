@@ -29,8 +29,8 @@ KEYS_URL = f"{APPLE}/auth/keys"
 TOKEN_URL = f"{APPLE}/auth/token"
 
 TEAM_ID = "TEAM123456"
-SERVICES_ID = "com.example.todoapp.web"
-BUNDLE_ID = "com.example.todoapp"
+SERVICES_ID = "com.example.backendtemplate.web"
+BUNDLE_ID = "com.example.backendtemplate"
 KEY_ID = "KEY1234567"
 SUBJECT = "001234.5a6b7c8d9e0f.1234"
 EMAIL = "ada@example.com"
@@ -287,7 +287,7 @@ class TestNativeSignIn:
         assert identity.subject == SUBJECT
 
     @pytest.mark.parametrize(
-        "audience", ["com.attacker.app", "com.example.todoapp.evil", "com.example"]
+        "audience", ["com.attacker.app", "com.example.backendtemplate.evil", "com.example"]
     )
     async def test_refuses_a_token_for_another_app(self, provider, fake_apple, audience):
         token = fake_apple.id_token(aud=audience)

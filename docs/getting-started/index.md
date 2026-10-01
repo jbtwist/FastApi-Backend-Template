@@ -67,7 +67,7 @@ already overrides both:
 Alembic connects to `DATABASE_URL` but will not create the database itself:
 
 ```bash
-createdb todoapp
+createdb backend_template
 uv run alembic upgrade head
 ```
 
@@ -101,7 +101,7 @@ finding your feet:
   only its hash). Read it straight out of Postgres instead of an inbox:
 
   ```bash
-  psql todoapp -c "SELECT token FROM email_outbox \
+  psql backend_template -c "SELECT token FROM email_outbox \
     WHERE email = 'you@example.com' AND kind = 'verification' \
     ORDER BY created_at DESC LIMIT 1;"
   ```

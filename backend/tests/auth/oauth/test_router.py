@@ -33,7 +33,7 @@ from backend.mail import tasks as mail_tasks
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.oauth.fakes import FakeOAuthProvider
 
-FRONTEND = "https://app.todoapp.local"
+FRONTEND = "https://app.backend-template.local"
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 FAR_FUTURE = datetime(2999, 1, 1, tzinfo=UTC)
 
@@ -70,7 +70,7 @@ async def client(
     monkeypatch.setattr(redis_fastapi_deps, "get_async_redis", fake_get_async_redis)
     monkeypatch.setattr(mail_tasks.dispatch_email, "delay", dispatch_calls.append)
     monkeypatch.setattr(settings, "FRONTEND_BASE_URL", FRONTEND)
-    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.todoapp.local")
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://api.backend-template.local")
 
     app = FastAPI()
     FastAPIRedis(app).lifespan().rate_limiting()
@@ -240,7 +240,7 @@ class TestAuthorize:
         query = parse_qs(location.query)
         assert response.status_code == 302
         assert location.netloc == "fake.example"
-        assert query["redirect_uri"] == ["https://api.todoapp.local/auth/oauth/fake/callback"]
+        assert query["redirect_uri"] == ["https://api.backend-template.local/auth/oauth/fake/callback"]
 
     async def test_binds_the_browser_with_an_httponly_state_cookie(self, client):
         response = await client.get("/auth/oauth/fake/authorize")

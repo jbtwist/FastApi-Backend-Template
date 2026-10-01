@@ -1,4 +1,4 @@
-# todoapp
+# Backend Template
 
 A starting point for React Native apps that need accounts, so you don't write
 authentication again.
@@ -74,7 +74,7 @@ outbox until a worker picks them up:
 ```bash
 uv sync
 cp .env.example .env
-createdb todoapp
+createdb backend_template
 uv run alembic upgrade head
 uv run uvicorn backend.main:app --reload
 ```

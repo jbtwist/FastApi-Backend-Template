@@ -21,7 +21,7 @@ describe('<AuthScreen />', () => {
       </AuthScreen>,
     );
 
-    expect(screen.getByText('Taskify')).toBeOnTheScreen();
+    expect(screen.getByText('Backend Template')).toBeOnTheScreen();
     expect(screen.getByText('Sign in')).toBeOnTheScreen();
     expect(screen.getByText('Welcome back')).toBeOnTheScreen();
     expect(screen.getByText('form body')).toBeOnTheScreen();

@@ -28,7 +28,7 @@ palette, a moon under the dark one — so before any choice it reflects the
 device. Because an icon can't express what pressing will do, the accessibility
 label names the action instead ("Switch to dark theme") rather than the state.
 
-The choice persists under `taskify.colorScheme` in AsyncStorage.
+The choice persists under `backend-template.colorScheme` in AsyncStorage.
 
 ## Reading the scheme
 
