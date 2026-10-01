@@ -59,6 +59,11 @@ user_agent: ContextVar[str | None] = ContextVar("user_agent", default=None)
 _audit_logger = logging.getLogger(AUDIT_LOGGER_NAME)
 
 
+def audit_logger(area: str) -> logging.Logger:
+    """Return the audit logger for one area, a child of `backend.audit`."""
+    raise NotImplementedError
+
+
 def new_correlation_id() -> str:
     """Mint an id for a request or task that arrived without one."""
     return uuid.uuid4().hex

@@ -20,7 +20,9 @@ def _events(records: list[logging.LogRecord]) -> list[str]:
 
 
 def _only(records: list[logging.LogRecord], event: str) -> logging.LogRecord:
+    """The one record named `event`, which must come from the `auth` audit logger."""
     [record] = [record for record in records if record.event == event]
+    assert record.name == "backend.audit.auth"
     return record
 
 

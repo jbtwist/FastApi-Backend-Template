@@ -126,6 +126,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Whether a `/native` result is the link-pending `202` rather than a session | `isLinkPending` | `isLinkRequired`, `needsLink` |
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
 | A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by `log_event`) | `audit_log`, `activity`, `trace`, `analytics_event` |
+| The logger every `audit_event` goes through; filter on it, or on its name as a prefix, to select the audit stream | `backend.audit` (`AUDIT_LOGGER_NAME`) | `audit_log`, `security_logger` |
+| A child of `backend.audit` for one area, passed to `log_event` so each line names where it came from and each area's level can be set on its own | `audit_logger(area)`, areas `auth`, `oauth`, `db` | `get_audit_logger`, `domain_logger`, `AUDIT_<AREA>` |
 | The id shared by every log line from one request or task, used to join them | `correlation_id` | `request_id`, `trace_id`, `req_id` |
 | The client address an `audit_event` came from, taken from the ASGI `client` (behind a proxy, uvicorn's `--forwarded-allow-ips` decides who to trust, never a raw `X-Forwarded-For`) | `ip_address` | `client_ip`, `remote_addr`, `ip` |
 | The `User-Agent` header an `audit_event` came with, truncated to `MAX_USER_AGENT_LENGTH` | `user_agent` | `ua`, `client_agent`, `browser` |

@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 import pytest
 
 from backend.log import (
+    AUDIT_LOGGER_NAME,
     MAX_CORRELATION_ID_LENGTH,
     MAX_USER_AGENT_LENGTH,
     SCRUBBED,
@@ -23,6 +24,7 @@ from backend.log import (
     CorrelationIdFilter,
     CorrelationIdMiddleware,
     JsonLogFormatter,
+    audit_logger,
     configure_logging,
     correlation_id,
     ip_address,
@@ -68,53 +70,96 @@ def make_record():
 
 
 class TestLogEvent:
-    def test_event_name_becomes_the_message(self, captured_records):
-        log_event("user.registered")
+    @pytest.fixture
+    def audit(self) -> logging.Logger:
+        return audit_logger("test")
+
+    def test_event_name_becomes_the_message(self, audit, captured_records):
+        log_event(audit, "user.registered")
         assert captured_records[0].getMessage() == "user.registered"
         assert captured_records[0].event == "user.registered"
 
-    def test_fields_land_in_audit_fields(self, captured_records):
+    def test_fields_land_in_audit_fields(self, audit, captured_records):
         user_id = uuid.uuid4()
-        log_event("user.registered", user_id=user_id, source="web")
+        log_event(audit, "user.registered", user_id=user_id, source="web")
         assert captured_records[0].audit_fields == {"user_id": user_id, "source": "web"}
 
     @pytest.mark.parametrize(
         "field",
         ["password", "token", "token_hash", "refresh_token", "email", "secret", "authorization"],
     )
-    def test_sensitive_fields_are_scrubbed(self, captured_records, field):
-        log_event("login.failed", **{field: "super-secret-value"})
+    def test_sensitive_fields_are_scrubbed(self, audit, captured_records, field):
+        log_event(audit, "login.failed", **{field: "super-secret-value"})
         assert captured_records[0].audit_fields[field] == SCRUBBED
 
-    def test_scrubbing_ignores_case(self, captured_records):
-        log_event("login.failed", Password="hunter2", TOKEN="abc")
+    def test_scrubbing_ignores_case(self, audit, captured_records):
+        log_event(audit, "login.failed", Password="hunter2", TOKEN="abc")
         assert captured_records[0].audit_fields == {"Password": SCRUBBED, "TOKEN": SCRUBBED}
 
-    def test_a_secret_under_an_unlisted_name_is_not_detected(self, captured_records):
+    def test_a_secret_under_an_unlisted_name_is_not_detected(self, audit, captured_records):
         """The denylist matches names, never values. Documented limitation, pinned here."""
-        log_event("login.failed", session_blob="hunter2")
+        log_event(audit, "login.failed", session_blob="hunter2")
         assert captured_records[0].audit_fields["session_blob"] == "hunter2"
 
-    def test_reserved_logging_attribute_names_are_safe_as_fields(self, captured_records):
+    def test_reserved_logging_attribute_names_are_safe_as_fields(self, audit, captured_records):
         """Nesting under `audit_fields` is what keeps these from colliding with the record."""
-        log_event("db_write", message="anything", name="anything", args="anything")
+        log_event(audit, "db_write", message="anything", name="anything", args="anything")
         record = captured_records[0]
-        assert record.name == "backend.audit"
+        assert record.name == "backend.audit.test"
         assert record.audit_fields == {
             "message": "anything",
             "name": "anything",
             "args": "anything",
         }
 
-    def test_level_is_reserved_by_the_signature_not_available_as_a_field(self):
+    def test_level_is_reserved_by_the_signature_not_available_as_a_field(self, audit):
         """`level` is keyword-only on `log_event`, so it can never be a field name."""
         with pytest.raises(TypeError):
-            log_event("db_write", level="anything")
+            log_event(audit, "db_write", level="anything")
 
-    def test_level_defaults_to_info_and_is_overridable(self, captured_records):
-        log_event("a.b")
-        log_event("c.d", level=logging.WARNING)
+    def test_level_defaults_to_info_and_is_overridable(self, audit, captured_records):
+        log_event(audit, "a.b")
+        log_event(audit, "c.d", level=logging.WARNING)
         assert [r.levelno for r in captured_records] == [logging.INFO, logging.WARNING]
+
+
+class TestAuditLogger:
+    """One child of `backend.audit` per area, so lines say where they came from."""
+
+    def test_an_area_logger_is_a_child_of_the_audit_logger(self):
+        assert audit_logger("auth").name == f"{AUDIT_LOGGER_NAME}.auth"
+
+    def test_the_same_area_returns_the_same_logger(self):
+        assert audit_logger("auth") is audit_logger("auth")
+
+    def test_an_area_event_reaches_a_handler_on_the_parent(self, captured_records):
+        """One handler on `backend.audit` still sees every area."""
+        log_event(audit_logger("auth"), "login.failed")
+        log_event(audit_logger("db"), "db_write")
+
+        assert [record.name for record in captured_records] == [
+            "backend.audit.auth",
+            "backend.audit.db",
+        ]
+
+    def test_an_area_can_be_quietened_on_its_own(self, captured_records):
+        db = audit_logger("db")
+        previous = db.level
+        db.setLevel(logging.WARNING)
+        try:
+            log_event(db, "db_write")
+            log_event(audit_logger("auth"), "login.failed")
+        finally:
+            db.setLevel(previous)
+
+        assert [record.event for record in captured_records] == ["login.failed"]
+
+    def test_the_json_logger_field_names_the_area(self, captured_records):
+        log_event(audit_logger("oauth"), "oauth.link_requested")
+
+        payload = json.loads(JsonLogFormatter().format(captured_records[0]))
+
+        assert payload["logger"] == "backend.audit.oauth"
 
 
 class TestJsonLogFormatter:
