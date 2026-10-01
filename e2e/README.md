@@ -27,7 +27,7 @@ Playwright starts both servers itself. All you need running is Postgres.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| Postgres database `todoapp_e2e` | your local server | created on demand by `scripts/ensure-db.mjs` |
+| Postgres database `backend_template_e2e` | your local server | created on demand by `scripts/ensure-db.mjs` |
 | API | `localhost:8100` | `scripts/start-backend.sh`: migrate, then uvicorn |
 | Web client | `localhost:8082` | `expo start --web`, built with `EXPO_PUBLIC_API_URL` |
 
@@ -41,7 +41,7 @@ If your Postgres does not accept the default connection, point the suite
 somewhere else without editing the file:
 
 ```bash
-E2E_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/todoapp_e2e npm test
+E2E_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/backend_template_e2e npm test
 ```
 
 ## How it reads verification and reset tokens

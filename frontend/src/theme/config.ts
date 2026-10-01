@@ -11,7 +11,7 @@ export type ColorScheme = (typeof COLOR_SCHEMES)[number];
  * who has never chosen keeps following the OS and one who has chosen stays
  * pinned until they pick the other.
  */
-export const COLOR_SCHEME_STORAGE_KEY = 'taskify.colorScheme';
+export const COLOR_SCHEME_STORAGE_KEY = 'backend-template.colorScheme';
 
 export function isColorScheme(value: string | null | undefined): value is ColorScheme {
   return !!value && (COLOR_SCHEMES as readonly string[]).includes(value);

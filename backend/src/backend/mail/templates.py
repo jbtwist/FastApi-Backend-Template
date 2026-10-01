@@ -10,9 +10,9 @@ _env = Environment(
     autoescape=lambda name: bool(name) and name.endswith(".html.jinja"),
 )
 
-VERIFICATION_EMAIL_SUBJECT = "Welcome to Todoapp - confirm your email"
-PASSWORD_RESET_EMAIL_SUBJECT = "Reset your Todoapp password"
-OAUTH_LINK_EMAIL_SUBJECT = "Confirm signing in to Todoapp with another provider"
+VERIFICATION_EMAIL_SUBJECT = "Welcome to Backend Template - confirm your email"
+PASSWORD_RESET_EMAIL_SUBJECT = "Reset your Backend Template password"
+OAUTH_LINK_EMAIL_SUBJECT = "Confirm signing in to Backend Template with another provider"
 
 
 @dataclass

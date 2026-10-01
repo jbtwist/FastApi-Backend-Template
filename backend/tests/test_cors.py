@@ -11,7 +11,7 @@ from backend.cors import add_cors
 
 ALLOWED_ORIGIN = "https://app.example"
 OTHER_ORIGIN = "https://evil.example"
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/todoapp"
+DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/backend_template"
 
 
 def make_settings(**overrides: object) -> Settings:

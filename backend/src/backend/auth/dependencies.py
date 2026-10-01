@@ -54,7 +54,7 @@ async def get_pwned_password_checker() -> AsyncIterator[PwnedPasswordChecker]:
     """
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(2.0),
-        headers={"User-Agent": "todoapp-backend", "Add-Padding": "true"},
+        headers={"User-Agent": "backend-template", "Add-Padding": "true"},
     ) as client:
         yield HIBPPwnedPasswordChecker(client=client)
 

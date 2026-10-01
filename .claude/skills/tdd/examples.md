@@ -18,7 +18,7 @@ def sample_todos():
 ```python
 # tests/test_todos.py
 def test_active_todos_excludes_done(sample_todos):
-    from todoapp.todos import active_todos
+    from backend.todos import active_todos
     result = active_todos(sample_todos)
     assert len(result) == 1
     assert result[0]["title"] == "Buy milk"
@@ -44,7 +44,7 @@ from tests.fakes import FakeTodoClient
 
 
 def test_fetch_todos_returns_pending_items():
-    from todoapp.client import fetch_todos
+    from backend.client import fetch_todos
     client = FakeTodoClient(todos=[{"id": 1, "title": "Buy milk", "done": False}])
     result = fetch_todos(client=client)
     assert result == [{"id": 1, "title": "Buy milk", "done": False}]
@@ -57,7 +57,7 @@ import pytest
 
 
 def test_parse_id_rejects_empty_string():
-    from todoapp.parser import parse_id
+    from backend.parser import parse_id
     with pytest.raises(ValueError, match="cannot be empty"):
         parse_id("")
 ```
@@ -71,7 +71,7 @@ from pathlib import Path
 
 
 def test_save_writes_json(tmp_path: Path):
-    from todoapp.storage import save_todos
+    from backend.storage import save_todos
     target = tmp_path / "todos.json"
     save_todos([{"id": 1}], target)
     assert target.read_text().startswith("[")
@@ -82,12 +82,12 @@ def test_save_writes_json(tmp_path: Path):
 The test names the seam; the skeleton makes it real. Signatures, types and docstrings are final — only the bodies are missing.
 
 ```python
-# src/todoapp/todos/repository.py
+# src/backend/todos/repository.py
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from todoapp.todos.models import Todo
+from backend.todos.models import Todo
 
 
 class TodoRepository(Protocol):
@@ -107,9 +107,9 @@ class SqlTodoRepository:
 ```
 
 ```python
-# src/todoapp/todos/service/complete.py
-from todoapp.todos.models import Todo
-from todoapp.todos.repository import TodoRepository
+# src/backend/todos/service/complete.py
+from backend.todos.models import Todo
+from backend.todos.repository import TodoRepository
 
 
 async def complete_todo(todo_id: int, todos: TodoRepository) -> Todo:

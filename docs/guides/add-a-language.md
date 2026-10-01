@@ -63,7 +63,7 @@ nothing needs adjusting.
 
 `LocaleProvider` resolves it once on mount:
 
-1. the user's stored choice (`taskify.locale` in AsyncStorage), if any;
+1. the user's stored choice (`backend-template.locale` in AsyncStorage), if any;
 2. otherwise the first device-preferred language the app ships messages for;
 3. otherwise `DEFAULT_LOCALE`.
 

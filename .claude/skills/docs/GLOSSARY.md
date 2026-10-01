@@ -23,16 +23,11 @@ Single source of truth for naming. Before naming any variable, function, class, 
 
 | Concept | Canonical name | Avoid |
 |---|---|---|
-| A task the user wants to track | `task` | `todo`, `item`, `entry` |
 | The user who owns data in the system | `user` | `account`, `member`, `profile` |
 | A session token issued after login | `access_token` | `token`, `jwt`, `auth_token` |
 | A token used to renew the access token | `refresh_token` | `renew_token`, `rt` |
 | The moment a record was created | `created_at` | `created`, `creation_date`, `timestamp` |
 | The moment a record was last modified | `updated_at` | `updated`, `modified_at`, `last_modified` |
-| Whether a task has been completed | `is_done` | `done`, `completed`, `finished`, `is_complete` |
-| The text content of a task | `title` | `name`, `description`, `text`, `content` |
-| The ordering position of a task | `position` | `order`, `index`, `rank`, `sort_order` |
-| A group of tasks | `list` | `collection`, `group`, `board`, `category` |
 | A user's hashed password | `password_hash` | `password`, `hashed_password` |
 | Group of refresh tokens from one login, used for rotation + reuse detection | `family_id` | `session_id`, `chain_id` |
 | The moment a refresh token was consumed by rotation | `used_at` | `consumed_at`, `rotated_at` |

@@ -1,5 +1,5 @@
-site_name: todoapp
-site_description: Todo application docs
+site_name: Backend Template
+site_description: Backend Template docs
 docs_dir: docs
 
 theme:
