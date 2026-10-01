@@ -11,10 +11,12 @@ from backend.auth.repository import (
     UserRepository,
 )
 from backend.auth.security import generate_opaque_token, hash_opaque_token, hash_password
-from backend.log import log_event
+from backend.log import audit_logger, log_event
 from backend.mail import service as mail_service
 from backend.mail.models import EmailKind, EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
+
+audit = audit_logger("auth")
 
 
 async def request_password_reset(
@@ -39,6 +41,7 @@ async def request_password_reset(
     user = await user_repo.get_by_email(normalized_email)
     if user is None or user.email_verified_at is None:
         log_event(
+            audit,
             "password.reset_skipped",
             reason="unknown_email" if user is None else "email_unverified",
         )
@@ -50,7 +53,7 @@ async def request_password_reset(
         token_hash=hash_opaque_token(raw_token),
         expires_at=now + config.PASSWORD_RESET_TOKEN_EXP,
     )
-    log_event("password.reset_requested", user_id=user.id)
+    log_event(audit, "password.reset_requested", user_id=user.id)
     return await mail_service.enqueue_email(
         outbox_repo,
         user_id=user.id,
@@ -114,6 +117,7 @@ async def reset_password(
     won_race = await password_reset_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
         log_event(
+            audit,
             "password.reset_race_lost",
             level=logging.WARNING,
             user_id=record.user_id,
@@ -126,5 +130,5 @@ async def reset_password(
     )
     await refresh_token_repo.revoke_all_for_user(record.user_id, revoked_at=now)
     await password_reset_token_repo.invalidate_all_for_user(record.user_id, invalidated_at=now)
-    log_event("password.reset_completed", user_id=record.user_id)
-    log_event("sessions.revoked_all", user_id=record.user_id, reason="password_reset")
+    log_event(audit, "password.reset_completed", user_id=record.user_id)
+    log_event(audit, "sessions.revoked_all", user_id=record.user_id, reason="password_reset")

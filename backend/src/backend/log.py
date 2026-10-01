@@ -10,6 +10,11 @@ was written — emitted through `log_event` and carrying its data as fields rath
 than as prose. Everything else is an ordinary `logging` call from any module, and
 formats as a plain message.
 
+Each area writes its audit events through its own child of `backend.audit`, made
+once per module with `audit_logger("auth")`. A line then names its area, a handler
+or filter on `backend.audit` still sees every area, and one area, such as the
+high-volume `db` row writes, can be quietened without touching the others.
+
 Nothing that reaches a log may carry a credential or an address. `log_event`
 scrubs a fixed set of field names before the record exists, so a caller that
 passes `token_hash=` or `email=` cannot leak one by accident. The denylist matches
@@ -56,12 +61,10 @@ correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=No
 ip_address: ContextVar[str | None] = ContextVar("ip_address", default=None)
 user_agent: ContextVar[str | None] = ContextVar("user_agent", default=None)
 
-_audit_logger = logging.getLogger(AUDIT_LOGGER_NAME)
-
 
 def audit_logger(area: str) -> logging.Logger:
     """Return the audit logger for one area, a child of `backend.audit`."""
-    raise NotImplementedError
+    return logging.getLogger(f"{AUDIT_LOGGER_NAME}.{area}")
 
 
 def new_correlation_id() -> str:
@@ -76,7 +79,9 @@ def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
+def log_event(
+    logger: logging.Logger, event: str, *, level: int = logging.INFO, **fields: Any
+) -> None:
     """Record one `audit_event` with its data as structured fields.
 
     Fields land in a single `audit_fields` dict on the record rather than as
@@ -85,6 +90,7 @@ def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
     a name in `SENSITIVE_FIELDS` are replaced before the record is built.
 
     Args:
+        logger: The caller's area logger, from `audit_logger`.
         event: Dotted event name, e.g. `user.registered`. Becomes the record's
             message, so it reads correctly in console format too.
         level: Severity; defaults to `INFO`. Anything a human should chase —
@@ -92,7 +98,7 @@ def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
         **fields: Structured data for the event. Ids, counts, reasons. Never a
             credential, and never an email address.
     """
-    _audit_logger.log(level, event, extra={"event": event, "audit_fields": _scrub(fields)})
+    logger.log(level, event, extra={"event": event, "audit_fields": _scrub(fields)})
 
 
 class CorrelationIdFilter(logging.Filter):

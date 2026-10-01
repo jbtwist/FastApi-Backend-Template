@@ -33,10 +33,12 @@ from backend.auth.oauth.state import SignInAttempt, SignInStateStore
 from backend.auth.repository import RefreshTokenRepository, UserRepository
 from backend.auth.security import generate_opaque_token, hash_opaque_token
 from backend.auth.service import TokenPair, issue_token_pair
-from backend.log import log_event
+from backend.log import audit_logger, log_event
 from backend.mail import service as mail_service
 from backend.mail.models import EmailKind, EmailOutboxEntry
 from backend.mail.service import EmailOutboxRepository
+
+audit = audit_logger("oauth")
 
 DEFAULT_REDIRECT_TARGET = "/"
 
@@ -212,6 +214,7 @@ async def confirm_identity_link(
         raise EmailLinkedToOtherProvider(record.provider) from None
 
     log_event(
+        audit,
         "oauth.identity_linked",
         user_id=record.user_id,
         provider=record.provider,
@@ -221,6 +224,7 @@ async def confirm_identity_link(
 
 def _log_link_refused(user_id: uuid.UUID, provider: str, *, linked_provider: str) -> None:
     log_event(
+        audit,
         "oauth.link_refused",
         level=logging.WARNING,
         user_id=user_id,
@@ -273,7 +277,11 @@ class _Resolution:
             await self._user_repo.mark_email_verified(user.id, verified_at=self._now)
             await self._link_identity(user, identity)
             log_event(
-                "user.registered", user_id=user.id, method="oauth", provider=identity.provider
+                audit,
+                "user.registered",
+                user_id=user.id,
+                method="oauth",
+                provider=identity.provider,
             )
             self._log_identity_linked(user, identity, reason="new_account")
             return await self._signed_in(user, identity)
@@ -291,6 +299,7 @@ class _Resolution:
             await self._user_repo.mark_email_verified(user.id, verified_at=self._now)
             await self._link_identity(user, identity)
             log_event(
+                audit,
                 "sessions.revoked_all",
                 level=logging.WARNING,
                 user_id=user.id,
@@ -300,7 +309,7 @@ class _Resolution:
             return await self._signed_in(user, identity)
 
         outbox_entry = await self._offer_link(user, identity)
-        log_event("oauth.link_requested", user_id=user.id, provider=identity.provider)
+        log_event(audit, "oauth.link_requested", user_id=user.id, provider=identity.provider)
         return LinkPending(outbox_entry=outbox_entry)
 
     async def _link_identity(self, user: User, identity: ProviderIdentity) -> None:
@@ -315,14 +324,20 @@ class _Resolution:
 
     def _log_identity_linked(self, user: User, identity: ProviderIdentity, *, reason: str) -> None:
         log_event(
-            "oauth.identity_linked", user_id=user.id, provider=identity.provider, reason=reason
+            audit,
+            "oauth.identity_linked",
+            user_id=user.id,
+            provider=identity.provider,
+            reason=reason,
         )
 
     async def _signed_in(self, user: User, identity: ProviderIdentity) -> SignedIn:
         pair = await issue_token_pair(
             self._refresh_token_repo, user, config=self._auth_config, now=self._now
         )
-        log_event("login.succeeded", user_id=user.id, method="oauth", provider=identity.provider)
+        log_event(
+            audit, "login.succeeded", user_id=user.id, method="oauth", provider=identity.provider
+        )
         return SignedIn(user=user, pair=pair)
 
     async def _offer_link(self, user: User, identity: ProviderIdentity) -> EmailOutboxEntry:
