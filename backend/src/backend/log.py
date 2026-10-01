@@ -6,16 +6,19 @@ process, not to the process itself.
 
 Two kinds of record travel through here. An `audit_event` is a deliberate record
 of something the app did — a user registered, a refresh token was reused, a row
-was written — emitted through `log_event` and carrying its data as fields rather
-than as prose. Everything else is an ordinary `logging` call from any module, and
+was written — emitted through an `AuditLogger` and carrying its data as fields
+rather than as prose. Everything else is an ordinary `logging` call from any module, and
 formats as a plain message.
 
 Each area writes its audit events through its own child of `backend.audit`, made
-once per module with `audit_logger("auth")`. A line then names its area, a handler
-or filter on `backend.audit` still sees every area, and one area, such as the
-high-volume `db` row writes, can be quietened without touching the others.
+once per module with `audit = audit_logger("auth")` and called like any logger:
+`audit.info("login.failed", reason=...)`. A line then names its area, a handler or
+filter on `backend.audit` still sees every area, and one area, such as the
+high-volume `db` row writes, can be quietened without touching the others. One
+action logs one event: its consequences, such as revoked sessions, are part of
+what the event means, and the `db` row writes carry the detail.
 
-Nothing that reaches a log may carry a credential or an address. `log_event`
+Nothing that reaches a log may carry a credential or an address. `AuditLogger`
 scrubs a fixed set of field names before the record exists, so a caller that
 passes `token_hash=` or `email=` cannot leak one by accident. The denylist matches
 on the *name* of a field, never on the shape of its value: a secret passed under
@@ -64,7 +67,12 @@ user_agent: ContextVar[str | None] = ContextVar("user_agent", default=None)
 
 
 class AuditLogger:
-    """Writes one area's `audit_event`s, with their data as structured fields."""
+    """Writes one area's `audit_event`s, with their data as structured fields.
+
+    Fields land in one `audit_fields` dict on the record rather than as separate
+    attributes, so a caller can pass keys like `message` or `name` without
+    colliding with `logging`'s own record attributes.
+    """
 
     def __init__(self, logger: logging.Logger) -> None:
         self._logger = logger
@@ -75,11 +83,14 @@ class AuditLogger:
 
     def info(self, event: str, **fields: Any) -> None:
         """Record `event` at `INFO`."""
-        raise NotImplementedError
+        self._log(logging.INFO, event, fields)
 
     def warning(self, event: str, **fields: Any) -> None:
         """Record `event` at `WARNING`, for anything a human should chase."""
-        raise NotImplementedError
+        self._log(logging.WARNING, event, fields)
+
+    def _log(self, level: int, event: str, fields: dict[str, Any]) -> None:
+        self._logger.log(level, event, extra={"event": event, "audit_fields": _scrub(fields)})
 
 
 @cache
@@ -98,28 +109,6 @@ def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
         key: (SCRUBBED if key.lower() in SENSITIVE_FIELDS else value)
         for key, value in fields.items()
     }
-
-
-def log_event(logger: AuditLogger, event: str, *, level: int = logging.INFO, **fields: Any) -> None:
-    """Record one `audit_event` with its data as structured fields.
-
-    Fields land in a single `audit_fields` dict on the record rather than as
-    separate attributes, which is what lets a caller pass keys like `message` or
-    `name` without colliding with `logging`'s own record attributes. Values under
-    a name in `SENSITIVE_FIELDS` are replaced before the record is built.
-
-    Args:
-        logger: The caller's area logger, from `audit_logger`.
-        event: Dotted event name, e.g. `user.registered`. Becomes the record's
-            message, so it reads correctly in console format too.
-        level: Severity; defaults to `INFO`. Anything a human should chase —
-            reuse detection, a lost race — belongs at `WARNING`.
-        **fields: Structured data for the event. Ids, counts, reasons. Never a
-            credential, and never an email address.
-    """
-    logging.getLogger(logger.name).log(
-        level, event, extra={"event": event, "audit_fields": _scrub(fields)}
-    )
 
 
 class CorrelationIdFilter(logging.Filter):

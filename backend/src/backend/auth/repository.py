@@ -11,7 +11,7 @@ from backend.auth.models import (
     RefreshToken,
     User,
 )
-from backend.log import audit_logger, log_event
+from backend.log import audit_logger
 
 audit = audit_logger("db")
 
@@ -50,7 +50,7 @@ class SqlUserRepository:
         async with self._db.begin_nested():
             self._db.add(user)
             await self._db.flush()
-        log_event(audit, "db_write", table=User.__tablename__, operation="insert", user_id=user.id)
+        audit.info("db_write", table=User.__tablename__, operation="insert", user_id=user.id)
         return user
 
     async def mark_email_verified(self, user_id: uuid.UUID, *, verified_at: datetime) -> bool:
@@ -59,8 +59,7 @@ class SqlUserRepository:
             .where(User.id == user_id, User.email_verified_at.is_(None))
             .values(email_verified_at=verified_at)
         )
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=User.__tablename__,
             operation="update",
@@ -78,8 +77,7 @@ class SqlUserRepository:
             .where(User.id == user_id)
             .values(password_hash=password_hash, updated_at=updated_at)
         )
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=User.__tablename__,
             operation="update",
@@ -135,8 +133,7 @@ class _SqlSingleUseTokenRepository[TokenT]:
         token = self.model(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
         self._db.add(token)
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=self.model.__tablename__,
             operation="insert",
@@ -157,8 +154,7 @@ class _SqlSingleUseTokenRepository[TokenT]:
             .where(self.model.id == token_id, self.model.used_at.is_(None))
             .values(used_at=used_at)
         )
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=self.model.__tablename__,
             operation="update",
@@ -184,8 +180,7 @@ class SqlPasswordResetTokenRepository(_SqlSingleUseTokenRepository[PasswordReset
             .where(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
             .values(used_at=invalidated_at)
         )
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=PasswordResetToken.__tablename__,
             operation="update",
@@ -214,8 +209,7 @@ class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
         )
         self._db.add(token)
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=RefreshToken.__tablename__,
             operation="insert",
@@ -235,8 +229,7 @@ class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
         for token in result.scalars():
             token.revoked_at = revoked_at
             revoked += 1
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=RefreshToken.__tablename__,
             operation="update",
@@ -251,8 +244,7 @@ class SqlRefreshTokenRepository(_SqlSingleUseTokenRepository[RefreshToken]):
             .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=revoked_at)
         )
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=RefreshToken.__tablename__,
             operation="update",

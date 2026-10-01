@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.log import audit_logger, log_event
+from backend.log import audit_logger
 from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
 
 audit = audit_logger("db")
@@ -32,8 +32,7 @@ class SqlEmailOutboxRepository:
         )
         self._db.add(entry)
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=EmailOutboxEntry.__tablename__,
             operation="insert",
@@ -53,8 +52,7 @@ class SqlEmailOutboxRepository:
         entry.status = EmailOutboxStatus.SENT
         entry.sent_at = sent_at
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=EmailOutboxEntry.__tablename__,
             operation="update",
@@ -71,8 +69,7 @@ class SqlEmailOutboxRepository:
         entry.attempts += 1
         entry.last_attempted_at = attempted_at
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=EmailOutboxEntry.__tablename__,
             operation="update",
@@ -89,8 +86,7 @@ class SqlEmailOutboxRepository:
         entry.status = EmailOutboxStatus.DEAD
         entry.dead_at = failed_at
         await self._db.flush()
-        log_event(
-            audit,
+        audit.info(
             "db_write",
             table=EmailOutboxEntry.__tablename__,
             operation="update",

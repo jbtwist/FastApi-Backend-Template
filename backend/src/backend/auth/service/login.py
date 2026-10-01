@@ -1,6 +1,5 @@
 """Credential check and the refresh-token rotation lifecycle of a login session."""
 
-import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,7 +21,7 @@ from backend.auth.security import (
     hash_opaque_token,
     verify_password,
 )
-from backend.log import audit_logger, log_event
+from backend.log import audit_logger
 
 audit = audit_logger("auth")
 
@@ -65,17 +64,17 @@ async def authenticate_user(user_repo: UserRepository, *, email: str, password: 
     password_valid = verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
 
     if user is None:
-        log_event(audit, "login.failed", reason="invalid_credentials")
+        audit.info("login.failed", reason="invalid_credentials")
         raise InvalidCredentials
     if not password_valid:
-        log_event(audit, "login.failed", reason="invalid_credentials", user_id=user.id)
+        audit.info("login.failed", reason="invalid_credentials", user_id=user.id)
         raise InvalidCredentials
 
     if user.email_verified_at is None:
-        log_event(audit, "login.failed", reason="email_not_verified", user_id=user.id)
+        audit.info("login.failed", reason="email_not_verified", user_id=user.id)
         raise EmailNotVerified
 
-    log_event(audit, "login.succeeded", user_id=user.id, method="password")
+    audit.info("login.succeeded", user_id=user.id, method="password")
     return user
 
 
@@ -139,8 +138,7 @@ async def rotate_refresh_token(
 
     if record.used_at is not None:
         if now - record.used_at < config.REFRESH_TOKEN_REUSE_GRACE:
-            log_event(
-                audit,
+            audit.info(
                 "token.refresh_concurrent",
                 reason="replay_within_grace",
                 user_id=record.user_id,
@@ -148,10 +146,8 @@ async def rotate_refresh_token(
             )
             raise ConcurrentRefresh
 
-        log_event(
-            audit,
+        audit.warning(
             "token.reuse_detected",
-            level=logging.WARNING,
             reason="spent_token_replayed",
             user_id=record.user_id,
             family_id=record.family_id,
@@ -164,8 +160,7 @@ async def rotate_refresh_token(
 
     won_race = await refresh_token_repo.mark_used(record.id, used_at=now)
     if not won_race:
-        log_event(
-            audit,
+        audit.info(
             "token.refresh_concurrent",
             reason="lost_consume_race",
             user_id=record.user_id,
@@ -182,7 +177,7 @@ async def rotate_refresh_token(
     )
 
     access_token = create_access_token(str(record.user_id), config=config, now=now)
-    log_event(audit, "token.refreshed", user_id=record.user_id, family_id=record.family_id)
+    audit.info("token.refreshed", user_id=record.user_id, family_id=record.family_id)
     return TokenPair(access_token=access_token, refresh_token=new_raw_refresh_token)
 
 
@@ -198,11 +193,4 @@ async def logout(
         return
 
     await refresh_token_repo.revoke_family(record.family_id, revoked_at=now)
-    log_event(audit, "logout", user_id=record.user_id, family_id=record.family_id)
-    log_event(
-        audit,
-        "token.family_revoked",
-        reason="logout",
-        user_id=record.user_id,
-        family_id=record.family_id,
-    )
+    audit.info("logout", user_id=record.user_id, family_id=record.family_id)
