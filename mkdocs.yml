@@ -19,6 +19,12 @@ theme:
         icon: material/brightness-4
         name: Light mode
 
+extra_css:
+  - assets/stylesheets/diagram-zoom.css
+
+extra_javascript:
+  - assets/javascripts/diagram-zoom.js
+
 plugins:
   - search
   - mkdocstrings:

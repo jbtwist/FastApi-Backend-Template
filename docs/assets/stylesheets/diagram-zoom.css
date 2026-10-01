@@ -1,0 +1,22 @@
+div.mermaid {
+  cursor: zoom-in;
+}
+
+.diagram-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 1rem;
+  overflow: auto;
+  cursor: zoom-out;
+  background: var(--md-default-bg-color);
+}
+
+.diagram-zoom-overlay div.mermaid {
+  margin: 0 auto;
+  cursor: zoom-out;
+}
+
+body.diagram-zoom-open {
+  overflow: hidden;
+}
