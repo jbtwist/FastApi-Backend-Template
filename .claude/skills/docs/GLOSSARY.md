@@ -127,6 +127,14 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | The web return leg's one-shot success-but-not-signed-in flag on the sign-in URL (`link_email_sent`); the counterpart of `oauth_error` | `oauth_notice` | `oauth_status`, `oauth_info` |
 | A deliberate structured record of something the app did, carrying its data as fields rather than prose | `audit_event` (emitted by `log_event`) | `audit_log`, `activity`, `trace`, `analytics_event` |
 | The id shared by every log line from one request or task, used to join them | `correlation_id` | `request_id`, `trace_id`, `req_id` |
+| The client address an `audit_event` came from, taken from the ASGI `client` (behind a proxy, uvicorn's `--forwarded-allow-ips` decides who to trust, never a raw `X-Forwarded-For`) | `ip_address` | `client_ip`, `remote_addr`, `ip` |
+| The `User-Agent` header an `audit_event` came with, truncated to `MAX_USER_AGENT_LENGTH` | `user_agent` | `ua`, `client_agent`, `browser` |
+| How a `login.succeeded` or `user.registered` came about | `method` (`password`, `oauth`) | `auth_method`, `login_type`, `via` |
+| An `audit_event`: a refresh token family was signed out through `POST /auth/logout` | `logout` | `user.logged_out`, `session.ended` |
+| An `audit_event`: every refresh token family of one user was revoked, with a `reason` | `sessions.revoked_all` | `token.all_revoked`, `sessions.cleared` |
+| An `audit_event`: a provider identity was attached to a `user`, with a `reason` (`new_account`, `link_confirmed`, `unverified_account_claimed`) | `oauth.identity_linked` | `oauth.linked`, `identity.created` |
+| An `audit_event`: a provider sign-in matched a verified account, so an `oauth_link` email was queued | `oauth.link_requested` | `oauth.link_offered`, `link.pending` |
+| An `audit_event`: a link was refused because the account or the identity already has another provider | `oauth.link_refused` | `oauth.link_denied`, `link.conflict` |
 | An `audit_event` for a refresh that lost a legitimate race, distinct from `token.reuse_detected` which means theft | `token.refresh_concurrent` | `refresh_race`, `token.race_lost` |
 | An `audit_event` recording one row write — table, operation, rowcount, ids, never column values | `db_write` | `db_audit`, `query_log`, `sql_event` |
 | Field names never written to a log, replaced with `SCRUBBED` before the record exists | `SENSITIVE_FIELDS` | `redacted_fields`, `denylist`, `pii_fields` |

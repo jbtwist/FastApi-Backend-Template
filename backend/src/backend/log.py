@@ -29,6 +29,8 @@ from typing import Any
 AUDIT_LOGGER_NAME = "backend.audit"
 CORRELATION_ID_HEADER = b"x-request-id"
 MAX_CORRELATION_ID_LENGTH = 64
+USER_AGENT_HEADER = b"user-agent"
+MAX_USER_AGENT_LENGTH = 512
 SCRUBBED = "***"
 
 SENSITIVE_FIELDS = frozenset(
@@ -50,6 +52,8 @@ SENSITIVE_FIELDS = frozenset(
 _UNSAFE_CORRELATION_ID = re.compile(r"[^A-Za-z0-9_-]")
 
 correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+ip_address: ContextVar[str | None] = ContextVar("ip_address", default=None)
+user_agent: ContextVar[str | None] = ContextVar("user_agent", default=None)
 
 _audit_logger = logging.getLogger(AUDIT_LOGGER_NAME)
 

@@ -6,6 +6,7 @@ is never touched.
 """
 
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -23,22 +24,44 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from backend.config import settings
-from backend.log import correlation_id
+from backend.log import correlation_id, ip_address, user_agent
 from tests.mail.fakes import FakeEmailOutboxRepository
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(autouse=True)
-def _isolated_correlation_id():
-    """Start every test with no correlation id.
+def _isolated_request_context():
+    """Start every test with no correlation id, client address or user agent.
 
     Anything that seeds one, a task or a middleware, otherwise leaves it set for
     whatever runs next in the same context.
     """
-    token = correlation_id.set(None)
+    tokens = [(var, var.set(None)) for var in (correlation_id, ip_address, user_agent)]
     yield
-    correlation_id.reset(token)
+    for var, token in reversed(tokens):
+        var.reset(token)
+
+
+@pytest.fixture
+def captured_records() -> list[logging.LogRecord]:
+    """Records emitted on the audit logger, captured without touching handlers."""
+    collected: list[logging.LogRecord] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            collected.append(record)
+
+    audit_logger = logging.getLogger("backend.audit")
+    handler = _Collector()
+    audit_logger.addHandler(handler)
+    previous_level = audit_logger.level
+    audit_logger.setLevel(logging.DEBUG)
+    try:
+        yield collected
+    finally:
+        audit_logger.removeHandler(handler)
+        audit_logger.setLevel(previous_level)
 
 
 @pytest.fixture

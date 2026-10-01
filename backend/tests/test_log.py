@@ -17,6 +17,7 @@ import pytest
 
 from backend.log import (
     MAX_CORRELATION_ID_LENGTH,
+    MAX_USER_AGENT_LENGTH,
     SCRUBBED,
     ConsoleLogFormatter,
     CorrelationIdFilter,
@@ -24,31 +25,12 @@ from backend.log import (
     JsonLogFormatter,
     configure_logging,
     correlation_id,
+    ip_address,
     log_event,
     new_correlation_id,
     sanitize_correlation_id,
+    user_agent,
 )
-
-
-@pytest.fixture
-def captured_records() -> list[logging.LogRecord]:
-    """Records emitted on the audit logger, captured without touching handlers."""
-    collected: list[logging.LogRecord] = []
-
-    class _Collector(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            collected.append(record)
-
-    audit_logger = logging.getLogger("backend.audit")
-    handler = _Collector()
-    audit_logger.addHandler(handler)
-    previous_level = audit_logger.level
-    audit_logger.setLevel(logging.DEBUG)
-    try:
-        yield collected
-    finally:
-        audit_logger.removeHandler(handler)
-        audit_logger.setLevel(previous_level)
 
 
 @pytest.fixture
@@ -185,6 +167,21 @@ class TestJsonLogFormatter:
         payload = json.loads(JsonLogFormatter().format(make_record()))
         assert payload["correlation_id"] is None
 
+    def test_an_audit_record_carries_the_client_context(self, make_record):
+        record = make_record(
+            event="login.succeeded", ip_address="203.0.113.7", user_agent="curl/8.0"
+        )
+        payload = json.loads(JsonLogFormatter().format(record))
+        assert payload["ip_address"] == "203.0.113.7"
+        assert payload["user_agent"] == "curl/8.0"
+
+    def test_an_ordinary_record_leaves_the_client_context_out(self, make_record):
+        """Library lines repeat nothing per request; the access log has the address."""
+        record = make_record(ip_address="203.0.113.7", user_agent="curl/8.0")
+        payload = json.loads(JsonLogFormatter().format(record))
+        assert "ip_address" not in payload
+        assert "user_agent" not in payload
+
 
 class TestConsoleLogFormatter:
     def test_renders_event_and_fields(self, make_record):
@@ -203,6 +200,19 @@ class TestConsoleLogFormatter:
 
     def test_correlation_id_is_omitted_when_absent(self, make_record):
         assert "[" not in ConsoleLogFormatter().format(make_record(event="a.b"))
+
+    def test_an_audit_record_shows_the_client_context(self, make_record):
+        record = make_record(event="a.b", ip_address="203.0.113.7", user_agent="curl/8.0")
+        line = ConsoleLogFormatter().format(record)
+        assert "ip_address=203.0.113.7" in line
+        assert "user_agent=curl/8.0" in line
+
+    def test_control_characters_in_the_user_agent_cannot_forge_a_line(self, make_record):
+        """The header is caller-controlled and console output is not escaped."""
+        record = make_record(event="a.b", user_agent="evil\n12:00:00 INFO     forged.event")
+        line = ConsoleLogFormatter().format(record)
+        assert "\n" not in line
+        assert "\r" not in line
 
 
 class TestSanitizeCorrelationId:
@@ -238,6 +248,18 @@ class TestCorrelationIdFilter:
         record = make_record()
         CorrelationIdFilter().filter(record)
         assert record.correlation_id is None
+
+    def test_stamps_the_client_context(self, make_record):
+        ip_token = ip_address.set("203.0.113.7")
+        agent_token = user_agent.set("curl/8.0")
+        try:
+            record = make_record()
+            CorrelationIdFilter().filter(record)
+        finally:
+            ip_address.reset(ip_token)
+            user_agent.reset(agent_token)
+        assert record.ip_address == "203.0.113.7"
+        assert record.user_agent == "curl/8.0"
 
 
 class TestConfigureLogging:
@@ -324,3 +346,56 @@ class TestCorrelationIdMiddleware:
     async def test_a_non_http_scope_passes_straight_through(self, middleware, seen):
         await middleware({"type": "lifespan"}, None, None)
         assert seen == [None]
+
+
+class TestClientContext:
+    """`CorrelationIdMiddleware` also records who is calling, for audit lines."""
+
+    @pytest.fixture
+    def seen(self) -> list[tuple[str | None, str | None]]:
+        return []
+
+    @pytest.fixture
+    def middleware(self, seen):
+        async def app(scope, receive, send):
+            seen.append((ip_address.get(), user_agent.get()))
+
+        return CorrelationIdMiddleware(app)
+
+    @staticmethod
+    def _scope(*, client=("203.0.113.7", 51234), headers=None) -> dict:
+        return {"type": "http", "client": client, "headers": headers or []}
+
+    @pytest.mark.asyncio
+    async def test_the_client_address_is_set_from_the_asgi_client(self, middleware, seen):
+        await middleware(self._scope(), None, None)
+        assert seen[0][0] == "203.0.113.7"
+
+    @pytest.mark.asyncio
+    async def test_a_forwarded_header_is_not_trusted(self, middleware, seen):
+        """Only uvicorn's proxy handling may rewrite the client, never a raw header."""
+        scope = self._scope(headers=[(b"x-forwarded-for", b"198.51.100.1")])
+        await middleware(scope, None, None)
+        assert seen[0][0] == "203.0.113.7"
+
+    @pytest.mark.asyncio
+    async def test_the_user_agent_is_set_from_the_header(self, middleware, seen):
+        await middleware(self._scope(headers=[(b"user-agent", b"Mozilla/5.0")]), None, None)
+        assert seen[0][1] == "Mozilla/5.0"
+
+    @pytest.mark.asyncio
+    async def test_a_long_user_agent_is_truncated(self, middleware, seen):
+        long_agent = b"x" * (MAX_USER_AGENT_LENGTH + 100)
+        await middleware(self._scope(headers=[(b"user-agent", long_agent)]), None, None)
+        assert seen[0][1] == "x" * MAX_USER_AGENT_LENGTH
+
+    @pytest.mark.asyncio
+    async def test_no_client_and_no_header_leave_both_unset(self, middleware, seen):
+        await middleware(self._scope(client=None), None, None)
+        assert seen[0] == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_both_are_reset_afterwards(self, middleware):
+        await middleware(self._scope(headers=[(b"user-agent", b"curl/8.0")]), None, None)
+        assert ip_address.get() is None
+        assert user_agent.get() is None
