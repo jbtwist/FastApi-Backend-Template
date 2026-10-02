@@ -1,3 +1,11 @@
+"""Password hashing, access tokens, and opaque token generation.
+
+`hash_password` and `verify_password` are async and must be awaited. argon2id at
+the library defaults costs around 100 ms of CPU and 64 MiB per call, so calling
+it inline would stall the event loop, and every other request on that worker,
+for the duration. Both offload the work to a thread.
+"""
+
 import asyncio
 import contextlib
 import secrets
@@ -22,7 +30,7 @@ _password_hasher = PasswordHasher()
 DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
 
-def hash_password(password: str) -> str:
+async def hash_password(password: str) -> str:
     """Hash a password for storage.
 
     argon2id at `argon2-cffi`'s defaults, which track the
@@ -30,17 +38,17 @@ def hash_password(password: str) -> str:
 
     [owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
     """
-    return _password_hasher.hash(password)
+    return await asyncio.to_thread(_password_hasher.hash, password)
 
 
-def verify_password(password: str, password_hash: str) -> bool:
+async def verify_password(password: str, password_hash: str) -> bool:
     """Check a password against a stored hash.
 
     Returns `False` rather than raising on a malformed or mismatched hash, so
     callers can compare against `DUMMY_PASSWORD_HASH` without a try/except.
     """
     try:
-        return _password_hasher.verify(password_hash, password)
+        return await asyncio.to_thread(_password_hasher.verify, password_hash, password)
     except VerifyMismatchError, InvalidHashError:
         return False
 

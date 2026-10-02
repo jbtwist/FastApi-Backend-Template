@@ -1,3 +1,5 @@
+import asyncio
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -42,41 +44,91 @@ def freeze_time(monkeypatch):
 
 
 class TestPasswordHashing:
-    def test_hash_password_returns_argon2id_hash(self):
-        hashed = security.hash_password("correct horse battery staple")
+    async def test_hash_password_returns_argon2id_hash(self):
+        hashed = await security.hash_password("correct horse battery staple")
 
         assert hashed.startswith("$argon2id$")
 
-    def test_hash_password_produces_different_hash_for_same_password(self):
-        hashed_1 = security.hash_password("correct horse battery staple")
-        hashed_2 = security.hash_password("correct horse battery staple")
+    async def test_hash_password_produces_different_hash_for_same_password(self):
+        hashed_1 = await security.hash_password("correct horse battery staple")
+        hashed_2 = await security.hash_password("correct horse battery staple")
 
         assert hashed_1 != hashed_2
 
-    def test_verify_password_succeeds_for_correct_password(self):
-        hashed = security.hash_password("correct horse battery staple")
+    async def test_verify_password_succeeds_for_correct_password(self):
+        hashed = await security.hash_password("correct horse battery staple")
 
-        assert security.verify_password("correct horse battery staple", hashed) is True
+        assert await security.verify_password("correct horse battery staple", hashed) is True
 
-    def test_verify_password_fails_for_incorrect_password(self):
-        hashed = security.hash_password("correct horse battery staple")
+    async def test_verify_password_fails_for_incorrect_password(self):
+        hashed = await security.hash_password("correct horse battery staple")
 
-        assert security.verify_password("wrong password", hashed) is False
+        assert await security.verify_password("wrong password", hashed) is False
 
-    def test_verify_password_fails_for_malformed_hash(self):
-        assert security.verify_password("anything", "not-a-real-hash") is False
+    async def test_verify_password_fails_for_malformed_hash(self):
+        assert await security.verify_password("anything", "not-a-real-hash") is False
 
-    def test_hash_password_roundtrips_very_long_password(self):
+    async def test_hash_password_roundtrips_very_long_password(self):
         long_password = "p" * 5000
-        hashed = security.hash_password(long_password)
+        hashed = await security.hash_password(long_password)
 
-        assert security.verify_password(long_password, hashed) is True
+        assert await security.verify_password(long_password, hashed) is True
 
-    def test_hash_password_roundtrips_unicode_password(self):
+    async def test_hash_password_roundtrips_unicode_password(self):
         password = "correct-horse-🔒-battery-日本語"
-        hashed = security.hash_password(password)
+        hashed = await security.hash_password(password)
 
-        assert security.verify_password(password, hashed) is True
+        assert await security.verify_password(password, hashed) is True
+
+
+class _ThreadRecordingHasher:
+    """Stand-in for the argon2 hasher that records which thread called it."""
+
+    def __init__(self) -> None:
+        self.thread_id: int | None = None
+
+    def hash(self, password: str) -> str:
+        self.thread_id = threading.get_ident()
+        return "$argon2id$stub"
+
+    def verify(self, password_hash: str, password: str) -> bool:
+        self.thread_id = threading.get_ident()
+        return True
+
+
+class TestPasswordHashingStaysOffTheEventLoop:
+    async def test_hash_password_runs_in_a_worker_thread(self, monkeypatch):
+        hasher = _ThreadRecordingHasher()
+        monkeypatch.setattr(security, "_password_hasher", hasher)
+
+        await security.hash_password("correct horse battery staple")
+
+        assert hasher.thread_id is not None
+        assert hasher.thread_id != threading.get_ident()
+
+    async def test_verify_password_runs_in_a_worker_thread(self, monkeypatch):
+        hasher = _ThreadRecordingHasher()
+        monkeypatch.setattr(security, "_password_hasher", hasher)
+
+        await security.verify_password("correct horse battery staple", "$argon2id$stub")
+
+        assert hasher.thread_id is not None
+        assert hasher.thread_id != threading.get_ident()
+
+    async def test_other_tasks_make_progress_during_a_real_hash(self):
+        ticks = 0
+
+        async def ticker() -> None:
+            nonlocal ticks
+            while True:
+                ticks += 1
+                await asyncio.sleep(0.001)
+
+        task = asyncio.create_task(ticker())
+        await security.hash_password("correct horse battery staple")
+        task.cancel()
+
+        assert ticks > 1
 
 
 class TestAccessToken:
