@@ -189,58 +189,85 @@ class TestOAuthLinkDispatch:
 
 
 class TestListStalePendingEmails:
-    async def test_returns_pending_entries_older_than_cutoff(self, email_outbox_repo):
-        entry = await email_outbox_repo.create(
+    async def _create(self, email_outbox_repo):
+        return await email_outbox_repo.create(
             user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
         )
-        cutoff = NOW + timedelta(minutes=2)
-        stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
+
+    async def _fail_once(self, email_outbox_repo, email_sender, entry, *, at):
+        email_sender.fail_with = RuntimeError("timeout")
+        with pytest.raises(RuntimeError):
+            await service.dispatch_email(
+                email_outbox_repo, email_sender, entry.id, now=at, max_attempts=5
+            )
+
+    async def _stale(self, email_outbox_repo, *, now):
+        return await service.list_stale_pending_emails(
+            email_outbox_repo,
+            unattempted_before=now - timedelta(minutes=2),
+            attempted_before=now - timedelta(minutes=20),
+        )
+
+    async def test_never_attempted_entry_is_swept_after_the_short_cutoff(self, email_outbox_repo):
+        entry = await self._create(email_outbox_repo)
+
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(minutes=3))
 
         assert [e.id for e in stale] == [entry.id]
 
-    async def test_excludes_entries_not_yet_stale(self, email_outbox_repo):
-        await email_outbox_repo.create(
-            user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
-        )
-        cutoff = NOW - timedelta(minutes=1)
-        stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
+    async def test_never_attempted_entry_is_not_swept_before_the_short_cutoff(
+        self, email_outbox_repo
+    ):
+        await self._create(email_outbox_repo)
+
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(minutes=1))
+
+        assert stale == []
+
+    async def test_entry_waiting_for_its_next_retry_is_not_swept(
+        self, email_outbox_repo, email_sender
+    ):
+        """The longest retry wait is 16 min; the sweep must not cut it short."""
+        entry = await self._create(email_outbox_repo)
+        await self._fail_once(email_outbox_repo, email_sender, entry, at=NOW)
+
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(minutes=16))
+
+        assert stale == []
+
+    async def test_attempted_entry_idle_past_the_long_cutoff_is_swept(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await self._create(email_outbox_repo)
+        await self._fail_once(email_outbox_repo, email_sender, entry, at=NOW)
+
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(minutes=21))
+
+        assert [e.id for e in stale] == [entry.id]
+
+    async def test_attempted_entry_uses_its_last_attempt_not_its_creation_time(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await self._create(email_outbox_repo)
+        last_attempt = NOW + timedelta(hours=1)
+        await self._fail_once(email_outbox_repo, email_sender, entry, at=last_attempt)
+
+        stale = await self._stale(email_outbox_repo, now=last_attempt + timedelta(minutes=5))
 
         assert stale == []
 
     async def test_excludes_sent_entries(self, email_outbox_repo, email_sender):
-        entry = await email_outbox_repo.create(
-            user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
-        )
+        entry = await self._create(email_outbox_repo)
         await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
-        cutoff = NOW + timedelta(minutes=2)
-        stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
+
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(hours=1))
 
         assert stale == []
 
     async def test_excludes_dead_entries(self, email_outbox_repo):
-        entry = await email_outbox_repo.create(
-            user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
-        )
+        entry = await self._create(email_outbox_repo)
         await email_outbox_repo.mark_dead(entry.id, failed_at=NOW)
-        cutoff = NOW + timedelta(minutes=2)
-        stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
 
-        assert stale == []
-
-    async def test_a_recent_retry_attempt_keeps_it_off_the_sweep(
-        self, email_outbox_repo, email_sender
-    ):
-        """A recent retry must not also be swept."""
-        entry = await email_outbox_repo.create(
-            user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
-        )
-        email_sender.fail_with = RuntimeError("timeout")
-        recent_attempt = NOW + timedelta(minutes=5)
-        with pytest.raises(RuntimeError):
-            await service.dispatch_email(
-                email_outbox_repo, email_sender, entry.id, now=recent_attempt, max_attempts=5
-            )
-        cutoff = recent_attempt - timedelta(seconds=30)
-        stale = await service.list_stale_pending_emails(email_outbox_repo, older_than=cutoff)
+        stale = await self._stale(email_outbox_repo, now=NOW + timedelta(hours=1))
 
         assert stale == []

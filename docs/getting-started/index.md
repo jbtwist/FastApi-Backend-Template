@@ -24,8 +24,9 @@ the two Celery processes are started from `backend/` further down.
 
 Registering writes a row in the outbox and queues `dispatch_email`. No email is
 sent until a Celery worker is up. Beat
-runs `sweep_pending_emails`, which re-dispatches rows untouched for
-`EMAIL_SWEEP_STALE_AFTER_SECONDS` — so mail still sends without beat, it just
+runs `sweep_pending_emails`, which re-dispatches rows never attempted for
+`EMAIL_SWEEP_STALE_AFTER_SECONDS`, or idle between retries for
+`EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS` — so mail still sends without beat, it just
 stops recovering from a lost enqueue. See
 [the outbox decision](../architecture/decisions/0003-durable-email-outbox-before-dispatch.md).
 

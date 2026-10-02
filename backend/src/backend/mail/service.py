@@ -32,7 +32,9 @@ class EmailOutboxRepository(Protocol):
         self, entry_id: uuid.UUID, *, attempted_at: datetime
     ) -> EmailOutboxEntry: ...
     async def mark_dead(self, entry_id: uuid.UUID, *, failed_at: datetime) -> bool: ...
-    async def list_stale_pending(self, *, older_than: datetime) -> list[EmailOutboxEntry]: ...
+    async def list_stale_pending(
+        self, *, unattempted_before: datetime, attempted_before: datetime
+    ) -> list[EmailOutboxEntry]: ...
 
 
 async def enqueue_email(
@@ -105,12 +107,18 @@ async def dispatch_email(
 
 
 async def list_stale_pending_emails(
-    outbox_repo: EmailOutboxRepository, *, older_than: datetime
+    outbox_repo: EmailOutboxRepository,
+    *,
+    unattempted_before: datetime,
+    attempted_before: datetime,
 ) -> list[EmailOutboxEntry]:
-    """List `PENDING` entries with no activity since `older_than`.
+    """List `PENDING` entries the sweep should re-dispatch.
 
-    Activity is `last_attempted_at`, falling back to `created_at`, so this
-    catches entries whose dispatch was never queued as well as ones stuck
-    between retries.
+    A never-attempted entry is stale once created before `unattempted_before`,
+    which catches a dispatch that was never queued. An attempted entry is stale
+    once its last attempt is before `attempted_before`, a cutoff kept past the
+    longest retry wait so the sweep never cuts a scheduled retry short.
     """
-    return await outbox_repo.list_stale_pending(older_than=older_than)
+    return await outbox_repo.list_stale_pending(
+        unattempted_before=unattempted_before, attempted_before=attempted_before
+    )

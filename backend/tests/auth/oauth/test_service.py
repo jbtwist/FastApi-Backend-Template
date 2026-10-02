@@ -272,7 +272,10 @@ class TestUnverifiedProviderEmail:
 
         assert await identity_repo.get_by_user_id(verified_user.id) is None
         assert link_token_repo.all() == []
-        assert await email_outbox_repo.list_stale_pending(older_than=NOW) == []
+        assert (
+            await email_outbox_repo.list_stale_pending(unattempted_before=NOW, attempted_before=NOW)
+            == []
+        )
 
     async def test_cannot_take_over_an_unverified_account(
         self, sign_in, user_repo, unverified_user
@@ -387,7 +390,10 @@ class TestAccountAlreadyLinked:
 
         assert await identity_repo.get_by_provider_subject("fake", "fake-subject-1") is None
         assert link_token_repo.all() == []
-        assert await email_outbox_repo.list_stale_pending(older_than=NOW) == []
+        assert (
+            await email_outbox_repo.list_stale_pending(unattempted_before=NOW, attempted_before=NOW)
+            == []
+        )
 
 
 class TestUnverifiedAccountTakeover:

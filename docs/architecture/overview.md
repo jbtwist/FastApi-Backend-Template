@@ -129,16 +129,21 @@ sequenceDiagram
 Registration and resending verification don't call the email provider
 directly — they write a row to `email_outbox` in the same DB transaction as
 the triggering action, with an `EmailKind` to select the template, then
-queue a Celery task to dispatch it. A periodic sweep re-queues anything left
-stuck `PENDING`. This keeps the email durable even if Celery/Redis is
-unavailable at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
+queue a Celery task to dispatch it. A failed send is retried after 2, 4, 8 and
+16 minutes, so the default five attempts (`EMAIL_MAX_DISPATCH_ATTEMPTS`) span
+30 minutes before the entry is marked `DEAD`. A periodic sweep re-queues
+anything left stuck `PENDING`: a never-attempted entry after
+`EMAIL_SWEEP_STALE_AFTER_SECONDS`, and one between retries only after
+`EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS`, which is longer than the longest
+retry wait. This keeps the email durable even if Celery/Redis is unavailable
+at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
 
 ```mermaid
 flowchart LR
     A[POST /auth/register] -->|same DB transaction| B[(email_outbox: PENDING)]
     A -->|.delay| C[Celery: dispatch_email]
     C -->|success| D[(email_outbox: SENT)]
-    C -->|failure, attempts < max| E[Celery retry with backoff]
+    C -->|failure, attempts < max| E[Celery retry after 2, 4, 8, 16 min]
     E --> C
     C -->|failure, attempts >= max| F[(email_outbox: DEAD)]
     G[Celery beat: sweep_pending_emails] -->|entries stale past threshold| B
