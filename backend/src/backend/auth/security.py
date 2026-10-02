@@ -1,9 +1,16 @@
 """Password hashing, access tokens, and opaque token generation.
 
-`hash_password` and `verify_password` are async and must be awaited. argon2id at
-the library defaults costs around 100 ms of CPU and 64 MiB per call, so calling
-it inline would stall the event loop, and every other request on that worker,
-for the duration. Both offload the work to a thread.
+`hash_password` and `verify_password` are async and must be awaited. argon2id
+costs tens of milliseconds of CPU per call, so calling it inline would stall the
+event loop, and every other request on that worker, for the duration. Both
+offload the work to a thread.
+
+The cost parameters are the [OWASP Password Storage Cheat Sheet][owasp] argon2id
+minimum, `m=19456, t=2, p=1`. `p=1` rather than the library's 4 because extra
+lanes finish one hash sooner while occupying a core each, which cuts how many
+concurrent logins a worker can serve.
+
+[owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
 """
 
 import asyncio
@@ -23,7 +30,7 @@ from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from backend.auth.config import AuthConfig
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 
-_password_hasher = PasswordHasher()
+_password_hasher = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 
 # Argon2 hash of an unguessable value, so a login for an unknown email pays the
 # same hashing cost as a real one.
@@ -31,13 +38,7 @@ DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
 
 async def hash_password(password: str) -> str:
-    """Hash a password for storage.
-
-    argon2id at `argon2-cffi`'s defaults, which track the
-    [OWASP Password Storage Cheat Sheet][owasp].
-
-    [owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-    """
+    """Hash a password for storage."""
     return await asyncio.to_thread(_password_hasher.hash, password)
 
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 import jwt.api_jwt
 import pytest
+from argon2 import PasswordHasher
 
 from backend.auth import security
 from backend.auth.config import AuthConfig
@@ -129,6 +130,21 @@ class TestPasswordHashingStaysOffTheEventLoop:
         task.cancel()
 
         assert ticks > 1
+
+
+class TestPasswordHashingCost:
+    """The cost parameters are a security setting, so a change has to be deliberate."""
+
+    async def test_hash_records_the_owasp_minimum_parameters(self):
+        hashed = await security.hash_password("correct horse battery staple")
+
+        assert "$m=19456,t=2,p=1$" in hashed
+
+    async def test_a_hash_made_with_the_previous_parameters_still_verifies(self):
+        """Parameters live in the hash string, so stored hashes need no migration."""
+        legacy = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4).hash("pw")
+
+        assert await security.verify_password("pw", legacy) is True
 
 
 class TestAccessToken:
