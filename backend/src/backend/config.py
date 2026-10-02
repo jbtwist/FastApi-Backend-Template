@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DATABASE_URL: PostgresDsn
+    DB_POOL_SIZE: int = Field(default=5, ge=1)
+    DB_MAX_OVERFLOW: int = Field(default=10, ge=0)
     API_BASE_URL: str = "http://localhost:8000"
     FRONTEND_BASE_URL: str = "http://localhost:8081"
     CORS_ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:8081"]

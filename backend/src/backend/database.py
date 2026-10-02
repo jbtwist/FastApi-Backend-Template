@@ -1,12 +1,28 @@
+"""Database engines and the request-scoped session dependency.
+
+Two engines: `engine` is pooled and serves requests, `worker_engine` uses
+`NullPool` because each Celery task's `asyncio.run()` is a fresh event loop and
+asyncpg connections are bound to the loop that opened them.
+
+One API process holds at most `DB_POOL_SIZE + DB_MAX_OVERFLOW` connections, so
+scaling out multiplies that by the replica count. Keep the product below
+Postgres' `max_connections`, or put a connection pooler in front.
+"""
+
 from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy import MetaData
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
 
-from backend.config import settings
+from backend.config import Settings, settings
 
 POSTGRES_INDEXES_NAMING_CONVENTION = {
     "ix": "%(column_0_label)s_idx",
@@ -22,7 +38,17 @@ class Base(DeclarativeBase):
     metadata = metadata
 
 
-engine = create_async_engine(str(settings.DATABASE_URL), pool_pre_ping=True)
+def build_engine(settings: Settings) -> AsyncEngine:
+    """Build the request-path engine, pooled to `settings`' limits."""
+    return create_async_engine(
+        str(settings.DATABASE_URL),
+        pool_pre_ping=True,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+    )
+
+
+engine = build_engine(settings)
 SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 
 
@@ -34,6 +60,5 @@ async def get_db() -> AsyncSession:
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
-# NullPool: each Celery task's asyncio.run() is a new loop, and asyncpg conns are loop-bound.
 worker_engine = create_async_engine(str(settings.DATABASE_URL), poolclass=NullPool)
 WorkerSessionFactory = async_sessionmaker(worker_engine, expire_on_commit=False)
