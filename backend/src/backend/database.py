@@ -7,6 +7,10 @@ asyncpg connections are bound to the loop that opened them.
 One API process holds at most `DB_POOL_SIZE + DB_MAX_OVERFLOW` connections, so
 scaling out multiplies that by the replica count. Keep the product below
 Postgres' `max_connections`, or put a connection pooler in front.
+
+A request that finds the pool full waits `DB_POOL_TIMEOUT` seconds and then
+fails, so saturation surfaces as errors that can be counted rather than as a
+service that appears to have stalled.
 """
 
 from typing import Annotated
@@ -45,6 +49,7 @@ def build_engine(settings: Settings) -> AsyncEngine:
         pool_pre_ping=True,
         pool_size=settings.DB_POOL_SIZE,
         max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT,
     )
 
 

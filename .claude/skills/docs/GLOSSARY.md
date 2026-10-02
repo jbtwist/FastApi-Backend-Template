@@ -103,6 +103,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Where the shared Redis instance lives; read by the rate limiter and the sign-in state store | `REDIS_URL` | `REDIS_DSN`, `CACHE_URL` |
 | How many pooled Postgres connections one API process holds open | `DB_POOL_SIZE` | `POOL_SIZE`, `DATABASE_POOL_SIZE`, `SQLALCHEMY_POOL_SIZE` |
 | How many connections beyond `DB_POOL_SIZE` one API process may open at a peak, closed again once the peak passes | `DB_MAX_OVERFLOW` | `MAX_OVERFLOW`, `POOL_OVERFLOW`, `DB_POOL_OVERFLOW` |
+| How many seconds a request waits for a pooled Postgres connection before giving up, so an exhausted pool fails instead of hanging | `DB_POOL_TIMEOUT` | `POOL_TIMEOUT`, `DB_POOL_WAIT`, `CHECKOUT_TIMEOUT` |
 | One pending sign-in attempt as the state store holds it: its `provider`, `nonce` and `redirect_target` | `SignInAttempt` | `OAuthState`, `PendingLogin` |
 | Where sign-in attempts wait between `start` and the exchange, each consumed at most once | `SignInStateStore` (Protocol), `RedisSignInStateStore` | `StateCache`, `OAuthSessionStore` |
 | Opening a sign-in attempt: mint its `state` and `nonce` and store it | `start_sign_in` | `begin_oauth`, `create_state` |

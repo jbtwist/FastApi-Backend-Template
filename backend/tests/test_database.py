@@ -39,6 +39,20 @@ class TestConnectionPoolSizing:
         with pytest.raises(ValidationError):
             _settings(DB_POOL_SIZE=-1)
 
+    def test_pool_timeout_comes_from_settings(self):
+        engine = build_engine(_settings(DB_POOL_TIMEOUT=7.5))
+
+        assert engine.pool._timeout == 7.5
+
+    def test_default_pool_timeout_fails_rather_than_hangs(self):
+        """SQLAlchemy's own default is 30 s, long enough that an exhausted pool
+        reads as a hung service instead of a saturated one."""
+        assert _settings().DB_POOL_TIMEOUT <= 5
+
+    def test_pool_timeout_rejects_zero(self):
+        with pytest.raises(ValidationError):
+            _settings(DB_POOL_TIMEOUT=0)
+
     def test_pool_size_rejects_zero(self):
         """SQLAlchemy reads `pool_size=0` as unbounded, which is never what an
         operator capping connections meant."""
