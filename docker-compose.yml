@@ -1,9 +1,16 @@
 # The real three-process shape: api, worker and beat from one image, behind a
 # proxy, with Postgres and Redis.
 #
-# Every setting defaults to its production value, and the secrets have no
-# default at all, so starting this with nothing configured fails instead of
-# quietly serving with a known JWT secret over insecure cookies.
+# The app itself requires DATABASE_URL, JWT_SECRET, CELERY_BROKER_URL,
+# CELERY_RESULT_BACKEND and FROM_EMAIL, and has a default for everything else.
+# This file withholds five more: REDIS_URL, API_BASE_URL, FRONTEND_BASE_URL,
+# CORS_ALLOWED_ORIGINS and POSTGRES_PASSWORD. The app defaults the first four to
+# localhost, which a deployment accepts and then misbehaves on, so here they
+# fail loudly instead; the fifth exists only for the bundled postgres.
+#
+# Where this file does choose a value it chooses the deployment one: secure
+# cookies, JSON logs, SES, the rate limiter and breach check on, and
+# --forwarded-allow-ips trusting only the loopback.
 #
 # Running it locally means supplying the overrides in deploy/local.env:
 #
@@ -40,6 +47,8 @@ x-backend-env: &backend-env
   FROM_EMAIL: ${FROM_EMAIL:?the address transactional mail is sent from}
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-ses}
   AWS_REGION: ${AWS_REGION:-eu-west-1}
+  # Read only when EMAIL_PROVIDER is smtp. These two keep the app's own
+  # defaults, which are local ones; deploy/local.env points them at mailpit.
   SMTP_HOST: ${SMTP_HOST:-localhost}
   SMTP_PORT: ${SMTP_PORT:-1025}
   # Both production behaviour. Turn them off for a load test: an enforced
@@ -168,7 +177,7 @@ services:
     restart: unless-stopped
 
   # Exactly one replica, always. Two beats means two schedules, so every
-  # sweep_pending_emails fires twice and stale outbox rows get dispatched twice.
+  # task is dispatched twice.
   beat:
     <<: *backend-image
     command:
