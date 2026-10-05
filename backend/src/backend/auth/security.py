@@ -1,10 +1,5 @@
 """Password hashing, access tokens, and opaque token generation.
 
-`hash_password` and `verify_password` are async and must be awaited. argon2id
-costs tens of milliseconds of CPU per call, so calling it inline would stall the
-event loop, and every other request on that worker, for the duration. Both
-offload the work to a thread.
-
 The cost parameters are the [OWASP Password Storage Cheat Sheet][owasp] argon2id
 minimum, `m=19456, t=2, p=1`. `p=1` rather than the library's 4 because extra
 lanes finish one hash sooner while occupying a core each, which cuts how many
