@@ -1,3 +1,13 @@
+"""Password hashing, access tokens, and opaque token generation.
+
+The cost parameters are the [OWASP Password Storage Cheat Sheet][owasp] argon2id
+minimum, `m=19456, t=2, p=1`. `p=1` rather than the library's 4 because extra
+lanes finish one hash sooner while occupying a core each, which cuts how many
+concurrent logins a worker can serve.
+
+[owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+"""
+
 import asyncio
 import contextlib
 import secrets
@@ -15,32 +25,26 @@ from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from backend.auth.config import AuthConfig
 from backend.auth.exceptions import AccessTokenExpired, InvalidAccessToken
 
-_password_hasher = PasswordHasher()
+_password_hasher = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 
 # Argon2 hash of an unguessable value, so a login for an unknown email pays the
 # same hashing cost as a real one.
 DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
 
-def hash_password(password: str) -> str:
-    """Hash a password for storage.
-
-    argon2id at `argon2-cffi`'s defaults, which track the
-    [OWASP Password Storage Cheat Sheet][owasp].
-
-    [owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-    """
-    return _password_hasher.hash(password)
+async def hash_password(password: str) -> str:
+    """Hash a password for storage."""
+    return await asyncio.to_thread(_password_hasher.hash, password)
 
 
-def verify_password(password: str, password_hash: str) -> bool:
+async def verify_password(password: str, password_hash: str) -> bool:
     """Check a password against a stored hash.
 
     Returns `False` rather than raising on a malformed or mismatched hash, so
     callers can compare against `DUMMY_PASSWORD_HASH` without a try/except.
     """
     try:
-        return _password_hasher.verify(password_hash, password)
+        return await asyncio.to_thread(_password_hasher.verify, password_hash, password)
     except VerifyMismatchError, InvalidHashError:
         return False
 

@@ -121,8 +121,9 @@ async def reset_password(
         )
         raise InvalidPasswordResetToken
 
+    new_password_hash = await hash_password(new_password)
     await user_repo.set_password_hash(
-        record.user_id, password_hash=hash_password(new_password), updated_at=now
+        record.user_id, password_hash=new_password_hash, updated_at=now
     )
     await refresh_token_repo.revoke_all_for_user(record.user_id, revoked_at=now)
     await password_reset_token_repo.invalidate_all_for_user(record.user_id, invalidated_at=now)

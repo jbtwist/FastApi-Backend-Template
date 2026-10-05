@@ -75,7 +75,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Store for email/timestamp of the last verification email, used to throttle resends | `PendingVerification` | `pending_verification` |
 | Whether two email addresses name the same account, ignoring case and surrounding whitespace as the backend does | `isSameEmail` | `emailsMatch`, `compareEmails` |
 | Middleware that answers an unhandled exception with a 500 from inside CORS, so the error still carries CORS headers | `ServerErrorAsResponse` | `ErrorMiddleware`, `CatchAllMiddleware` |
-| The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome; one setting per endpoint | `REGISTER_RESPONSE_FLOOR`, `FORGOT_PASSWORD_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 | Padding a block of work so it takes at least a given time, whatever its outcome — how an endpoint enforces its response floor | `minimum_duration` | `response_floor`, `add_response_floor`, `minimum_time` |
 | A link between a `user` and one account at a third-party sign-in provider — a credential of the `user`, never a second kind of user | `oauth_identity` (table `oauth_identity`) | `social_account`, `federated_identity`, `oauth_user` |
@@ -102,6 +101,9 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Public base URL of this API; what its own callback URLs are built from | `API_BASE_URL` | `BACKEND_URL`, `SERVER_URL` |
 | Public base URL of the frontend; what every link this app sends someone to is built from | `FRONTEND_BASE_URL` | `APP_URL`, `CLIENT_URL`, `WEB_URL` |
 | Where the shared Redis instance lives; read by the rate limiter and the sign-in state store | `REDIS_URL` | `REDIS_DSN`, `CACHE_URL` |
+| How many pooled Postgres connections one API process holds open | `DB_POOL_SIZE` | `POOL_SIZE`, `DATABASE_POOL_SIZE`, `SQLALCHEMY_POOL_SIZE` |
+| How many connections beyond `DB_POOL_SIZE` one API process may open at a peak, closed again once the peak passes | `DB_MAX_OVERFLOW` | `MAX_OVERFLOW`, `POOL_OVERFLOW`, `DB_POOL_OVERFLOW` |
+| How many seconds a request waits for a pooled Postgres connection before giving up, so an exhausted pool fails instead of hanging | `DB_POOL_TIMEOUT` | `POOL_TIMEOUT`, `DB_POOL_WAIT`, `CHECKOUT_TIMEOUT` |
 | One pending sign-in attempt as the state store holds it: its `provider`, `nonce` and `redirect_target` | `SignInAttempt` | `OAuthState`, `PendingLogin` |
 | Where sign-in attempts wait between `start` and the exchange, each consumed at most once | `SignInStateStore` (Protocol), `RedisSignInStateStore` | `StateCache`, `OAuthSessionStore` |
 | Opening a sign-in attempt: mint its `state` and `nonce` and store it | `start_sign_in` | `begin_oauth`, `create_state` |

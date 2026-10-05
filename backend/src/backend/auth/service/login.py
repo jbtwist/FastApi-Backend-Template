@@ -61,7 +61,7 @@ async def authenticate_user(user_repo: UserRepository, *, email: str, password: 
     normalized_email = email.strip().lower()
     user = await user_repo.get_by_email(normalized_email)
     password_hash = user.password_hash if user is not None else None
-    password_valid = verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
+    password_valid = await verify_password(password, password_hash or DUMMY_PASSWORD_HASH)
 
     if user is None:
         audit.info("login.failed", reason="invalid_credentials")

@@ -52,7 +52,7 @@ def dispatch_email(entry_id: str) -> None:
     """Celery task: dispatch one outbox entry's email.
 
     The row's `kind` picks the template and sender, so one task covers every
-    email type. Celery retries a failure with exponential backoff, while the service counts 
+    email type. Celery retries a failure with exponential backoff, while the service counts
     `attempts` on the row and marks it `DEAD` at `EMAIL_MAX_DISPATCH_ATTEMPTS`.
     """
     _seed_correlation_id()
