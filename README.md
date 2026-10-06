@@ -3,8 +3,8 @@
 A ready-made backend for apps that need user accounts, so you don't have to build
 sign-up and login from scratch again.
 
-It's written in [FastAPI](https://fastapi.tiangolo.com/) (Python) and built to be
-an elastic microservice.
+It's written in [FastAPI](https://fastapi.tiangolo.com/) (Python) and is stateless, so
+you can run more copies of it when you need to.
 
 ## What you get
 
@@ -14,6 +14,42 @@ an elastic microservice.
 - **Rate limiting**, so nobody can attack your app.
 - **Email that doesn't get lost:** if the mail service is down, messages wait and go out later.
 - **Audit logs** of who did what and when.
+
+## Does a login API need to scale?
+
+Mostly not, and this template doesn't pretend it does. What it gets right is being *ready* to.
+
+The backend keeps no state of its own. Everything shared lives in Postgres and Redis,
+login tokens are checked without a database lookup, and rate limits are counted in Redis.
+That means any copy of the backend can answer any request, so running two copies or
+twenty takes no code changes. Being stateless costs almost nothing, and it's good design
+even if you only ever run one copy.
+
+The template is meant to be **a starting point, not a standalone auth service**. You add
+your own features next to `auth/` and `mail/`, and the whole app inherits the same
+stateless design. That's where the ability to scale actually pays off. If all you need is
+login, a hosted service (Keycloak, Auth0, Cognito...) may suit you better.
+
+There are still a few reasons a login API can need more than one copy:
+
+- **No downtime.** With two copies you can deploy one at a time, and a crash doesn't log
+  anyone out. This is the first reason to add a copy, long before traffic is.
+- **Passwords are expensive on purpose.** Each sign-up or login hashes a password with
+  argon2, which takes tens of milliseconds of CPU and about 19 MB of memory. One core
+  handles a few dozen logins per second. A launch day or a password-guessing attack can
+  fill a server, and that work spreads easily across copies.
+- **Sessions renew themselves.** Every active user refreshes their session about four
+  times an hour, and each refresh writes to the database. With 100,000 users online,
+  that's over 100 writes per second.
+
+When your app grows, scale it in this order, and only when you hit each limit:
+
+1. **One server, several workers.** Enough for most apps.
+2. **Two or more copies** behind the load balancer, so you don't go down.
+3. **A connection pooler** such as [PgBouncer](https://www.pgbouncer.org/). Every copy
+   opens its own database connections, so Postgres runs out of connections before the
+   backend runs out of CPU.
+4. **More copies**, once hashing passwords is what fills your CPUs.
 
 ## A frontend to try it with
 
