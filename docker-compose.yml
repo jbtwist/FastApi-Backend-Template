@@ -1,33 +1,34 @@
-# The real three-process shape: api, worker and beat from one image, behind a
-# proxy, with Postgres and Redis.
+# The deployable shape: api, worker and beat from one image, behind a proxy.
+# Postgres and Redis are not here; point DATABASE_URL, REDIS_URL and the Celery
+# URLs at managed services.
 #
 # The app itself requires DATABASE_URL, JWT_SECRET, CELERY_BROKER_URL,
 # CELERY_RESULT_BACKEND and FROM_EMAIL, and has a default for everything else.
-# This file withholds five more: REDIS_URL, API_BASE_URL, FRONTEND_BASE_URL,
-# CORS_ALLOWED_ORIGINS and POSTGRES_PASSWORD. The app defaults the first four to
-# localhost, which a deployment accepts and then misbehaves on, so here they
-# fail loudly instead; the fifth exists only for the bundled postgres.
+# This file withholds four more: REDIS_URL, API_BASE_URL, FRONTEND_BASE_URL and
+# CORS_ALLOWED_ORIGINS. The app defaults them to localhost, which a deployment
+# accepts and then misbehaves on, so here they fail loudly instead.
 #
 # Where this file does choose a value it chooses the deployment one: secure
 # cookies, JSON logs, SES, the rate limiter and breach check on, and
 # --forwarded-allow-ips trusting only the loopback.
 #
-# Running it locally means supplying the overrides in deploy/local.env:
+#   docker compose up -d --scale api=3 --scale worker=3
 #
-#   docker compose --env-file deploy/local.env up --build
-#   docker compose --env-file deploy/local.env up -d --scale api=3 --scale worker=3
+# Running it locally adds docker-compose.local.yml, which bundles postgres, redis
+# and mailpit, and the overrides in deploy/local.env:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up --build
 #
 # A shell variable still wins over the env file, which is how the load-test
 # variations work:
 #
 #   RATE_LIMIT_ENABLED=false PASSWORD_CHECK_PWNED=false \
-#     docker compose --env-file deploy/local.env up -d
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up -d
 #   PG_MAX_CONNECTIONS=40 DB_POOL_SIZE=10 \
-#     docker compose --env-file deploy/local.env up -d --scale api=4
-#
-# The bundled postgres, redis and mailpit services exist for that local use, and
-# publish on the loopback interface only. A real deployment points DATABASE_URL,
-# REDIS_URL and the Celery URLs at managed services and never starts these three.
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up -d --scale api=4
 
 x-backend-env: &backend-env
   DATABASE_URL: ${DATABASE_URL:?set it, or use deploy/local.env for the bundled postgres}
@@ -62,55 +63,10 @@ x-backend-image: &backend-image
     context: ./backend
   image: backend-template:local
   depends_on:
-    postgres:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
     migrate:
       condition: service_completed_successfully
 
 services:
-  # Local only. A real deployment uses a managed Postgres and points
-  # DATABASE_URL at it, leaving this service unused.
-  postgres:
-    image: postgres:17-alpine
-    # Lowering max_connections locally is how to watch the pool ceiling bite on
-    # scale-out without running enough replicas to exhaust a real budget.
-    command: postgres -c max_connections=${PG_MAX_CONNECTIONS:-100}
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?no default, this is a credential}
-      POSTGRES_DB: ${POSTGRES_DB:-backend_template}
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-backend_template}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # Local only, as with postgres: production points REDIS_URL and the Celery
-  # URLs at a managed Redis.
-  redis:
-    image: redis:8-alpine
-    ports:
-      - "127.0.0.1:6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # Local only. Catches every outgoing email instead of delivering it; read them
-  # at http://localhost:8025. Production sets EMAIL_PROVIDER=ses.
-  mailpit:
-    image: axllent/mailpit:latest
-    ports:
-      - "127.0.0.1:1025:1025"
-      - "127.0.0.1:8025:8025"
-
   # Runs once and exits. api, worker and beat wait for it to succeed, so the
   # schema is in place before anything serves, and N api replicas never race
   # each other running migrations on startup.
@@ -122,9 +78,6 @@ services:
     environment:
       <<: *backend-env
     restart: "no"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   api:
     <<: *backend-image
@@ -207,6 +160,3 @@ services:
     depends_on:
       - api
     restart: unless-stopped
-
-volumes:
-  pgdata:
