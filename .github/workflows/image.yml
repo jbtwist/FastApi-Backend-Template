@@ -1,0 +1,58 @@
+name: Build and push the backend image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    # Skips cleanly until the deployment's OIDC role exists, so merges to main
+    # are not red before there is anywhere to push to. Set these as repository
+    # variables once Terraform has created the role and the registry:
+    #   AWS_ROLE_ARN    the role this workflow assumes, trusting this repo
+    #   AWS_REGION      e.g. eu-west-1
+    #   ECR_REPOSITORY  the repository name, not its full URI
+    if: ${{ vars.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # required to mint the OIDC token AWS exchanges for the role
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # OIDC, so no long-lived AWS key is ever stored in this repository.
+      - name: Assume the deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tagged by commit SHA alone: an ECS task definition pins an exact image,
+      # so a moving tag would make a deployment's contents unknowable after
+      # the fact, and a rollback ambiguous.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summarise
+        run: |
+          echo "Pushed \`${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}\`" \
+            >> "$GITHUB_STEP_SUMMARY"

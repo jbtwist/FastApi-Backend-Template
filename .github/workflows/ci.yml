@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # The suite builds its own `<name>_test` database with the real migrations
+    # and drops it afterwards, so the role needs CREATEDB. Every test that
+    # touches Redis uses fakeredis, so no Redis service is needed here.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Settings are read at import, so the required vars have to exist before
+      # anything imports the app. The example file's defaults match the
+      # postgres service above.
+      - name: Provide configuration
+        run: cp .env.example .env
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Check formatting
+        run: uv run ruff format --check src tests
+
+      - name: Test
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # .npmrc blocks dependency scripts and holds a release cooldown; `ci`
+      # installs the lockfile exactly, so neither changes what lands here.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Expo writes the typed-route union into .expo/, which is gitignored and
+      # only produced by `expo start` / `expo export`. A fresh checkout has
+      # none, so `Href` degrades to a permissive type and this step is weaker
+      # than the same command on a developer's machine. There is no
+      # `expo typegen` to close the gap without bundling the whole web app.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # --strict turns a broken link or a missing nav entry into a failure,
+      # which is the only way the published site stays correct.
+      - name: Build the docs
+        run: uv run --project backend --group docs mkdocs build --strict
