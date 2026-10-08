@@ -61,3 +61,18 @@ class TestDispatchRetrySchedule:
         retrying_stale_after = tasks.mail_settings.EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS
 
         assert retrying_stale_after > tasks.dispatch_email.retry_backoff_max
+
+
+class TestAbandonedClaimRecovery:
+    """A worker killed mid-send leaves its row `sending`; the sweep takes it back."""
+
+    def test_an_abandoned_claim_outlives_a_sweep_interval(self):
+        """Otherwise a sweep reclaims a row the previous sweep had just handed out."""
+        sending_stale_after = tasks.mail_settings.EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS
+
+        assert sending_stale_after > tasks.mail_settings.EMAIL_SWEEP_INTERVAL_SECONDS
+
+    def test_an_abandoned_claim_is_recovered_sooner_than_a_stalled_retry(self):
+        sending_stale_after = tasks.mail_settings.EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS
+
+        assert sending_stale_after < tasks.mail_settings.EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,25 +25,35 @@ class SentOAuthLinkEmail:
 
 
 class FakeEmailSender:
-    def __init__(self) -> None:
+    """Records what was sent.
+
+    A `gate` holds every send open until the test releases it, so two dispatches
+    can be left in flight at once.
+    """
+
+    def __init__(self, *, gate: asyncio.Event | None = None) -> None:
         self.sent: list[SentVerificationEmail] = []
         self.sent_password_reset: list[SentPasswordResetEmail] = []
         self.sent_oauth_link: list[SentOAuthLinkEmail] = []
         self.fail_with: Exception | None = None
+        self.gate = gate
 
-    async def send_verification_email(self, *, email: str, token: str) -> None:
+    async def _enter_send(self) -> None:
+        if self.gate is not None:
+            await self.gate.wait()
         if self.fail_with is not None:
             raise self.fail_with
+
+    async def send_verification_email(self, *, email: str, token: str) -> None:
+        await self._enter_send()
         self.sent.append(SentVerificationEmail(email=email, token=token))
 
     async def send_password_reset_email(self, *, email: str, token: str) -> None:
-        if self.fail_with is not None:
-            raise self.fail_with
+        await self._enter_send()
         self.sent_password_reset.append(SentPasswordResetEmail(email=email, token=token))
 
     async def send_oauth_link_email(self, *, email: str, token: str) -> None:
-        if self.fail_with is not None:
-            raise self.fail_with
+        await self._enter_send()
         self.sent_oauth_link.append(SentOAuthLinkEmail(email=email, token=token))
 
 
@@ -75,9 +86,37 @@ class FakeEmailOutboxRepository:
     async def get_by_id(self, entry_id: uuid.UUID) -> EmailOutboxEntry | None:
         return self._entries_by_id.get(entry_id)
 
+    async def claim_for_send(
+        self,
+        entry_id: uuid.UUID,
+        *,
+        now: datetime,
+        sending_stale_before: datetime | None = None,
+    ) -> EmailOutboxEntry | None:
+        entry = self._entries_by_id.get(entry_id)
+        if entry is None or not self._claimable(entry, sending_stale_before):
+            return None
+        entry.status = EmailOutboxStatus.SENDING
+        entry.last_attempted_at = now
+        return entry
+
+    @staticmethod
+    def _claimable(entry: EmailOutboxEntry, sending_stale_before: datetime | None) -> bool:
+        if entry.status == EmailOutboxStatus.PENDING:
+            return True
+        return (
+            entry.status == EmailOutboxStatus.SENDING
+            and sending_stale_before is not None
+            and entry.last_attempted_at is not None
+            and entry.last_attempted_at <= sending_stale_before
+        )
+
     async def mark_sent(self, entry_id: uuid.UUID, *, sent_at: datetime) -> bool:
         entry = self._entries_by_id.get(entry_id)
-        if entry is None or entry.status != EmailOutboxStatus.PENDING:
+        if entry is None or entry.status not in (
+            EmailOutboxStatus.PENDING,
+            EmailOutboxStatus.SENDING,
+        ):
             return False
         entry.status = EmailOutboxStatus.SENT
         entry.sent_at = sent_at
@@ -89,6 +128,8 @@ class FakeEmailOutboxRepository:
         entry = self._entries_by_id[entry_id]
         entry.attempts += 1
         entry.last_attempted_at = attempted_at
+        if entry.status == EmailOutboxStatus.SENDING:
+            entry.status = EmailOutboxStatus.PENDING
         return entry
 
     async def mark_dead(self, entry_id: uuid.UUID, *, failed_at: datetime) -> bool:
@@ -100,15 +141,34 @@ class FakeEmailOutboxRepository:
         return True
 
     async def list_stale_pending(
-        self, *, unattempted_before: datetime, attempted_before: datetime
+        self,
+        *,
+        unattempted_before: datetime,
+        attempted_before: datetime,
+        claimed_before: datetime | None = None,
     ) -> list[EmailOutboxEntry]:
         return [
             entry
             for entry in self._entries_by_id.values()
-            if entry.status == EmailOutboxStatus.PENDING
-            and (
-                entry.created_at <= unattempted_before
-                if entry.attempts == 0
-                else entry.last_attempted_at <= attempted_before
-            )
+            if self._is_stale_pending(entry, unattempted_before, attempted_before)
+            or self._is_abandoned_claim(entry, claimed_before)
         ]
+
+    @staticmethod
+    def _is_stale_pending(
+        entry: EmailOutboxEntry, unattempted_before: datetime, attempted_before: datetime
+    ) -> bool:
+        if entry.status != EmailOutboxStatus.PENDING:
+            return False
+        if entry.attempts == 0:
+            return entry.created_at <= unattempted_before
+        return entry.last_attempted_at <= attempted_before
+
+    @staticmethod
+    def _is_abandoned_claim(entry: EmailOutboxEntry, claimed_before: datetime | None) -> bool:
+        return (
+            entry.status == EmailOutboxStatus.SENDING
+            and claimed_before is not None
+            and entry.last_attempted_at is not None
+            and entry.last_attempted_at <= claimed_before
+        )

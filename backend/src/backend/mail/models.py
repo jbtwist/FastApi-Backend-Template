@@ -12,6 +12,7 @@ from backend.database import Base
 
 class EmailOutboxStatus(StrEnum):
     PENDING = "pending"
+    SENDING = "sending"
     SENT = "sent"
     DEAD = "dead"
 

@@ -41,12 +41,14 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Writing an outbox row without contacting the provider (generic mail-layer primitive) | `enqueue_email` | `queue_email`, `add_to_outbox` |
 | Auth-domain action: mint a verification token and put its email on the outbox | `queue_verification_email` | `send_verification_email` (misleading — doesn't send) |
 | The step that actually calls the email provider for one outbox entry, selecting template + sender by the row's `kind` | `dispatch_email` | `dispatch_verification_email`, `send_email`, `deliver_email` |
+| Taking exclusive ownership of a `pending` outbox row before calling the provider, so two workers cannot both send it | `claim_for_send` | `lock_entry`, `reserve_email`, `acquire` |
 | Which transactional email an outbox row carries | `EmailKind`: `verification`, `password_reset`, `oauth_link` | `email_type`, `template_name` |
-| The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sent`, `dead` | `queued`, `failed`, `completed` |
+| The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sending`, `sent`, `dead` | `queued`, `failed`, `completed`, `in_flight` |
 | Count of failed dispatch attempts on an outbox entry | `attempts` | `retry_count`, `tries` |
 | The periodic job that re-dispatches outbox entries stuck in `pending` | `sweep` (e.g. `sweep_pending_emails`) | `relay`, `reaper`, `poller` |
 | How long a never-attempted outbox entry sits before the sweep re-dispatches it | `EMAIL_SWEEP_STALE_AFTER_SECONDS` (cutoff arg `unattempted_before`) | `SWEEP_STALE_AFTER_SECONDS` |
 | How long an outbox entry between retries sits idle before the sweep re-dispatches it; longer than the longest retry wait | `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS` (cutoff arg `attempted_before`) | `EMAIL_RETRY_STALE_SECONDS` |
+| How long an outbox entry claimed as `sending` sits before the sweep assumes its worker died and re-dispatches it | `EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS` (cutoff arg `claimed_before`) | `EMAIL_SENDING_TIMEOUT`, `EMAIL_CLAIM_TTL` |
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |

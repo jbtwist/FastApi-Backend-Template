@@ -25,6 +25,7 @@ class MailConfig(BaseSettings):
     EMAIL_SWEEP_INTERVAL_SECONDS: int = 60
     EMAIL_SWEEP_STALE_AFTER_SECONDS: int = 120
     EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS: int = 1200
+    EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS: int = 300
 
 
 mail_settings = MailConfig()

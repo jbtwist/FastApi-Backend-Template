@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -6,6 +7,7 @@ from backend.mail import service
 from backend.mail.exceptions import EmailOutboxEntryNotFound
 from backend.mail.models import EmailKind, EmailOutboxStatus
 from tests.mail.fakes import (
+    FakeEmailSender,
     SentOAuthLinkEmail,
     SentPasswordResetEmail,
     SentVerificationEmail,
@@ -271,3 +273,154 @@ class TestListStalePendingEmails:
         stale = await self._stale(email_outbox_repo, now=NOW + timedelta(hours=1))
 
         assert stale == []
+
+
+class TestConcurrentDispatch:
+    """Two workers racing one outbox row must produce one email, not two.
+
+    The worker tier scales freely, so the same `entry_id` can reach two
+    processes at once: Celery redelivery, or the sweep re-queueing a row whose
+    first dispatch is still in flight.
+    """
+
+    async def _entry(self, email_outbox_repo):
+        return await email_outbox_repo.create(
+            user_id="user-1", email="ada@example.com", token="raw-token", created_at=NOW
+        )
+
+    async def test_two_concurrent_dispatches_send_one_email(self, email_outbox_repo):
+        gate = asyncio.Event()
+        email_sender = FakeEmailSender(gate=gate)
+        entry = await self._entry(email_outbox_repo)
+
+        both = asyncio.gather(
+            service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW),
+            service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW),
+        )
+        await asyncio.sleep(0)  # let both reach the gate
+        gate.set()
+        await both
+
+        assert email_sender.sent == [
+            SentVerificationEmail(email="ada@example.com", token="raw-token")
+        ]
+
+    async def test_the_loser_of_the_race_leaves_the_entry_sent(self, email_outbox_repo):
+        gate = asyncio.Event()
+        email_sender = FakeEmailSender(gate=gate)
+        entry = await self._entry(email_outbox_repo)
+
+        both = asyncio.gather(
+            service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW),
+            service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW),
+        )
+        await asyncio.sleep(0)
+        gate.set()
+        await both
+
+        updated = await email_outbox_repo.get_by_id(entry.id)
+        assert updated.status == EmailOutboxStatus.SENT
+
+    async def test_a_claimed_entry_is_not_dispatched_again(self, email_outbox_repo, email_sender):
+        entry = await self._entry(email_outbox_repo)
+        await email_outbox_repo.claim_for_send(entry.id, now=NOW)
+
+        await service.dispatch_email(email_outbox_repo, email_sender, entry.id, now=NOW)
+
+        assert email_sender.sent == []
+
+    async def test_claiming_moves_the_entry_out_of_pending(self, email_outbox_repo):
+        entry = await self._entry(email_outbox_repo)
+
+        claimed = await email_outbox_repo.claim_for_send(entry.id, now=NOW)
+
+        assert claimed is not None
+        assert claimed.status == EmailOutboxStatus.SENDING
+
+    async def test_a_second_claim_returns_none(self, email_outbox_repo):
+        entry = await self._entry(email_outbox_repo)
+        await email_outbox_repo.claim_for_send(entry.id, now=NOW)
+
+        assert await email_outbox_repo.claim_for_send(entry.id, now=NOW) is None
+
+    async def test_a_failed_send_releases_the_claim_for_the_retry(
+        self, email_outbox_repo, email_sender
+    ):
+        entry = await self._entry(email_outbox_repo)
+        email_sender.fail_with = RuntimeError("provider timeout")
+
+        with pytest.raises(RuntimeError):
+            await service.dispatch_email(
+                email_outbox_repo, email_sender, entry.id, now=NOW, max_attempts=3
+            )
+
+        updated = await email_outbox_repo.get_by_id(entry.id)
+        assert updated.status == EmailOutboxStatus.PENDING
+
+
+class TestAbandonedClaims:
+    """A worker killed mid-send leaves a row `sending` with nobody sending it.
+
+    Scaling the worker tier in makes this routine, so the sweep has to reclaim
+    the row, but only well past the point a real send could still be running.
+    """
+
+    async def _claimed(self, email_outbox_repo, *, at):
+        entry = await email_outbox_repo.create(
+            user_id="user-1", email="ada@example.com", token="raw-token", created_at=at
+        )
+        await email_outbox_repo.claim_for_send(entry.id, now=at)
+        return entry
+
+    async def test_a_stale_claim_is_swept(self, email_outbox_repo):
+        entry = await self._claimed(email_outbox_repo, at=NOW)
+
+        stale = await service.list_stale_pending_emails(
+            email_outbox_repo,
+            unattempted_before=NOW - timedelta(minutes=2),
+            attempted_before=NOW - timedelta(minutes=20),
+            claimed_before=NOW + timedelta(minutes=6),
+        )
+
+        assert [e.id for e in stale] == [entry.id]
+
+    async def test_a_fresh_claim_is_left_alone(self, email_outbox_repo):
+        await self._claimed(email_outbox_repo, at=NOW)
+
+        stale = await service.list_stale_pending_emails(
+            email_outbox_repo,
+            unattempted_before=NOW + timedelta(minutes=10),
+            attempted_before=NOW + timedelta(minutes=10),
+            claimed_before=NOW - timedelta(minutes=1),
+        )
+
+        assert stale == []
+
+    async def test_a_stale_claim_can_be_reclaimed_and_sent(self, email_outbox_repo, email_sender):
+        entry = await self._claimed(email_outbox_repo, at=NOW)
+        later = NOW + timedelta(minutes=10)
+
+        await service.dispatch_email(
+            email_outbox_repo,
+            email_sender,
+            entry.id,
+            now=later,
+            sending_stale_before=later - timedelta(minutes=5),
+        )
+
+        assert email_sender.sent == [
+            SentVerificationEmail(email="ada@example.com", token="raw-token")
+        ]
+
+    async def test_a_fresh_claim_cannot_be_stolen(self, email_outbox_repo, email_sender):
+        entry = await self._claimed(email_outbox_repo, at=NOW)
+
+        await service.dispatch_email(
+            email_outbox_repo,
+            email_sender,
+            entry.id,
+            now=NOW + timedelta(seconds=30),
+            sending_stale_before=NOW - timedelta(minutes=5),
+        )
+
+        assert email_sender.sent == []
