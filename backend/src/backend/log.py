@@ -37,6 +37,7 @@ from typing import Any
 
 AUDIT_LOGGER_NAME = "backend.audit"
 CORRELATION_ID_HEADER = b"x-request-id"
+INSTANCE_ID_HEADER = b"x-instance-id"
 MAX_CORRELATION_ID_LENGTH = 64
 USER_AGENT_HEADER = b"user-agent"
 MAX_USER_AGENT_LENGTH = 512
@@ -125,8 +126,19 @@ class CorrelationIdFilter(logging.Filter):
         return True
 
 
-class JsonLogFormatter(logging.Formatter):
+class _InstanceAwareFormatter(logging.Formatter):
+    """Base for the formatters, carrying the replica this process is."""
+
+    def __init__(self, *, instance_id: str | None = None) -> None:
+        super().__init__()
+        self.instance_id = instance_id
+
+
+class JsonLogFormatter(_InstanceAwareFormatter):
     """One JSON object per line.
+
+    `instance_id` names the replica every line came from, which is the only
+    way to tell a scaled-out fleet's lines apart once they are collected.
 
     Caller fields nest under `fields` rather than flattening into the envelope,
     so an audit field named `level` or `timestamp` cannot shadow the real one.
@@ -140,6 +152,7 @@ class JsonLogFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "correlation_id": getattr(record, "correlation_id", None),
+            "instance_id": self.instance_id,
         }
 
         event = getattr(record, "event", None)
@@ -160,8 +173,10 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-class ConsoleLogFormatter(logging.Formatter):
+class ConsoleLogFormatter(_InstanceAwareFormatter):
     """A readable line for local development: `HH:MM:SS LEVEL event key=value`.
+
+    Leaves `instance_id` out: local development runs one process.
 
     Nothing here is escaped, so control characters are stripped from the
     caller-supplied `user_agent`: a newline in it would forge a second line.
@@ -202,7 +217,7 @@ _FORMATTERS: dict[str, type[logging.Formatter]] = {
 _LIBRARY_LOGGERS = ("uvicorn", "uvicorn.access", "uvicorn.error", "celery")
 
 
-def configure_logging(*, level: str, log_format: str) -> None:
+def configure_logging(*, level: str, log_format: str, instance_id: str | None = None) -> None:
     """Point the root logger at stdout with one handler in the requested format.
 
     Replaces any handler already installed, so calling it twice leaves exactly
@@ -223,7 +238,7 @@ def configure_logging(*, level: str, log_format: str) -> None:
         )
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(formatter())
+    handler.setFormatter(formatter(instance_id=instance_id))
     handler.addFilter(CorrelationIdFilter())
 
     root = logging.getLogger()
@@ -258,10 +273,14 @@ class CorrelationIdMiddleware:
     `ip_address` is the ASGI `client`, never a header. Behind a reverse proxy,
     run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`; trusting a
     raw `X-Forwarded-For` would let any caller choose the address it is logged as.
+
+    The response carries the correlation id back, and names the replica that
+    served it, so a client can quote both and a reader can find the lines.
     """
 
-    def __init__(self, app: Any) -> None:
+    def __init__(self, app: Any, *, instance_id: str | None = None) -> None:
         self.app = app
+        self.instance_id = instance_id
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope["type"] != "http":
@@ -285,7 +304,21 @@ class CorrelationIdMiddleware:
             ),
         ]
         try:
-            await self.app(scope, receive, send)
+            await self.app(scope, receive, self._tagged(send, value))
         finally:
             for var, token in reversed(tokens):
                 var.reset(token)
+
+    def _tagged(self, send: Any, correlation: str) -> Any:
+        """Wrap `send` so the response head names its request and its replica."""
+
+        async def tagging_send(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                headers = [*(message.get("headers") or [])]
+                headers.append((CORRELATION_ID_HEADER, correlation.encode("latin-1")))
+                if self.instance_id is not None:
+                    headers.append((INSTANCE_ID_HEADER, self.instance_id.encode("latin-1")))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        return tagging_send

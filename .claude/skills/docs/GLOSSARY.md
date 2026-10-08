@@ -142,5 +142,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Field names never written to a log, replaced with `SCRUBBED` before the record exists | `SENSITIVE_FIELDS` | `redacted_fields`, `denylist`, `pii_fields` |
 | The minimum severity the app emits | `LOG_LEVEL` | `log_verbosity`, `verbosity` |
 | The shape records are written in, `json` or `console` | `LOG_FORMAT` | `log_style`, `log_output`, `formatter` |
-
-
+| Whether the process is alive at all: a static check that touches no dependency, and what the load balancer probes so one slow dependency cannot deregister every replica at once | `/health` (liveness) | `/healthz`, `/ping`, `/alive` |
+| Whether one replica can actually serve: its Postgres and Redis both answer. For deploy smoke tests and dashboards, never for the load balancer | `/readyz` (readiness) | `/ready`, `/health/deep`, `/status` |
+| The per-dependency outcome of a readiness probe | `ReadinessReport` (`database`, `redis`, `ready`) | `HealthStatus`, `ReadinessResult`, `Checks` |
+| Which replica served a request or wrote a log line | `instance_id` (env `INSTANCE_ID`, response header `X-Instance-Id`) | `replica_id`, `hostname`, `pod_name`, `node_id` |

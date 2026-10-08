@@ -10,11 +10,13 @@ plugin lives on the same logger.
 
 import json
 import logging
+import socket
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 
+from backend.config import Settings
 from backend.log import (
     AUDIT_LOGGER_NAME,
     MAX_CORRELATION_ID_LENGTH,
@@ -440,3 +442,125 @@ class TestClientContext:
         await middleware(self._scope(headers=[(b"user-agent", b"curl/8.0")]), None, None)
         assert ip_address.get() is None
         assert user_agent.get() is None
+
+
+class TestInstanceId:
+    """Which replica produced a line.
+
+    Without it a scaled-out fleet's logs are one undifferentiated stream, and
+    there is no way to confirm load is actually spread.
+    """
+
+    def test_the_setting_defaults_to_the_hostname(self):
+        assert Settings().INSTANCE_ID == socket.gethostname()
+
+    def test_an_explicit_instance_id_wins(self):
+        assert Settings(INSTANCE_ID="api-7").INSTANCE_ID == "api-7"
+
+    def test_the_json_envelope_carries_it(self, make_record):
+        payload = json.loads(JsonLogFormatter(instance_id="api-7").format(make_record()))
+        assert payload["instance_id"] == "api-7"
+
+    def test_an_audit_record_carries_it_too(self, make_record):
+        formatter = JsonLogFormatter(instance_id="api-7")
+        payload = json.loads(formatter.format(make_record(event="login.succeeded")))
+        assert payload["instance_id"] == "api-7"
+
+    def test_the_envelope_carries_none_when_unset(self, make_record):
+        payload = json.loads(JsonLogFormatter().format(make_record()))
+        assert payload["instance_id"] is None
+
+    def test_configure_logging_hands_it_to_the_formatter(self, restore_root_logger):
+        configure_logging(level="INFO", log_format="json", instance_id="api-7")
+
+        payload = json.loads(logging.getLogger().handlers[0].formatter.format(_bare_record()))
+        assert payload["instance_id"] == "api-7"
+
+
+def _bare_record() -> logging.LogRecord:
+    return logging.LogRecord(
+        name="backend.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="hello",
+        args=(),
+        exc_info=None,
+    )
+
+
+class TestResponseHeaders:
+    """What the client gets back, so a ticket can be tied to logs and a replica."""
+
+    @pytest.fixture
+    def captured(self) -> list[dict]:
+        return []
+
+    @pytest.fixture
+    def send(self, captured):
+        async def _send(message: dict) -> None:
+            captured.append(message)
+
+        return _send
+
+    @pytest.fixture
+    def middleware(self):
+        async def app(scope, receive, send):
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [(b"content-type", b"application/json")],
+                }
+            )
+            await send({"type": "http.response.body", "body": b"{}"})
+
+        return CorrelationIdMiddleware(app, instance_id="api-7")
+
+    @staticmethod
+    def _scope(headers: list[tuple[bytes, bytes]] | None = None) -> dict:
+        return {"type": "http", "headers": headers or []}
+
+    @staticmethod
+    def _response_headers(captured: list[dict]) -> dict[str, str]:
+        start = next(m for m in captured if m["type"] == "http.response.start")
+        return {key.decode(): value.decode() for key, value in start["headers"]}
+
+    @pytest.mark.asyncio
+    async def test_the_correlation_id_is_echoed_back(self, middleware, send, captured):
+        await middleware(self._scope(), None, send)
+
+        assert self._response_headers(captured)["x-request-id"]
+
+    @pytest.mark.asyncio
+    async def test_the_echoed_id_is_the_inbound_one(self, middleware, send, captured):
+        await middleware(self._scope([(b"x-request-id", b"abc-123")]), None, send)
+
+        assert self._response_headers(captured)["x-request-id"] == "abc-123"
+
+    @pytest.mark.asyncio
+    async def test_the_instance_id_is_returned(self, middleware, send, captured):
+        await middleware(self._scope(), None, send)
+
+        assert self._response_headers(captured)["x-instance-id"] == "api-7"
+
+    @pytest.mark.asyncio
+    async def test_the_app_s_own_headers_survive(self, middleware, send, captured):
+        await middleware(self._scope(), None, send)
+
+        assert self._response_headers(captured)["content-type"] == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_the_body_passes_through_untouched(self, middleware, send, captured):
+        await middleware(self._scope(), None, send)
+
+        assert {"type": "http.response.body", "body": b"{}"} in captured
+
+    @pytest.mark.asyncio
+    async def test_no_instance_header_when_the_middleware_has_no_id(self, send, captured):
+        async def app(scope, receive, send):
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+
+        await CorrelationIdMiddleware(app)(self._scope(), None, send)
+
+        assert "x-instance-id" not in self._response_headers(captured)

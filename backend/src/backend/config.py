@@ -1,3 +1,4 @@
+import socket
 from typing import Annotated, Literal
 
 from pydantic import Field, PostgresDsn, field_validator
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: Literal["json", "console"] = "console"
+    INSTANCE_ID: str = Field(default_factory=socket.gethostname)
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
     @classmethod

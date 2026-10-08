@@ -18,7 +18,11 @@ def _configure_worker_logging(**_kwargs: object) -> None:
     format. Connecting any receiver to `setup_logging` tells Celery to configure
     nothing and leave logging to the app.
     """
-    configure_logging(level=settings.LOG_LEVEL, log_format=settings.LOG_FORMAT)
+    configure_logging(
+        level=settings.LOG_LEVEL,
+        log_format=settings.LOG_FORMAT,
+        instance_id=settings.INSTANCE_ID,
+    )
 
 
 celery_app = Celery(
