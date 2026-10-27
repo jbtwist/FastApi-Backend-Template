@@ -1,9 +1,16 @@
+import asyncio
+import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
+
 import pytest
+import pytest_asyncio
 from pydantic import ValidationError
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from backend.config import Settings
-from backend.database import build_engine, worker_engine
+from backend.database import build_engine, call_after_commit, request_transaction, worker_engine
 
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/backend_template"
 
@@ -58,3 +65,116 @@ class TestConnectionPoolSizing:
         operator capping connections meant."""
         with pytest.raises(ValidationError):
             _settings(DB_POOL_SIZE=0)
+
+
+AFTER_COMMIT_EMAIL = "after-commit-{}@example.com"
+SESSION_LOOP = pytest.mark.asyncio(loop_scope="session")
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def committing_session_factory(
+    _db_engine: AsyncEngine,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions whose transactions really commit; the users they create are deleted after."""
+    yield async_sessionmaker(_db_engine, expire_on_commit=False)
+    async with _db_engine.begin() as conn:
+        await conn.execute(text("""DELETE FROM "user" WHERE email LIKE 'after-commit-%'"""))
+
+
+async def _insert_user(session: AsyncSession, email: str) -> None:
+    await session.execute(
+        text("""INSERT INTO "user" (id, email) VALUES (gen_random_uuid(), :email)"""),
+        {"email": email},
+    )
+
+
+class HandlerFailed(Exception):
+    pass
+
+
+def _setter(event: asyncio.Event) -> Callable[[], Awaitable[None]]:
+    async def set_event() -> None:
+        event.set()
+
+    return set_event
+
+
+class TestCallAfterCommit:
+    pytestmark = SESSION_LOOP
+
+    async def test_a_callback_sees_what_the_transaction_committed(
+        self, committing_session_factory, _db_engine
+    ):
+        """The reason it exists: a Celery worker must find the outbox row it was handed."""
+        email = AFTER_COMMIT_EMAIL.format("sees")
+        rows_seen: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+
+        async def count_rows() -> None:
+            async with _db_engine.connect() as conn:
+                query = text("""SELECT count(*) FROM "user" WHERE email = :email""")
+                rows_seen.set_result(await conn.scalar(query, {"email": email}))
+
+        async with request_transaction(committing_session_factory) as session:
+            await _insert_user(session, email)
+            call_after_commit(session, count_rows)
+
+        assert await asyncio.wait_for(rows_seen, timeout=2) == 1
+
+    async def test_a_rolled_back_transaction_runs_no_callback(self, committing_session_factory):
+        calls: list[str] = []
+
+        async def record() -> None:
+            calls.append("ran")
+
+        with pytest.raises(HandlerFailed):
+            async with request_transaction(committing_session_factory) as session:
+                call_after_commit(session, record)
+                raise HandlerFailed
+        await asyncio.sleep(0.05)
+
+        assert calls == []
+
+    async def test_the_transaction_returns_without_waiting_for_its_callbacks(
+        self, committing_session_factory
+    ):
+        """Awaiting a broker call here would make forgot-password slower for registered
+        addresses than for unknown ones, an enumeration timing oracle."""
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def blocks_until_released() -> None:
+            started.set()
+            await release.wait()
+
+        async def run_request() -> None:
+            async with request_transaction(committing_session_factory) as session:
+                call_after_commit(session, blocks_until_released)
+
+        await asyncio.wait_for(run_request(), timeout=2)
+        await asyncio.wait_for(started.wait(), timeout=2)
+        release.set()
+
+    async def test_every_registered_callback_runs(self, committing_session_factory):
+        done = {"first": asyncio.Event(), "second": asyncio.Event()}
+
+        async with request_transaction(committing_session_factory) as session:
+            call_after_commit(session, _setter(done["first"]))
+            call_after_commit(session, _setter(done["second"]))
+
+        await asyncio.wait_for(asyncio.gather(*(e.wait() for e in done.values())), timeout=2)
+
+    async def test_a_failing_callback_is_logged_and_does_not_fail_the_request(
+        self, committing_session_factory, caplog
+    ):
+        async def fails() -> None:
+            raise ValueError("broker down")
+
+        with caplog.at_level(logging.ERROR, logger="backend.database"):
+            async with request_transaction(committing_session_factory) as session:
+                call_after_commit(session, fails)
+            for _ in range(100):
+                if caplog.records:
+                    break
+                await asyncio.sleep(0.01)
+
+        assert len(caplog.records) == 1
+        assert caplog.records[0].exc_info[0] is ValueError

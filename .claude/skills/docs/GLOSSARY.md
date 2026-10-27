@@ -121,6 +121,8 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Refusal: the account with this email already has a provider identity (an account holds at most one) | `EmailLinkedToOtherProvider` | `AlreadyLinked`, `ProviderConflict` |
 | Which provider an account is already linked to, returned with `EmailLinkedToOtherProvider` so the client can name it | `linked_provider` | `existing_provider`, `other_provider` |
 | Firing the Celery dispatch for a freshly written outbox row, tolerating a broker outage | `queue_dispatch_email` | `_queue_dispatch`, `send_async` |
+| Scheduling work to start only once the request transaction has committed, never on rollback | `call_after_commit` | `on_commit`, `after_commit_hook`, `defer_until_commit` |
+| The request-scoped session and transaction `get_db` yields, which starts `call_after_commit` callbacks on commit | `request_transaction` | `unit_of_work`, `db_scope`, `transaction_scope` |
 | Setting both session cookies on a response, as every sign-in path does | `set_token_cookies` | `_set_token_cookies`, `add_session_cookies` |
 | Frontend screen that redeems an emailed `oauth_link_token` (`{FRONTEND_BASE_URL}/link-provider-confirm?token=…`) | `link-provider-confirm` | `link-account`, `confirm-link` |
 | An `AuthUiError` kind: this email's account is already linked to another provider, optionally naming it as `linkedProvider` | `oauth-email-linked-elsewhere` | `oauth-conflict`, `already-linked` |

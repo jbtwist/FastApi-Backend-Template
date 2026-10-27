@@ -29,9 +29,11 @@ from backend.auth.oauth.dependencies import (
 )
 from backend.auth.oauth.error_handlers import add_oauth_error_handlers
 from backend.config import settings
+from backend.database import get_db
 from backend.mail import tasks as mail_tasks
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.oauth.fakes import FakeOAuthProvider
+from tests.conftest import get_db_without_database, settle_after_commit
 
 FRONTEND = "https://app.backend-template.local"
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -79,6 +81,7 @@ async def client(
     add_oauth_error_handlers(app)
     app.dependency_overrides.update(
         {
+            get_db: get_db_without_database,
             get_auth_config: lambda: auth_config,
             get_oauth_config: lambda: oauth_config,
             get_enabled_providers: lambda: {provider.name: provider},
@@ -228,6 +231,7 @@ class TestNative:
 
         assert response.status_code == 202
         assert response.json() == {"status": "link_email_sent"}
+        await settle_after_commit()
         assert len(dispatch_calls) == 1
         assert "access_token" not in response.cookies
 
@@ -319,6 +323,7 @@ class TestCallback:
         response = await _callback(client, state=state, code=provider.assertion_for(nonce))
 
         assert _flags(response) == {"oauth_notice": "link_email_sent"}
+        await settle_after_commit()
         assert len(dispatch_calls) == 1
 
 
