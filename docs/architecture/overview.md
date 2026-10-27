@@ -128,8 +128,12 @@ sequenceDiagram
 
 Registration and resending verification don't call the email provider
 directly — they write a row to `email_outbox` in the same DB transaction as
-the triggering action, with an `EmailKind` to select the template, then
-queue a Celery task to dispatch it. A failed send is retried after 2, 4, 8 and
+the triggering action, with an `EmailKind` to select the template. Only once
+that transaction commits is a Celery task queued to dispatch it, so the worker
+always finds the row it was handed. The handler registers the dispatch with
+`call_after_commit`; the request session starts it as a background task after
+the commit and doesn't wait for it, so queuing adds nothing to the response time
+and a rolled-back request queues nothing. A failed send is retried after 2, 4, 8 and
 16 minutes, so the default five attempts (`EMAIL_MAX_DISPATCH_ATTEMPTS`) span
 30 minutes before the entry is marked `DEAD`. A periodic sweep re-queues
 anything left stuck `PENDING`: a never-attempted entry after
@@ -141,7 +145,7 @@ at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-be
 ```mermaid
 flowchart LR
     A[POST /auth/register] -->|same DB transaction| B[(email_outbox: PENDING)]
-    A -->|.delay| C[Celery: dispatch_email]
+    B -->|after commit, .delay| C[Celery: dispatch_email]
     C -->|success| D[(email_outbox: SENT)]
     C -->|failure, attempts < max| E[Celery retry after 2, 4, 8, 16 min]
     E --> C
