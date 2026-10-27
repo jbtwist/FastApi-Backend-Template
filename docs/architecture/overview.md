@@ -191,8 +191,18 @@ Scale in this order, and only when you hit each limit:
 2. Two or more replicas behind the load balancer, for availability.
 3. A connection pooler such as [PgBouncer](https://www.pgbouncer.org/). Each
    replica opens its own pool (`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`), so Postgres
-   runs out of connections before the API runs out of CPU.
+   runs out of connections before the API runs out of CPU. In a load test with
+   eight replicas capped at 8 connections each, Postgres peaked at 68 of the 79
+   connections a small managed instance (AWS `db.t4g.micro`) allows, so a ninth
+   replica needs a pooler or a larger instance.
 4. More replicas, once password hashing is what fills the CPUs.
+
+Scale the Celery worker together with the API. Each email send waits for the
+provider's round trip, so one worker process sends only a handful of emails per
+second, however many API replicas queue them. Signups beyond that rate are not
+lost: they wait `PENDING` in the outbox and the broker queue. But a burst the
+API absorbs in minutes can leave hours of verification emails behind. Add
+worker replicas, or raise their `--concurrency`, as you add API replicas.
 
 ## Decisions
 
