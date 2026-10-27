@@ -1,0 +1,73 @@
+name: Deploy to ECS
+
+# Rolls each image image.yml pushes from main out to the ECS cluster, via
+# deploy/ecs-deploy.sh. Run it by hand with an older commit's SHA to roll back
+# without rebuilding: images are tagged by SHA and immutable.
+#
+# Terraform creates the infrastructure; this workflow only moves the services
+# to a new image, with a role that can do nothing else. Running Terraform here
+# instead would need a remote state and a role able to change the network,
+# the database and IAM.
+
+on:
+  workflow_run:
+    workflows: ["Build and push the backend image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA whose image to deploy; it must already be in ECR
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Skips cleanly until the deploy role exists. Repository variables, besides
+    # the ones image.yml reads:
+    #   AWS_DEPLOY_ROLE_ARN  the role this job assumes, trusted from main only
+    #   ECS_CLUSTER          the cluster name; task definition families are <cluster>-<name>
+    if: >
+      vars.AWS_DEPLOY_ROLE_ARN != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # required to mint the OIDC token AWS exchanges for the role
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      SHA: ${{ inputs.sha || github.event.workflow_run.head_sha }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the SHA
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "not a full commit SHA: $SHA" >&2; exit 1; }
+
+      - name: Assume the deploy role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Check the image exists
+        run: aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$SHA" >/dev/null
+
+      - name: Deploy
+        run: |
+          registry="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com"
+          deploy/ecs-deploy.sh "$registry/$ECR_REPOSITORY:$SHA"
+
+      - name: Summarise
+        run: echo "Deployed \`$SHA\` to \`$ECS_CLUSTER\`" >> "$GITHUB_STEP_SUMMARY"
