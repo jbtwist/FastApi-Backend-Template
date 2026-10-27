@@ -139,8 +139,9 @@ and a rolled-back request queues nothing. A failed send is retried after 2, 4, 8
 anything left stuck `PENDING`: a never-attempted entry after
 `EMAIL_SWEEP_STALE_AFTER_SECONDS`, and one between retries only after
 `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS`, which is longer than the longest
-retry wait. This keeps the email durable even if Celery/Redis is unavailable
-at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
+retry wait. The sweep skips execution while dispatches are still queued in the broker,
+preventing duplicate re-queueing when workers fall behind. This keeps the email durable
+even if Celery/Redis is unavailable at the moment of the request. See [ADR 3](decisions/0003-durable-email-outbox-before-dispatch.md).
 
 ```mermaid
 flowchart LR
