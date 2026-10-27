@@ -1,6 +1,7 @@
 """`/auth` endpoints: registration, login, refresh, logout, email verification, password reset."""
 
 from datetime import UTC, datetime
+from functools import partial
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
@@ -49,6 +50,7 @@ from backend.auth.schemas import (
     UserOut,
 )
 from backend.auth.security import minimum_duration
+from backend.database import DbDep, call_after_commit
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import queue_dispatch_email
 from backend.rate_limit import rate_limit
@@ -94,6 +96,7 @@ async def register(
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
     pwned_checker: PwnedPasswordCheckerDep,
+    db: DbDep,
 ) -> None:
     """Register an account and queue its verification email.
 
@@ -113,7 +116,7 @@ async def register(
         entry = await service.queue_verification_email(
             token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
         )
-        await queue_dispatch_email(str(entry.id))
+        call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
 
 
 @router.post(
@@ -245,6 +248,7 @@ async def resend_verification(
     user_repo: UserRepoDep,
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
+    db: DbDep,
 ) -> None:
     """Re-queue the verification email.
 
@@ -259,7 +263,7 @@ async def resend_verification(
         now=datetime.now(UTC),
     )
     if entry is not None:
-        await queue_dispatch_email(str(entry.id))
+        call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
 
 
 @router.post(
@@ -273,6 +277,7 @@ async def forgot_password(
     user_repo: UserRepoDep,
     outbox_repo: EmailOutboxRepoDep,
     config: AuthConfigDep,
+    db: DbDep,
 ) -> None:
     """Start a password reset.
 
@@ -289,7 +294,7 @@ async def forgot_password(
             now=datetime.now(UTC),
         )
         if entry is not None:
-            await queue_dispatch_email(str(entry.id))
+            call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
 
 
 @router.post(

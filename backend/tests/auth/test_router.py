@@ -31,6 +31,7 @@ from backend.auth.dependencies import (
 from backend.auth.error_handlers import add_auth_error_handlers
 from backend.auth.exceptions import InvalidCredentials, InvalidRefreshToken
 from backend.auth.security import hash_opaque_token
+from backend.database import get_db
 from backend.mail import tasks as mail_tasks
 from backend.mail.dependencies import get_email_outbox_repo
 from tests.auth.fakes import (
@@ -39,6 +40,7 @@ from tests.auth.fakes import (
     FakeRefreshTokenRepository,
     FakeUserRepository,
 )
+from tests.conftest import get_db_without_database, settle_after_commit
 from tests.mail.fakes import FakeEmailOutboxRepository
 
 TEST_JWT_SECRET = "test-secret-1234567890123456789012345678901234567890123456789012"
@@ -137,6 +139,7 @@ async def client(
     add_auth_error_handlers(app)
     app.dependency_overrides.update(
         {
+            get_db: get_db_without_database,
             get_auth_config: lambda: app_config,
             get_user_repo: lambda: user_repo,
             get_password_reset_token_repo: lambda: reset_token_repo,
@@ -169,6 +172,7 @@ class TestForgotPassword:
         queued = list(outbox_repo._entries_by_id.values())
         assert len(queued) == 1
         assert queued[0].email == "ada@example.com"
+        await settle_after_commit()
         assert len(dispatch_calls) == 1
 
     async def test_unknown_email_gets_identical_204_and_queues_nothing(
@@ -179,6 +183,7 @@ class TestForgotPassword:
         assert res.status_code == 204
         assert res.content == b""
         assert list(outbox_repo._entries_by_id.values()) == []
+        await settle_after_commit()
         assert dispatch_calls == []
 
     async def test_unverified_email_gets_identical_204_and_queues_nothing(
@@ -340,6 +345,7 @@ class TestRegister:
         queued = list(outbox_repo._entries_by_id.values())
         assert len(queued) == 1
         assert queued[0].email == "new@example.com"
+        await settle_after_commit()
         assert len(dispatch_calls) == 1
 
     async def test_email_is_normalized_before_storage(self, client, user_repo):
@@ -409,6 +415,7 @@ class TestRegisterEnumerationSafety:
             user_repo, email="ada@example.com", password="s3cret-pw"
         )
         assert list(outbox_repo._entries_by_id.values()) == []
+        await settle_after_commit()
         assert dispatch_calls == []
 
     async def test_existing_unverified_email_is_a_silent_204_no_op(
