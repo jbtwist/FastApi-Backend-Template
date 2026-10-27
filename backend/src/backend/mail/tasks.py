@@ -3,7 +3,7 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from celery import current_task
+from celery import Celery, current_task
 
 from backend.database import WorkerSessionFactory
 from backend.log import correlation_id, new_correlation_id
@@ -62,6 +62,13 @@ def dispatch_email(entry_id: str) -> None:
     asyncio.run(_dispatch_email(entry_id))
 
 
+def broker_queue_depth(app: Celery) -> int:
+    """Count the messages waiting in `app`'s default queue, not yet taken by a worker."""
+    with app.connection_for_read() as conn:
+        declared = conn.default_channel.queue_declare(queue=app.conf.task_default_queue)
+    return declared.message_count
+
+
 async def _sweep_pending_emails() -> list[str]:
     now = datetime.now(UTC)
     async with WorkerSessionFactory() as db, db.begin():
@@ -88,9 +95,15 @@ def sweep_pending_emails() -> None:
     rows abandoned mid-send after `EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS`.
 
     A safety net, not the delivery path: the endpoints that enqueue email already
-    queue dispatch directly.
+    queue dispatch directly. Skips the run while the broker queue holds dispatches:
+    a stale row is then most likely still queued behind a backlog, and re-queueing
+    every one each run would flood the broker with copies.
     """
     _seed_correlation_id()
+    depth = broker_queue_depth(celery_app)
+    if depth:
+        logger.info("sweep skipped: %d dispatches still queued", depth)
+        return
     for entry_id in asyncio.run(_sweep_pending_emails()):
         dispatch_email.delay(entry_id)
 

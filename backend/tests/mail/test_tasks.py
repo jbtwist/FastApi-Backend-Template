@@ -2,36 +2,112 @@
 
 The dispatch path is a single task (`dispatch_email`); the outbox row's `kind`
 decides which template/sender it uses (covered in tests/mail/test_service.py).
-The sweep re-dispatches every stale PENDING row through that one task.
+The sweep re-dispatches every stale PENDING row through that one task, unless
+the broker queue still holds dispatches.
 """
+
+import uuid
+from collections.abc import Callable, Iterator
+
+import pytest
+from celery import Celery
 
 from backend.mail import tasks
 
 
+@pytest.fixture
+def broker_queue_depth(monkeypatch) -> Callable[[int], None]:
+    """Set what `tasks.broker_queue_depth` reports, instead of asking the real broker."""
+
+    def set_depth(depth: int) -> None:
+        monkeypatch.setattr(tasks, "broker_queue_depth", lambda _app: depth)
+
+    return set_depth
+
+
+@pytest.fixture
+def dispatched(monkeypatch) -> list[str]:
+    """Entry ids passed to `dispatch_email.delay`, in order."""
+    sent: list[str] = []
+    monkeypatch.setattr(tasks.dispatch_email, "delay", sent.append)
+    return sent
+
+
 class TestSweepPendingEmails:
-    def test_redispatches_every_stale_entry_through_the_single_task(self, monkeypatch):
+    def test_redispatches_every_stale_entry_through_the_single_task(
+        self, monkeypatch, broker_queue_depth, dispatched
+    ):
         async def fake_sweep() -> list[str]:
             return ["id-1", "id-2", "id-3"]
 
-        dispatched: list[str] = []
+        broker_queue_depth(0)
         monkeypatch.setattr(tasks, "_sweep_pending_emails", fake_sweep)
-        monkeypatch.setattr(tasks.dispatch_email, "delay", dispatched.append)
 
         tasks.sweep_pending_emails()
 
         assert dispatched == ["id-1", "id-2", "id-3"]
 
-    def test_no_stale_entries_dispatches_nothing(self, monkeypatch):
+    def test_no_stale_entries_dispatches_nothing(self, monkeypatch, broker_queue_depth, dispatched):
         async def fake_sweep() -> list[str]:
             return []
 
-        dispatched: list[str] = []
+        broker_queue_depth(0)
         monkeypatch.setattr(tasks, "_sweep_pending_emails", fake_sweep)
-        monkeypatch.setattr(tasks.dispatch_email, "delay", dispatched.append)
 
         tasks.sweep_pending_emails()
 
         assert dispatched == []
+
+    @pytest.mark.parametrize("depth", [1, 30_000])
+    def test_skips_while_dispatches_are_still_waiting_in_the_broker(
+        self, monkeypatch, broker_queue_depth, dispatched, depth
+    ):
+        """A stale row may just be queued behind a backlog; re-queueing it only adds a copy."""
+        swept = False
+
+        async def fake_sweep() -> list[str]:
+            nonlocal swept
+            swept = True
+            return ["id-1"]
+
+        broker_queue_depth(depth)
+        monkeypatch.setattr(tasks, "_sweep_pending_emails", fake_sweep)
+
+        tasks.sweep_pending_emails()
+
+        assert dispatched == []
+        assert swept is False
+
+
+@pytest.fixture
+def memory_celery_app() -> Iterator[Celery]:
+    """A Celery app on kombu's in-process memory broker, with a queue of its own."""
+    app = Celery("test", broker="memory://")
+    app.conf.task_default_queue = f"test-{uuid.uuid4().hex}"
+    yield app
+    with app.connection_for_write() as conn:
+        conn.default_channel.queue_purge(app.conf.task_default_queue)
+
+
+class TestBrokerQueueDepth:
+    def test_an_empty_queue_has_depth_zero(self, memory_celery_app):
+        assert tasks.broker_queue_depth(memory_celery_app) == 0
+
+    def test_counts_every_message_waiting_in_the_default_queue(self, memory_celery_app):
+        for _ in range(3):
+            memory_celery_app.send_task("backend.mail.tasks.dispatch_email", args=["id"])
+
+        assert tasks.broker_queue_depth(memory_celery_app) == 3
+
+    def test_ignores_messages_on_other_queues(self, memory_celery_app):
+        other = f"other-{uuid.uuid4().hex}"
+        memory_celery_app.send_task("backend.mail.tasks.dispatch_email", args=["id"], queue=other)
+
+        try:
+            assert tasks.broker_queue_depth(memory_celery_app) == 0
+        finally:
+            with memory_celery_app.connection_for_write() as conn:
+                conn.default_channel.queue_purge(other)
 
 
 class TestTaskRegistration:
