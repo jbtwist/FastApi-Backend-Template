@@ -41,12 +41,14 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Writing an outbox row without contacting the provider (generic mail-layer primitive) | `enqueue_email` | `queue_email`, `add_to_outbox` |
 | Auth-domain action: mint a verification token and put its email on the outbox | `queue_verification_email` | `send_verification_email` (misleading — doesn't send) |
 | The step that actually calls the email provider for one outbox entry, selecting template + sender by the row's `kind` | `dispatch_email` | `dispatch_verification_email`, `send_email`, `deliver_email` |
+| Taking exclusive ownership of a `pending` outbox row before calling the provider, so two workers cannot both send it | `claim_for_send` | `lock_entry`, `reserve_email`, `acquire` |
 | Which transactional email an outbox row carries | `EmailKind`: `verification`, `password_reset`, `oauth_link` | `email_type`, `template_name` |
-| The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sent`, `dead` | `queued`, `failed`, `completed` |
+| The lifecycle states of an outbox entry | `EmailOutboxStatus`: `pending`, `sending`, `sent`, `dead` | `queued`, `failed`, `completed`, `in_flight` |
 | Count of failed dispatch attempts on an outbox entry | `attempts` | `retry_count`, `tries` |
 | The periodic job that re-dispatches outbox entries stuck in `pending` | `sweep` (e.g. `sweep_pending_emails`) | `relay`, `reaper`, `poller` |
 | How long a never-attempted outbox entry sits before the sweep re-dispatches it | `EMAIL_SWEEP_STALE_AFTER_SECONDS` (cutoff arg `unattempted_before`) | `SWEEP_STALE_AFTER_SECONDS` |
 | How long an outbox entry between retries sits idle before the sweep re-dispatches it; longer than the longest retry wait | `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS` (cutoff arg `attempted_before`) | `EMAIL_RETRY_STALE_SECONDS` |
+| How long an outbox entry claimed as `sending` sits before the sweep assumes its worker died and re-dispatches it | `EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS` (cutoff arg `claimed_before`) | `EMAIL_SENDING_TIMEOUT`, `EMAIL_CLAIM_TTL` |
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |
@@ -75,7 +77,6 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Store for email/timestamp of the last verification email, used to throttle resends | `PendingVerification` | `pending_verification` |
 | Whether two email addresses name the same account, ignoring case and surrounding whitespace as the backend does | `isSameEmail` | `emailsMatch`, `compareEmails` |
 | Middleware that answers an unhandled exception with a 500 from inside CORS, so the error still carries CORS headers | `ServerErrorAsResponse` | `ErrorMiddleware`, `CatchAllMiddleware` |
-| The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome | `REGISTER_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 | The minimum time an enumeration-safe endpoint will take to respond, regardless of the outcome; one setting per endpoint | `REGISTER_RESPONSE_FLOOR`, `FORGOT_PASSWORD_RESPONSE_FLOOR` | `response_floor`, `min_response_time` |
 | Padding a block of work so it takes at least a given time, whatever its outcome — how an endpoint enforces its response floor | `minimum_duration` | `response_floor`, `add_response_floor`, `minimum_time` |
 | A link between a `user` and one account at a third-party sign-in provider — a credential of the `user`, never a second kind of user | `oauth_identity` (table `oauth_identity`) | `social_account`, `federated_identity`, `oauth_user` |
@@ -102,6 +103,9 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Public base URL of this API; what its own callback URLs are built from | `API_BASE_URL` | `BACKEND_URL`, `SERVER_URL` |
 | Public base URL of the frontend; what every link this app sends someone to is built from | `FRONTEND_BASE_URL` | `APP_URL`, `CLIENT_URL`, `WEB_URL` |
 | Where the shared Redis instance lives; read by the rate limiter and the sign-in state store | `REDIS_URL` | `REDIS_DSN`, `CACHE_URL` |
+| How many pooled Postgres connections one API process holds open | `DB_POOL_SIZE` | `POOL_SIZE`, `DATABASE_POOL_SIZE`, `SQLALCHEMY_POOL_SIZE` |
+| How many connections beyond `DB_POOL_SIZE` one API process may open at a peak, closed again once the peak passes | `DB_MAX_OVERFLOW` | `MAX_OVERFLOW`, `POOL_OVERFLOW`, `DB_POOL_OVERFLOW` |
+| How many seconds a request waits for a pooled Postgres connection before giving up, so an exhausted pool fails instead of hanging | `DB_POOL_TIMEOUT` | `POOL_TIMEOUT`, `DB_POOL_WAIT`, `CHECKOUT_TIMEOUT` |
 | One pending sign-in attempt as the state store holds it: its `provider`, `nonce` and `redirect_target` | `SignInAttempt` | `OAuthState`, `PendingLogin` |
 | Where sign-in attempts wait between `start` and the exchange, each consumed at most once | `SignInStateStore` (Protocol), `RedisSignInStateStore` | `StateCache`, `OAuthSessionStore` |
 | Opening a sign-in attempt: mint its `state` and `nonce` and store it | `start_sign_in` | `begin_oauth`, `create_state` |
@@ -138,5 +142,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | Field names never written to a log, replaced with `SCRUBBED` before the record exists | `SENSITIVE_FIELDS` | `redacted_fields`, `denylist`, `pii_fields` |
 | The minimum severity the app emits | `LOG_LEVEL` | `log_verbosity`, `verbosity` |
 | The shape records are written in, `json` or `console` | `LOG_FORMAT` | `log_style`, `log_output`, `formatter` |
-
-
+| Whether the process is alive at all: a static check that touches no dependency, and what the load balancer probes so one slow dependency cannot deregister every replica at once | `/health` (liveness) | `/healthz`, `/ping`, `/alive` |
+| Whether one replica can actually serve: its Postgres and Redis both answer. For deploy smoke tests and dashboards, never for the load balancer | `/readyz` (readiness) | `/ready`, `/health/deep`, `/status` |
+| The per-dependency outcome of a readiness probe | `ReadinessReport` (`database`, `redis`, `ready`) | `HealthStatus`, `ReadinessResult`, `Checks` |
+| Which replica served a request or wrote a log line | `instance_id` (env `INSTANCE_ID`, response header `X-Instance-Id`) | `replica_id`, `hostname`, `pod_name`, `node_id` |

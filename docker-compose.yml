@@ -1,0 +1,162 @@
+# The deployable shape: api, worker and beat from one image, behind a proxy.
+# Postgres and Redis are not here; point DATABASE_URL, REDIS_URL and the Celery
+# URLs at managed services.
+#
+# The app itself requires DATABASE_URL, JWT_SECRET, CELERY_BROKER_URL,
+# CELERY_RESULT_BACKEND and FROM_EMAIL, and has a default for everything else.
+# This file withholds four more: REDIS_URL, API_BASE_URL, FRONTEND_BASE_URL and
+# CORS_ALLOWED_ORIGINS. The app defaults them to localhost, which a deployment
+# accepts and then misbehaves on, so here they fail loudly instead.
+#
+# Where this file does choose a value it chooses the deployment one: secure
+# cookies, JSON logs, SES, the rate limiter and breach check on, and
+# --forwarded-allow-ips trusting only the loopback.
+#
+#   docker compose up -d --scale api=3 --scale worker=3
+#
+# Running it locally adds docker-compose.local.yml, which bundles postgres, redis
+# and mailpit, and the overrides in deploy/local.env:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up --build
+#
+# A shell variable still wins over the env file, which is how the load-test
+# variations work:
+#
+#   RATE_LIMIT_ENABLED=false PASSWORD_CHECK_PWNED=false \
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up -d
+#   PG_MAX_CONNECTIONS=40 DB_POOL_SIZE=10 \
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up -d --scale api=4
+
+x-backend-env: &backend-env
+  DATABASE_URL: ${DATABASE_URL:?set it, or use deploy/local.env for the bundled postgres}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+  DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+  DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-3}
+  REDIS_URL: ${REDIS_URL:?set it, or use deploy/local.env for the bundled redis}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:?set it, or use deploy/local.env}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?set it, or use deploy/local.env}
+  API_BASE_URL: ${API_BASE_URL:?the public URL of this API, callback URLs are built from it}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?the public URL of the frontend, emailed links use it}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?comma separated, no wildcard}
+  JWT_SECRET: ${JWT_SECRET:?generate one per environment, never reuse or commit it}
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-json}
+  FROM_EMAIL: ${FROM_EMAIL:?the address transactional mail is sent from}
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-ses}
+  AWS_REGION: ${AWS_REGION:-eu-west-1}
+  # Read only when EMAIL_PROVIDER is smtp. These two keep the app's own
+  # defaults, which are local ones; deploy/local.env points them at mailpit.
+  SMTP_HOST: ${SMTP_HOST:-localhost}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  # Both production behaviour. Turn them off for a load test: an enforced
+  # limiter measures the limiter, and the breach check is an outbound call to
+  # api.pwnedpasswords.com in the register/reset path.
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+  PASSWORD_CHECK_PWNED: ${PASSWORD_CHECK_PWNED:-true}
+
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+  image: backend-template:local
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  # Runs once and exits. api, worker and beat wait for it to succeed, so the
+  # schema is in place before anything serves, and N api replicas never race
+  # each other running migrations on startup.
+  migrate:
+    build:
+      context: ./backend
+    image: backend-template:local
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-env
+    restart: "no"
+
+  api:
+    <<: *backend-image
+    command:
+      - uvicorn
+      - backend.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - "1"
+      - --proxy-headers
+      # Who may set X-Forwarded-For, which audit events read the client address
+      # from. Defaults to uvicorn's own 127.0.0.1; a deployment names its load
+      # balancer, and deploy/local.env uses "*" because the nginx container's
+      # address is assigned by Docker and cannot be named ahead of time.
+      - --forwarded-allow-ips
+      - ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    environment:
+      <<: *backend-env
+    # No host port, so `--scale api=N` can't collide. Reach it through nginx.
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  worker:
+    <<: *backend-image
+    command:
+      - celery
+      - -A
+      - backend.mail.celery_app
+      - worker
+      - --loglevel
+      - INFO
+      - --concurrency
+      - ${CELERY_CONCURRENCY:-4}
+    environment:
+      <<: *backend-env
+    restart: unless-stopped
+
+  # Exactly one replica, always. Two beats means two schedules, so every
+  # task is dispatched twice.
+  beat:
+    <<: *backend-image
+    command:
+      - celery
+      - -A
+      - backend.mail.celery_app
+      - beat
+      - --loglevel
+      - INFO
+      # /app is root-owned and the container runs as uid 10001, so beat's
+      # schedule file has to live somewhere writable.
+      - --schedule
+      - /tmp/celerybeat-schedule
+    environment:
+      <<: *backend-env
+    restart: unless-stopped
+    scale: 1
+
+  # Stands in for the load balancer a deployment would already have, and gives
+  # the api replicas one stable address. See deploy/nginx.conf.
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${API_PUBLISH:-127.0.0.1:8000}:8000"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,19 +1,75 @@
 # Backend Template
 
 A ready-made backend for apps that need user accounts, so you don't have to build
-sign-up and login from scratch again.
-
-It's written in [FastAPI](https://fastapi.tiangolo.com/) (Python) and built to be
-an elastic microservice.
+sign-up and login from scratch again. It's written in
+[FastAPI](https://fastapi.tiangolo.com/) (Python), and comes with a demo app to click
+through it.
 
 ## What you get
 
 - **Accounts:** sign up, confirm your email, log in, log out, forgot and reset password.
 - **Sign in with Google and Apple**, linked safely to existing accounts.
 - **Sessions that renew themselves**, with detection of stolen login tokens.
-- **Rate limiting**, so nobody can attack your app.
+- **Rate limiting** that slows down password guessing and other abuse.
 - **Email that doesn't get lost:** if the mail service is down, messages wait and go out later.
 - **Audit logs** of who did what and when.
+
+## Try it
+
+You need [Docker](https://docs.docker.com/get-docker/). From the root of the project:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
+  --env-file deploy/local.env up --build
+```
+
+The API answers on <http://localhost:8000> (interactive docs at `/docs`), and every email
+it sends lands in Mailpit at <http://localhost:8025>. To work on the code itself you'll
+also want [uv](https://docs.astral.sh/uv/) for the backend and Node.js for the frontend;
+[Getting started](docs/getting-started/index.md) walks through both.
+
+## How it runs
+
+```mermaid
+flowchart LR
+    Client["Client<br/>(phone app / browser)"] --> LB[Load balancer]
+    CDN["Static host / CDN<br/>(web build)"] -.serves.-> Client
+    LB --> A[Backend A] & B[Backend B] & C[Backend C]
+
+    A & B & C --> PG[(Postgres)]
+    A & B & C --> R[("Redis<br/>rate limits + task queue")]
+    A & B & C -.-> Ext["Google / Apple sign-in<br/>Have I Been Pwned"]
+
+    Beat["Beat × 1"] -->|sweep every 60 s| R
+    R -->|tasks| W["Worker × N"]
+    W --> PG
+    W --> Mail[Email provider]
+
+    M["Migrate<br/>(once per deploy)"] --> PG
+```
+
+All of it is one Docker image started with different commands:
+
+- **Backend:** the API. Run as many copies as you need behind the load balancer.
+- **Worker:** sends the emails. The backend never calls it directly: it saves the email
+  in Postgres and leaves a task in Redis, and a worker picks it up. If every worker is
+  down, the emails wait.
+- **Beat:** a timer that, every minute, asks a worker to resend any email that got stuck.
+  Run exactly one.
+- **Migrate:** updates the database tables, once per deploy, before the new backends start.
+
+Postgres holds all the data. Redis isn't a cache: it counts requests for rate limiting and
+carries tasks to the workers. In production, use managed versions of both, plus your
+hosting's load balancer. Any copy of the backend can answer any request, so running two
+or twenty takes no code changes.
+
+## Does a login API need to scale?
+
+Rarely, and this template doesn't pretend it does. It's meant as a starting point: you
+add your own features next to `auth/` and `mail/`, and they inherit the same stateless
+design. That's where running more copies pays off. If all you need is login, a hosted
+service (Keycloak, Auth0, Cognito...) may suit you better. When a second copy is worth it,
+and what to scale in which order, is in [Scaling](docs/architecture/overview.md#scaling).
 
 ## A frontend to try it with
 

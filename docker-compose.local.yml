@@ -1,0 +1,65 @@
+# Local additions to docker-compose.yml: a bundled postgres, redis and mailpit,
+# published on the loopback interface only. Never part of a deployment.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --env-file deploy/local.env up --build
+#
+# Compose merges each service below into its namesake in docker-compose.yml, so
+# the backend services here only add the wait for postgres and redis.
+
+x-wait-for-stores: &wait-for-stores
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    # Lowering max_connections locally is how to watch the pool ceiling bite on
+    # scale-out without running enough replicas to exhaust a real budget.
+    command: postgres -c max_connections=${PG_MAX_CONNECTIONS:-100}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?no default, this is a credential}
+      POSTGRES_DB: ${POSTGRES_DB:-backend_template}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-backend_template}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches every outgoing email instead of delivering it; read them at
+  # http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+  migrate:
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api: *wait-for-stores
+  worker: *wait-for-stores
+  beat: *wait-for-stores
+
+volumes:
+  pgdata:

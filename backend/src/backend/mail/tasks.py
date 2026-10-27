@@ -29,14 +29,17 @@ def _seed_correlation_id() -> None:
 
 
 async def _dispatch_email(entry_id: str) -> None:
+    now = datetime.now(UTC)
     async with WorkerSessionFactory() as db, db.begin():
         outbox_repo = SqlEmailOutboxRepository(db)
         await mail_service.dispatch_email(
             outbox_repo,
             _email_sender,
             uuid.UUID(entry_id),
-            now=datetime.now(UTC),
+            now=now,
             max_attempts=mail_settings.EMAIL_MAX_DISPATCH_ATTEMPTS,
+            sending_stale_before=now
+            - timedelta(seconds=mail_settings.EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS),
         )
 
 
@@ -52,7 +55,7 @@ def dispatch_email(entry_id: str) -> None:
     """Celery task: dispatch one outbox entry's email.
 
     The row's `kind` picks the template and sender, so one task covers every
-    email type. Celery retries a failure with exponential backoff, while the service counts 
+    email type. Celery retries a failure with exponential backoff, while the service counts
     `attempts` on the row and marks it `DEAD` at `EMAIL_MAX_DISPATCH_ATTEMPTS`.
     """
     _seed_correlation_id()
@@ -69,6 +72,8 @@ async def _sweep_pending_emails() -> list[str]:
             - timedelta(seconds=mail_settings.EMAIL_SWEEP_STALE_AFTER_SECONDS),
             attempted_before=now
             - timedelta(seconds=mail_settings.EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS),
+            claimed_before=now
+            - timedelta(seconds=mail_settings.EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS),
         )
         return [str(entry.id) for entry in stale]
 
@@ -78,8 +83,9 @@ def sweep_pending_emails() -> None:
     """Celery beat task: re-dispatch outbox entries stuck `PENDING`.
 
     Runs every `EMAIL_SWEEP_INTERVAL_SECONDS`. Picks up never-attempted rows after
-    `EMAIL_SWEEP_STALE_AFTER_SECONDS`, and rows between retries only after
-    `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS`, past the longest retry wait.
+    `EMAIL_SWEEP_STALE_AFTER_SECONDS`, rows between retries only after
+    `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS`, past the longest retry wait, and
+    rows abandoned mid-send after `EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS`.
 
     A safety net, not the delivery path: the endpoints that enqueue email already
     queue dispatch directly.

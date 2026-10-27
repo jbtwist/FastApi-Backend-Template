@@ -37,7 +37,7 @@ async def register_user(user_repo: UserRepository, *, email: str, password: str)
         audit.info("user.registration_skipped", reason="email_taken")
         return None
 
-    password_hash = hash_password(password)
+    password_hash = await hash_password(password)
     try:
         user = await user_repo.create(email=normalized_email, password_hash=password_hash)
     except IntegrityError:

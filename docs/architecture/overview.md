@@ -161,6 +161,35 @@ auth action and each repository row write emits an `audit_event` on a child of
 `correlation_id`. See [ADR 7](decisions/0007-structured-logs-to-stdout-with-an-audit-stream.md)
 and the [logging guide](../guides/logging.md).
 
+## Scaling
+
+The API keeps no state of its own: shared state lives in Postgres and Redis,
+access tokens are verified without a database lookup, and rate limits are
+counted in Redis. Any replica can serve any request, so going from one replica
+to twenty needs no code change.
+
+A login API rarely needs that for traffic alone. The realistic reasons to add
+a replica are:
+
+- **Zero-downtime deploys.** With two replicas you deploy one at a time, and a
+  crash doesn't take sign-in down. This usually comes first.
+- **Password hashing.** Each register or login hashes with argon2, which costs
+  tens of milliseconds of CPU and about 19 MiB of memory (the OWASP minimum
+  profile). One core handles a few dozen logins per second, so a launch day or a
+  password-guessing attack can fill a server.
+- **Refresh token rotation.** Each active session refreshes about four times an
+  hour, and every refresh writes to Postgres. 100,000 sessions online is over
+  100 writes per second.
+
+Scale in this order, and only when you hit each limit:
+
+1. One server running several uvicorn workers.
+2. Two or more replicas behind the load balancer, for availability.
+3. A connection pooler such as [PgBouncer](https://www.pgbouncer.org/). Each
+   replica opens its own pool (`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`), so Postgres
+   runs out of connections before the API runs out of CPU.
+4. More replicas, once password hashing is what fills the CPUs.
+
 ## Decisions
 
 See [architecture decisions](decisions/index.md) for the reasoning behind

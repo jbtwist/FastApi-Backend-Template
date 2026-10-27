@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Protocol
 
 from backend.mail.exceptions import EmailOutboxEntryNotFound
-from backend.mail.models import EmailKind, EmailOutboxEntry, EmailOutboxStatus
+from backend.mail.models import EmailKind, EmailOutboxEntry
 
 DEFAULT_MAX_DISPATCH_ATTEMPTS = 5
 
@@ -27,13 +27,24 @@ class EmailOutboxRepository(Protocol):
         kind: EmailKind = EmailKind.VERIFICATION,
     ) -> EmailOutboxEntry: ...
     async def get_by_id(self, entry_id: uuid.UUID) -> EmailOutboxEntry | None: ...
+    async def claim_for_send(
+        self,
+        entry_id: uuid.UUID,
+        *,
+        now: datetime,
+        sending_stale_before: datetime | None = None,
+    ) -> EmailOutboxEntry | None: ...
     async def mark_sent(self, entry_id: uuid.UUID, *, sent_at: datetime) -> bool: ...
     async def mark_attempt_failed(
         self, entry_id: uuid.UUID, *, attempted_at: datetime
     ) -> EmailOutboxEntry: ...
     async def mark_dead(self, entry_id: uuid.UUID, *, failed_at: datetime) -> bool: ...
     async def list_stale_pending(
-        self, *, unattempted_before: datetime, attempted_before: datetime
+        self,
+        *,
+        unattempted_before: datetime,
+        attempted_before: datetime,
+        claimed_before: datetime | None = None,
     ) -> list[EmailOutboxEntry]: ...
 
 
@@ -78,21 +89,25 @@ async def dispatch_email(
     *,
     now: datetime,
     max_attempts: int = DEFAULT_MAX_DISPATCH_ATTEMPTS,
+    sending_stale_before: datetime | None = None,
 ) -> None:
     """Send one outbox entry's email and update its status.
 
-    No-ops if the entry is already `SENT` or `DEAD`, so it is safe to call twice.
-    A send failure increments `attempts` and re-raises, so the Celery task's
-    backoff applies; at `max_attempts` the entry is marked `DEAD` for good.
+    Safe to call concurrently: the entry is claimed before the provider is
+    called, so of two workers racing one row only the winner sends, and the
+    loser no-ops. A send failure increments `attempts` and re-raises, so the
+    Celery task's backoff applies; at `max_attempts` the entry is marked `DEAD`
+    for good.
 
     Raises:
         EmailOutboxEntryNotFound: no entry with this id exists.
     """
-    entry = await outbox_repo.get_by_id(entry_id)
+    entry = await outbox_repo.claim_for_send(
+        entry_id, now=now, sending_stale_before=sending_stale_before
+    )
     if entry is None:
-        raise EmailOutboxEntryNotFound
-
-    if entry.status != EmailOutboxStatus.PENDING:
+        if await outbox_repo.get_by_id(entry_id) is None:
+            raise EmailOutboxEntryNotFound
         return
 
     try:
@@ -111,14 +126,19 @@ async def list_stale_pending_emails(
     *,
     unattempted_before: datetime,
     attempted_before: datetime,
+    claimed_before: datetime | None = None,
 ) -> list[EmailOutboxEntry]:
     """List `PENDING` entries the sweep should re-dispatch.
 
     A never-attempted entry is stale once created before `unattempted_before`,
     which catches a dispatch that was never queued. An attempted entry is stale
     once its last attempt is before `attempted_before`, a cutoff kept past the
-    longest retry wait so the sweep never cuts a scheduled retry short.
+    longest retry wait so the sweep never cuts a scheduled retry short. A
+    `claimed_before` also returns entries left `SENDING` by a worker that died
+    mid-send, which scaling the worker tier in makes routine.
     """
     return await outbox_repo.list_stale_pending(
-        unattempted_before=unattempted_before, attempted_before=attempted_before
+        unattempted_before=unattempted_before,
+        attempted_before=attempted_before,
+        claimed_before=claimed_before,
     )
