@@ -49,6 +49,7 @@ Single source of truth for naming. Before naming any variable, function, class, 
 | How long a never-attempted outbox entry sits before the sweep re-dispatches it | `EMAIL_SWEEP_STALE_AFTER_SECONDS` (cutoff arg `unattempted_before`) | `SWEEP_STALE_AFTER_SECONDS` |
 | How long an outbox entry between retries sits idle before the sweep re-dispatches it; longer than the longest retry wait | `EMAIL_SWEEP_RETRYING_STALE_AFTER_SECONDS` (cutoff arg `attempted_before`) | `EMAIL_RETRY_STALE_SECONDS` |
 | How long an outbox entry claimed as `sending` sits before the sweep assumes its worker died and re-dispatches it | `EMAIL_SWEEP_SENDING_STALE_AFTER_SECONDS` (cutoff arg `claimed_before`) | `EMAIL_SENDING_TIMEOUT`, `EMAIL_CLAIM_TTL` |
+| Dispatch messages waiting in the Celery broker's default queue, not yet taken by a worker; the sweep skips while it is above zero | `broker_queue_depth` | `queue_length`, `backlog`, `pending_tasks` |
 | The moment an outbox entry was successfully sent | `sent_at` | `delivered_at` |
 | The moment an outbox entry was permanently given up on | `dead_at` | `failed_at`, `abandoned_at` |
 | The moment of the most recent dispatch attempt on an outbox entry | `last_attempted_at` | `last_tried_at`, `retried_at` |
