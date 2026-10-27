@@ -23,11 +23,23 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from backend import database
 from backend.config import settings
 from backend.log import correlation_id, ip_address, user_agent
 from tests.mail.fakes import FakeEmailOutboxRepository
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+async def get_db_without_database() -> AsyncIterator[AsyncSession]:
+    """`get_db` for router tests on fake repositories: no connection, callbacks still run."""
+    async with database.request_transaction(async_sessionmaker()) as session:
+        yield session
+
+
+async def settle_after_commit() -> None:
+    """Wait for every `call_after_commit` callback started so far."""
+    await asyncio.gather(*list(database._running_after_commit))
 
 
 @pytest.fixture(autouse=True)

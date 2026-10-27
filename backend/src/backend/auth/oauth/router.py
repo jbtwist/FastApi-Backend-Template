@@ -9,11 +9,13 @@ answers with a redirect: session cookies on success, an `oauth_error` or
 
 import secrets
 from datetime import UTC, datetime
+from functools import partial
 from typing import Annotated
 from urllib.parse import parse_qsl, urlencode
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.config import AuthConfig
 from backend.auth.cookies import set_token_cookies
@@ -49,6 +51,7 @@ from backend.auth.oauth.state import SignInStateStore
 from backend.auth.repository import RefreshTokenRepository, UserRepository
 from backend.auth.schemas import LoginOut
 from backend.config import settings
+from backend.database import DbDep, call_after_commit
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.service import EmailOutboxRepository
 from backend.mail.tasks import queue_dispatch_email
@@ -143,6 +146,7 @@ async def native(
     refresh_token_repo: RefreshTokenRepoDep,
     link_token_repo: OAuthLinkTokenRepoDep,
     outbox_repo: EmailOutboxRepoDep,
+    db: DbDep,
     auth_config: AuthConfigDep,
     oauth_config: OAuthConfigDep,
 ) -> LoginOut | JSONResponse:
@@ -166,7 +170,7 @@ async def native(
         now=datetime.now(UTC),
     )
     if isinstance(result, service.LinkPending):
-        await queue_dispatch_email(str(result.outbox_entry.id))
+        call_after_commit(db, partial(queue_dispatch_email, str(result.outbox_entry.id)))
         return JSONResponse(
             OAuthLinkPendingOut().model_dump(), status_code=status.HTTP_202_ACCEPTED
         )
@@ -213,6 +217,7 @@ async def callback(
     refresh_token_repo: RefreshTokenRepoDep,
     link_token_repo: OAuthLinkTokenRepoDep,
     outbox_repo: EmailOutboxRepoDep,
+    db: DbDep,
     auth_config: AuthConfigDep,
     oauth_config: OAuthConfigDep,
     code: str | None = None,
@@ -235,6 +240,7 @@ async def callback(
         refresh_token_repo,
         link_token_repo,
         outbox_repo,
+        db=db,
         auth_config=auth_config,
         oauth_config=oauth_config,
         code=code,
@@ -255,6 +261,7 @@ async def callback_form_post(
     refresh_token_repo: RefreshTokenRepoDep,
     link_token_repo: OAuthLinkTokenRepoDep,
     outbox_repo: EmailOutboxRepoDep,
+    db: DbDep,
     auth_config: AuthConfigDep,
     oauth_config: OAuthConfigDep,
     oauth_state: Annotated[str | None, Cookie()] = None,
@@ -276,6 +283,7 @@ async def callback_form_post(
         refresh_token_repo,
         link_token_repo,
         outbox_repo,
+        db=db,
         auth_config=auth_config,
         oauth_config=oauth_config,
         code=form.get("code"),
@@ -295,6 +303,7 @@ async def _complete_callback(
     link_token_repo: OAuthLinkTokenRepository,
     outbox_repo: EmailOutboxRepository,
     *,
+    db: AsyncSession,
     auth_config: AuthConfig,
     oauth_config: OAuthConfig,
     code: str | None,
@@ -347,7 +356,7 @@ async def _complete_callback(
         )
     else:
         if isinstance(result, service.LinkPending):
-            await queue_dispatch_email(str(result.outbox_entry.id))
+            call_after_commit(db, partial(queue_dispatch_email, str(result.outbox_entry.id)))
             response = RedirectResponse(
                 _sign_in_url(oauth_notice="link_email_sent"), status.HTTP_302_FOUND
             )
