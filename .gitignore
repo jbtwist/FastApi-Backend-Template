@@ -8,3 +8,7 @@ __pycache__/
 *(orig)*
 site/
 *celerybeat*
+
+# Local only: the AWS load-test environment and its scripts
+deploy/aws/
+loadtest/
