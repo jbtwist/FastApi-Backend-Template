@@ -4,13 +4,21 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
 from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from backend.config import Settings
-from backend.database import build_engine, call_after_commit, request_transaction, worker_engine
+from backend.database import (
+    DbDep,
+    build_engine,
+    call_after_commit,
+    get_db,
+    request_transaction,
+    worker_engine,
+)
 
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/backend_template"
 
@@ -178,3 +186,43 @@ class TestCallAfterCommit:
 
         assert len(caplog.records) == 1
         assert caplog.records[0].exc_info[0] is ValueError
+
+
+class TestRequestTransactionScope:
+    async def test_commits_before_the_response_is_sent(self):
+        """A 2xx must mean the writes are durable, so the commit cannot trail the response."""
+        events: list[str] = []
+
+        async def recording_get_db() -> AsyncIterator[AsyncSession]:
+            yield AsyncSession()
+            events.append("commit")
+
+        app = FastAPI()
+
+        @app.post("/write", status_code=204)
+        async def write(db: DbDep) -> None:
+            events.append("handler")
+
+        app.dependency_overrides[get_db] = recording_get_db
+
+        async def receive() -> dict:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message: dict) -> None:
+            events.append(message["type"])
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/write",
+            "headers": [],
+            "query_string": b"",
+            "http_version": "1.1",
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("test", 1),
+            "root_path": "",
+        }
+        await app(scope, receive, send)
+
+        assert events == ["handler", "commit", "http.response.start", "http.response.body"]

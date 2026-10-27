@@ -7,6 +7,7 @@ overridden by in-memory fakes.
 """
 
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import fakeredis.aioredis
@@ -78,11 +79,17 @@ def register_response_floor() -> timedelta:
 
 
 @pytest.fixture
-def app_config(register_response_floor) -> AuthConfig:
+def forgot_password_response_floor() -> timedelta:
+    """Padding applied to `POST /auth/forgot-password`; zeroed by default, like the register one."""
+    return timedelta(0)
+
+
+@pytest.fixture
+def app_config(register_response_floor, forgot_password_response_floor) -> AuthConfig:
     return AuthConfig(
         JWT_SECRET=TEST_JWT_SECRET,
         PASSWORD_RESET_TOKEN_EXP=timedelta(hours=1),
-        FORGOT_PASSWORD_RESPONSE_FLOOR=timedelta(0),
+        FORGOT_PASSWORD_RESPONSE_FLOOR=forgot_password_response_floor,
         REGISTER_RESPONSE_FLOOR=register_response_floor,
     )
 
@@ -489,6 +496,64 @@ class TestRegisterResponseFloor:
 
         assert res.status_code == 204
         assert elapsed >= 0.2
+
+
+@pytest.fixture
+def dispatched_after(monkeypatch) -> Callable[[], list[float]]:
+    """Start a clock; returns the seconds after it at which each `dispatch_email.delay` ran."""
+    times: list[float] = []
+    start = time.perf_counter()
+    monkeypatch.setattr(
+        mail_tasks.dispatch_email, "delay", lambda _id: times.append(time.perf_counter() - start)
+    )
+    return lambda: times
+
+
+class TestResponseFloorWaitsAfterCommit:
+    """The floor pads after the transaction commits, so the wait holds no DB connection.
+
+    The dispatch is a `call_after_commit` callback, so the moment it runs marks the commit.
+    """
+
+    @pytest.fixture
+    def register_response_floor(self) -> timedelta:
+        return timedelta(milliseconds=500)
+
+    @pytest.fixture
+    def forgot_password_response_floor(self) -> timedelta:
+        return timedelta(milliseconds=500)
+
+    async def test_register_commits_before_the_floor_wait(self, client, dispatched_after):
+        start = time.perf_counter()
+        res = await client.post(
+            "/auth/register", json={"email": "new@example.com", "password": GOOD_PASSWORD}
+        )
+        elapsed = time.perf_counter() - start
+
+        assert res.status_code == 204
+        assert elapsed >= 0.5
+        assert len(dispatched_after()) == 1
+        assert dispatched_after()[0] < 0.25
+
+    async def test_forgot_password_commits_before_the_floor_wait(
+        self, client, verified_user, dispatched_after
+    ):
+        start = time.perf_counter()
+        res = await client.post("/auth/forgot-password", json={"email": "ada@example.com"})
+        elapsed = time.perf_counter() - start
+
+        assert res.status_code == 204
+        assert elapsed >= 0.5
+        assert len(dispatched_after()) == 1
+        assert dispatched_after()[0] < 0.25
+
+    async def test_forgot_password_unknown_email_is_still_padded(self, client):
+        start = time.perf_counter()
+        res = await client.post("/auth/forgot-password", json={"email": "nobody@example.com"})
+        elapsed = time.perf_counter() - start
+
+        assert res.status_code == 204
+        assert elapsed >= 0.5
 
 
 class TestPasswordPolicyAtReset:

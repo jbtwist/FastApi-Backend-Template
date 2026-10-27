@@ -16,7 +16,7 @@ from backend.auth.repository import (
     SqlRefreshTokenRepository,
     SqlUserRepository,
 )
-from backend.auth.security import decode_access_token
+from backend.auth.security import decode_access_token, minimum_duration
 from backend.database import DbDep
 
 
@@ -57,6 +57,18 @@ async def get_pwned_password_checker() -> AsyncIterator[PwnedPasswordChecker]:
         headers={"User-Agent": "backend-template", "Add-Padding": "true"},
     ) as client:
         yield HIBPPwnedPasswordChecker(client=client)
+
+
+async def register_response_floor(config: AuthConfigDep) -> AsyncIterator[None]:
+    """Hold `POST /auth/register`'s response to `REGISTER_RESPONSE_FLOOR`."""
+    async with minimum_duration(config.REGISTER_RESPONSE_FLOOR):
+        yield
+
+
+async def forgot_password_response_floor(config: AuthConfigDep) -> AsyncIterator[None]:
+    """Hold `POST /auth/forgot-password`'s response to `FORGOT_PASSWORD_RESPONSE_FLOOR`."""
+    async with minimum_duration(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
+        yield
 
 
 UserRepoDep = Annotated[SqlUserRepository, Depends(get_user_repo)]

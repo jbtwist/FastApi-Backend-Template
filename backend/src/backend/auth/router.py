@@ -21,6 +21,8 @@ from backend.auth.dependencies import (
     PwnedPasswordCheckerDep,
     RefreshTokenRepoDep,
     UserRepoDep,
+    forgot_password_response_floor,
+    register_response_floor,
 )
 from backend.auth.exceptions import (
     ConcurrentRefresh,
@@ -49,7 +51,6 @@ from backend.auth.schemas import (
     TokenPairOut,
     UserOut,
 )
-from backend.auth.security import minimum_duration
 from backend.database import DbDep, call_after_commit
 from backend.mail.dependencies import EmailOutboxRepoDep
 from backend.mail.tasks import queue_dispatch_email
@@ -87,7 +88,10 @@ async def _enforce_password_policy(
 @router.post(
     "/register",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(rate_limit("5/minute"))],
+    dependencies=[
+        Depends(rate_limit("5/minute")),
+        Depends(register_response_floor, scope="function"),
+    ],
 )
 async def register(
     payload: RegisterIn,
@@ -106,17 +110,14 @@ async def register(
     """
     await _enforce_password_policy(payload.password, config=config, pwned_checker=pwned_checker)
 
-    async with minimum_duration(config.REGISTER_RESPONSE_FLOOR):
-        user = await service.register_user(
-            user_repo, email=payload.email, password=payload.password
-        )
-        if user is None:
-            return
+    user = await service.register_user(user_repo, email=payload.email, password=payload.password)
+    if user is None:
+        return
 
-        entry = await service.queue_verification_email(
-            token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
-        )
-        call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
+    entry = await service.queue_verification_email(
+        token_repo, outbox_repo, user, config=config, now=datetime.now(UTC)
+    )
+    call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
 
 
 @router.post(
@@ -269,7 +270,10 @@ async def resend_verification(
 @router.post(
     "/forgot-password",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(rate_limit("3/minute"))],
+    dependencies=[
+        Depends(rate_limit("3/minute")),
+        Depends(forgot_password_response_floor, scope="function"),
+    ],
 )
 async def forgot_password(
     payload: ForgotPasswordIn,
@@ -284,17 +288,16 @@ async def forgot_password(
     Enumeration-safe: the same empty `204` whether or not the address belongs to a
     registered, verified account, within `FORGOT_PASSWORD_RESPONSE_FLOOR` timing.
     """
-    async with minimum_duration(config.FORGOT_PASSWORD_RESPONSE_FLOOR):
-        entry = await service.request_password_reset(
-            reset_token_repo,
-            user_repo,
-            outbox_repo,
-            email=payload.email,
-            config=config,
-            now=datetime.now(UTC),
-        )
-        if entry is not None:
-            call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
+    entry = await service.request_password_reset(
+        reset_token_repo,
+        user_repo,
+        outbox_repo,
+        email=payload.email,
+        config=config,
+        now=datetime.now(UTC),
+    )
+    if entry is not None:
+        call_after_commit(db, partial(queue_dispatch_email, str(entry.id)))
 
 
 @router.post(
