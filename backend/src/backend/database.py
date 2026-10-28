@@ -16,6 +16,10 @@ Work that other processes must see the request's writes for, such as handing
 an outbox row to a Celery worker, goes through `call_after_commit`, never
 straight from the handler: the request transaction commits only after the
 handler returns.
+
+`DbDep` is function-scoped, so that commit happens before the response is sent:
+a 2xx means the writes are durable, and the connection is back in the pool
+before any response floor starts waiting.
 """
 
 import asyncio
@@ -107,7 +111,7 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-DbDep = Annotated[AsyncSession, Depends(get_db)]
+DbDep = Annotated[AsyncSession, Depends(get_db, scope="function")]
 
 worker_engine = create_async_engine(str(settings.DATABASE_URL), poolclass=NullPool)
 WorkerSessionFactory = async_sessionmaker(worker_engine, expire_on_commit=False)
