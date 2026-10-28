@@ -84,6 +84,8 @@ re-hashes the password, revokes every refresh-token session for that user,
 and burns any other outstanding reset token. An invalid or expired token is a
 `400`.
 
+Database sessions (`DbDep`) are function-scoped, ensuring that database transactions commit before responses are sent. Response floors for registration (`REGISTER_RESPONSE_FLOOR`) and forgot-password (`FORGOT_PASSWORD_RESPONSE_FLOOR`) execute as function-scoped dependencies *after* the transaction commits and the database connection is returned to the connection pool. This prevents connection pool exhaustion under high concurrency and guarantees that a successful `2xx` response indicates durable writes.
+
 ```mermaid
 sequenceDiagram
     participant Client
