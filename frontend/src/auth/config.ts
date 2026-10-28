@@ -3,7 +3,7 @@
  *
  * This is the single knob panel for reusing these screens in another app:
  * point `apiBaseUrl` at a real backend, and flip `oauthEnabled` on once the
- * backend supports third-party sign-in (see `components/auth/provider-buttons`).
+ * backend has providers in `OAUTH_ENABLED_PROVIDERS` (see `components/auth/provider-buttons`).
  *
  * Every `EXPO_PUBLIC_*` value here is substituted textually by Expo when the
  * bundle is built, not read at startup. A shipped build therefore keeps the
