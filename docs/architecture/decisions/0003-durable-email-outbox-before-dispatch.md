@@ -24,7 +24,8 @@ transaction as the action that triggered it. A Celery task
 and updates the row's status. A periodic sweep
 (`backend.mail.tasks.sweep_pending_emails`) re-dispatches any entry still
 `PENDING` past `SWEEP_STALE_AFTER_SECONDS`, catching cases where the initial
-dispatch was never queued or got lost.
+dispatch was never queued or got lost (skipping execution while dispatches are
+still queued in the broker queue).
 
 This gives a durable, queryable record of every email the app has ever
 attempted to send, and a recovery path that doesn't depend on the triggering
