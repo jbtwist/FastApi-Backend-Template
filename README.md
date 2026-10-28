@@ -28,6 +28,13 @@ it sends lands in Mailpit at <http://localhost:8025>. To work on the code itself
 also want [uv](https://docs.astral.sh/uv/) for the backend and Node.js for the frontend;
 [Getting started](docs/getting-started/index.md) walks through both.
 
+## Start your own project from it
+
+On GitHub, click **Use this template** to create your own repository from this one. Your
+copy starts with a single commit of the current code, without this repository's history,
+so the project is yours from the first commit. Clone it and follow
+[Getting started](docs/getting-started/index.md).
+
 ## How it runs
 
 ```mermaid
