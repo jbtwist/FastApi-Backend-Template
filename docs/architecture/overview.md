@@ -170,7 +170,8 @@ and the [logging guide](../guides/logging.md).
 The API keeps no state of its own: shared state lives in Postgres and Redis,
 access tokens are verified without a database lookup, and rate limits are
 counted in Redis. Any replica can serve any request, so going from one replica
-to twenty needs no code change.
+to twenty needs no code change. [Load tests](load-tests.md) on AWS confirm it: capacity grew
+linearly from one to eight replicas in every scenario tested.
 
 A login API rarely needs that for traffic alone. The realistic reasons to add
 a replica are:

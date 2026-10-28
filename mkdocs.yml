@@ -68,6 +68,7 @@ nav:
       - Logging: reference/log.md
   - Architecture:
       - Overview: architecture/overview.md
+      - Load tests: architecture/load-tests.md
       - Decisions:
           - architecture/decisions/index.md
           - 1. Refresh token rotation: architecture/decisions/0001-refresh-token-rotation-with-family-reuse-detection.md
