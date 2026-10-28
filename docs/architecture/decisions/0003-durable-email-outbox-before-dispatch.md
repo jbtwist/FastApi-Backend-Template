@@ -46,3 +46,16 @@ request having succeeded in reaching Celery.
 - `sweep_pending_emails` runs on a fixed interval (`SWEEP_INTERVAL_SECONDS`)
   regardless of load, which is simple but not event-driven — recovery from a
   lost dispatch is bounded by the sweep interval, not immediate.
+
+## Amendments
+
+**2026-10-27.** The sweep now does nothing while the Celery broker queue still
+holds dispatches. Before, a backlog made each run re-queue every stale entry
+that was still waiting in that queue, so the broker filled with duplicates.
+Recovery from a lost dispatch is now bounded by the time the worker needs to
+drain the queue, not by the sweep interval. The decision itself stands.
+
+Names in this record have since changed. The dispatch task is
+`backend.mail.tasks.dispatch_email`, one task for every email kind. The sweep
+settings are `EMAIL_SWEEP_INTERVAL_SECONDS` and
+`EMAIL_SWEEP_STALE_AFTER_SECONDS`.
