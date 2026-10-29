@@ -5,6 +5,25 @@ sign-up and login from scratch again. It's written in
 [FastAPI](https://fastapi.tiangolo.com/) (Python), and comes with a demo app to click
 through it.
 
+Start your project from it, add your own features next to the accounts, and deploy it as
+one Docker image that runs as many copies as your traffic needs.
+
+## Why start from it
+
+- **The easy-to-miss security details are done.** Sign-up and "forgot password" give the
+  same answer, in the same time, whether or not the email has an account, so nobody can
+  use them to find out who is registered. Passwords are hashed with argon2 and checked
+  against known leaks. Login tokens are stored only as hashes, and a stolen one gets its
+  whole session revoked the moment it's reused.
+- **It scales out, and that was measured.** Any copy of the backend can answer any
+  request. Load tests on AWS showed capacity growing in step with the number of copies,
+  from one to eight. See [Does it scale?](#does-it-scale).
+- **It's tested and documented.** Every feature came with its tests written first, and
+  end-to-end tests drive the demo app in a real browser. The documentation explains how
+  each piece works and why it was built that way.
+- **It stays out of your way.** The user model is nearly empty and nothing assumes a
+  particular kind of app. You add what your product needs.
+
 ## What you get
 
 - **Accounts:** sign up, confirm your email, log in, log out, forgot and reset password.
@@ -13,6 +32,19 @@ through it.
 - **Rate limiting** that slows down password guessing and other abuse.
 - **Email that doesn't get lost:** if the mail service is down, messages wait and go out later.
 - **Audit logs** of who did what and when.
+
+## What it leaves to you: authorization
+
+This template knows *who* is making a request (authentication), not *what they're allowed
+to do* (authorization). There are no roles, permissions or admin accounts, on purpose.
+Those rules come from your product: who owns what, whether users belong to teams or
+companies, what each plan unlocks, what can be shared and with whom. A generic roles
+table would fit almost nobody and get in the way of the rest.
+
+So build the model your app needs. Every protected endpoint already receives the
+signed-in user (`CurrentUserDep` in `backend/src/backend/auth/dependencies.py`), and
+that's where your checks start: compare the user with the thing they're asking for, or
+write a dependency of your own that does.
 
 ## Try it
 
@@ -70,9 +102,25 @@ carries tasks to the workers. In production, use managed versions of both, plus 
 hosting's load balancer. Any copy of the backend can answer any request, so running two
 or twenty takes no code changes.
 
-## Does a login API need to scale?
+## Does it scale?
 
-Rarely, and this template doesn't pretend it does. It's meant as a starting point: you
+Yes, by adding copies. It was load-tested on AWS, on a free-plan account, with each copy
+of the backend on a small server (half a CPU and 1 GB of memory). In every scenario,
+twice the copies handled twice the traffic, from one copy up to eight:
+
+| What the users do | Per copy | Eight copies |
+|---|---|---|
+| Log in | 8 per second | 64 per second |
+| Use the app while logged in | 80 requests per second | 640 per second |
+| Sign up | 6 per second | 48 per second |
+
+Logging in and signing up are slow on purpose: hashing a password is designed to cost
+CPU, so guessing passwords costs an attacker too. The tests also showed what to grow
+next to the backend: the email workers, and the database's connection limit.
+[Load tests](docs/architecture/load-tests.md) has the full results and how to run the
+same tests yourself.
+
+Does a login API need to scale, though? Rarely. This template is a starting point: you
 add your own features next to `auth/` and `mail/`, and they inherit the same stateless
 design. That's where running more copies pays off. If all you need is login, a hosted
 service (Keycloak, Auth0, Cognito...) may suit you better. When a second copy is worth it,
@@ -142,3 +190,4 @@ Good places to start:
 - [Getting started](docs/getting-started/index.md): run the backend and make your first account.
 - [Try it in the web client](docs/getting-started/web-client.md): the same, through the frontend.
 - [Architecture overview](docs/architecture/overview.md): how the pieces fit together.
+- [Load tests](docs/architecture/load-tests.md): how far it scales, and how that was measured.
