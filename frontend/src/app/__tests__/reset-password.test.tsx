@@ -51,7 +51,6 @@ const stub = (label: string) => {
 
 function routes() {
   return {
-    'index': stub('root'),
     'reset-password': require('../reset-password').default,
     '(auth)/sign-in': stub('sign-in screen'),
     '(auth)/forgot-password': stub('forgot-password screen'),

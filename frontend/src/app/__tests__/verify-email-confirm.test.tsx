@@ -60,7 +60,6 @@ const stub = (label: string) => {
 
 function routes() {
   return {
-    'index': stub('root'),
     'verify-email-confirm': require('../verify-email-confirm').default,
     '(auth)/sign-in': stub('sign-in screen'),
     '(auth)/verify-email': stub('verify-email screen'),

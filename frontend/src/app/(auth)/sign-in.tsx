@@ -133,7 +133,7 @@ export default function SignInScreen() {
       try {
         const outcome = await startOAuthSignIn(provider, { onSignedIn: completeOAuthSignIn });
         if (outcome.kind === 'signed-in') {
-          router.replace('/(app)');
+          router.replace('/');
           return;
         }
         if (outcome.kind === 'link-email-sent') {
@@ -159,7 +159,7 @@ export default function SignInScreen() {
     onSubmit: async ({ email, password }) => {
       try {
         await signIn(email, password);
-        router.replace('/(app)');
+        router.replace('/');
       } catch (error) {
         if (error instanceof AuthApiError) {
           const ui = error.uiError;

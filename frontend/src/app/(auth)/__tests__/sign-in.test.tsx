@@ -77,7 +77,6 @@ const stub = (label: string) => {
 
 function routes() {
   return {
-    'index': stub('root'),
     '(auth)/sign-in': require('../sign-in').default,
     '(auth)/register': stub('register screen'),
     '(auth)/forgot-password': stub('forgot-password screen'),

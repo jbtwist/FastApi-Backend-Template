@@ -65,7 +65,7 @@ export default function LinkProviderConfirmScreen() {
   }, [status, token]);
 
   const goOn = useCallback(() => {
-    router.replace(status === 'signedIn' ? '/(app)' : '/sign-in');
+    router.replace(status === 'signedIn' ? '/' : '/sign-in');
   }, [router, status]);
 
   const backToSignIn = useCallback(() => {

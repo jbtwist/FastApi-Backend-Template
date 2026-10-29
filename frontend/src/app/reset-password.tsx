@@ -145,7 +145,7 @@ export default function ResetPasswordScreen() {
           <View style={styles.actions}>
             <PrimaryButton
               label={t('resetPassword.conflictContinueAs', { email: signedInEmail })}
-              onPress={() => router.replace('/(app)')}
+              onPress={() => router.replace('/')}
             />
             <PrimaryButton
               label={t('resetPassword.conflictSignOut')}

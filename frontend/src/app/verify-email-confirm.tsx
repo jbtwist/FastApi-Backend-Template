@@ -70,7 +70,7 @@ export default function VerifyEmailConfirmScreen() {
   }, [status, token, user, runConfirm]);
 
   const goHome = useCallback(() => {
-    router.replace(status === 'signedIn' ? '/(app)' : '/sign-in');
+    router.replace(status === 'signedIn' ? '/' : '/sign-in');
   }, [router, status]);
 
   const requestNewEmail = useCallback(() => {
@@ -113,7 +113,7 @@ export default function VerifyEmailConfirmScreen() {
           <View style={styles.actions}>
             <PrimaryButton
               label={t('verifyEmailConfirm.conflictContinueAs', { email: signedInEmail })}
-              onPress={() => router.replace('/(app)')}
+              onPress={() => router.replace('/')}
             />
             <PrimaryButton
               label={t('verifyEmailConfirm.conflictSignOut')}
