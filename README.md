@@ -27,7 +27,8 @@ one Docker image that runs as many copies as your traffic needs.
 ## What you get
 
 - **Accounts:** sign up, confirm your email, log in, log out, forgot and reset password.
-- **Sign in with Google and Apple**, linked safely to existing accounts.
+- **Sign in with Google and Apple**, off until you add your keys. An existing account is
+  linked only after its owner confirms by email.
 - **Sessions that renew themselves**, with detection of stolen login tokens.
 - **Rate limiting** that slows down password guessing and other abuse.
 - **Email that doesn't get lost:** if the mail service is down, messages wait and go out later.

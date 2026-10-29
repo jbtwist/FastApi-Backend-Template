@@ -101,10 +101,22 @@ The user model is deliberately almost empty — `id`, `email`, `password_hash`,
 There is no profile, no display name, no roles. Add what your product needs and
 generate a migration; nothing in the auth flow assumes more than what is there.
 
-Third-party sign-in is scaffolded but **not implemented**: the screens render
-Google and Apple buttons driven by `authConfig.providers`, and they stay inert
-until `oauthEnabled` is turned on. There are no provider endpoints in the
-backend yet, so wiring one up is your work.
+Sign-in with Google and Apple is built but **off by default**. The backend has
+an adapter for each in `backend/src/backend/auth/oauth/providers/`. They cover
+the browser redirect, the native SDK flow, and linking a provider to an existing
+account once its owner confirms by email. To switch it on:
+
+1. List the providers in `OAUTH_ENABLED_PROVIDERS` and set their keys, the
+   `GOOGLE_*` and `APPLE_*` variables in `backend/.env.example`.
+2. Set `oauthEnabled` to `true` in `frontend/src/auth/config.ts`. Until then the
+   buttons render but do nothing. For Google on a phone, also set the
+   `EXPO_PUBLIC_GOOGLE_CLIENT_ID_*` variables.
+
+The frontend offers only Google by default. Its native Apple flow isn't built,
+because it needs a paid Apple Developer Program membership. Add `'apple'` to
+`authConfig.providers` to offer Apple through the browser redirect, in the web
+build. On the backend, another provider is one new module under `providers/`,
+named in `OAUTH_ENABLED_PROVIDERS`.
 
 ## Where next
 
