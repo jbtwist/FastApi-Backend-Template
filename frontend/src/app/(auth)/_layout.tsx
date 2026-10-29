@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/auth-context';
 export default function AuthLayout() {
   const { status } = useAuth();
   if (status === 'signedIn') {
-    return <Redirect href="/(app)" />;
+    return <Redirect href="/" />;
   }
   return <Stack screenOptions={{ headerShown: false }} />;
 }

@@ -43,7 +43,6 @@ const stub = (label: string) => {
 
 function routes() {
   return {
-    'index': stub('root'),
     'link-provider-confirm': require('../link-provider-confirm').default,
     '(auth)/sign-in': stub('sign-in screen'),
     '(app)/index': stub('app home'),

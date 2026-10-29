@@ -86,7 +86,7 @@ export default function RegisterScreen() {
       try {
         const outcome = await startOAuthSignIn(provider, { onSignedIn: completeOAuthSignIn });
         if (outcome.kind === 'signed-in') {
-          router.replace('/(app)');
+          router.replace('/');
           return;
         }
         if (outcome.kind === 'link-email-sent') {
